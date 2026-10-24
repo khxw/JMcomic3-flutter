@@ -92,7 +92,6 @@ flutter build apk --release --no-pub --target-platform android-arm64 --split-per
 
 - 登录信息、下载目录、阅读历史和 WebDAV 配置保存在应用本地或用户选择的目录中。
 - 仓库不提交 keystore、`key.properties`、`android/local.properties`、APK 或构建缓存。
-- 发布前会扫描 API Key、Token、私钥、密码和个人绝对路径。
 - 应用访问第三方服务，服务可用性和数据处理规则由对应服务提供方决定。
 - 请只从本仓库 Release 页面下载 APK，避免使用来源不明的转载文件。
 
@@ -101,7 +100,6 @@ flutter build apk --release --no-pub --target-platform android-arm64 --split-per
 - 当前 Rust JNI 后端未提供漫画任务级暂停/恢复接口，因此暂不支持暂停下载。
 - 自定义下载目录目前是应用内部下载之外的副本；删除任务不一定会清理旧目录中的副本。
 - Rust 后端源码未包含在当前仓库中，当前发布包使用仓库内跟踪的预构建 JNI 库。
-- 修改版使用调试证书签名，不适合作为正式商店发行包。
 
 ## 引用与声明
 
