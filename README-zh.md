@@ -2,7 +2,7 @@
 
 [![版本](https://img.shields.io/github/v/release/MrYu-JMComic/JMcomic3-flutter)](https://github.com/MrYu-JMComic/JMcomic3-flutter/releases/latest)
 
-简体中文 · [English](README.md)
+简体中文 · [English](README-en.md)
 
 JMComic3 使用 Flutter 构建界面、Rust 提供服务能力。本仓库维护 Flutter 应用、
 Android / Windows 平台入口、测试和本地发布工具。当前稳定版为 **v1.7.26+55**。
