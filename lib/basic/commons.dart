@@ -80,22 +80,11 @@ Future<T?> _showChoiceDialog<T>(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
+            Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    scheme.primaryContainer,
-                    scheme.tertiaryContainer.withValues(alpha: .55),
-                  ],
-                ),
-              ),
               child: Text(
                 title,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: scheme.onPrimaryContainer,
                   fontWeight: FontWeight.w800,
                 ),
               ),
