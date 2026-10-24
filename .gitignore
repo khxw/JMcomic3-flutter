@@ -115,6 +115,7 @@ tests_data/
 /null
 /android/null
 /android/build/
+/android/.kotlin/
 
 # Keep Rust backend source isolated in dedicated private repository.
 /rust/

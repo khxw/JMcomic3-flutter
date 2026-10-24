@@ -1,12 +1,11 @@
-v1.7.45+74
+v1.7.46+75
 
 ## 更新内容
 
-- 发布基于 JMComic3 Flutter 的非官方修改版。
-- 重构首页、搜索、个人中心、书架、下载、导出和设置页布局。
-- 重做下载漫画卡片与下载跳转流程，移除重复提示。
-- 完善存储权限、自定义下载目录、缓存和网络设置。
-- 优化阅读器缓存、分页、返回导航和界面切换性能。
+- 软件名称改为 JMComic3 Mod。
+- Android applicationId 改为 io.github.khxw.jmcomic3mod。
+- 统一 Android、Windows、User-Agent 和默认目录标识。
+- 发布全新包名的 Android ARM64 APK。
 
 ## 构建
 

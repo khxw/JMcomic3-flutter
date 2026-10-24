@@ -10,8 +10,7 @@
 > 本仓库是 JMComic3 Flutter 的**非官方修改分支**，与上游项目维护者无隶属关系。
 > 当前修改版聚焦界面重做、下载与导出流程、存储权限、阅读性能和响应式布局。
 
-下一次构建起使用 Android 包标识 `io.github.khxw.jmcomic3mod`，可与上游版本同时安装。
-当前 `v1.7.45+74` APK 仍使用旧包标识。
+Android 包标识为 `io.github.khxw.jmcomic3mod`。
 
 <p align="center">
   <img src="mockup/home-redesign.png" width="330" alt="JMComic3 Mod 首页">
@@ -19,7 +18,7 @@
 
 ## 当前版本
 
-**v1.7.45+74** · Android ARM64 · API 24+
+**v1.7.46+75** · Android ARM64 · API 24+
 
 - 最新发布：[GitHub Releases](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - 完整更新记录：[CHANGELOG.md](CHANGELOG.md)
@@ -29,7 +28,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| `JMComic3-Flutter-v1.7.45-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
+| `JMComic3-Mod-v1.7.46-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
 | `SHA256SUMS.txt` | 校验 APK 文件完整性 |
 
 当前 Fork 只发布 **Android ARM64 APK**。本仓库没有为这个修改版提供 ARM32、Windows 或 AAB 安装包。
@@ -61,13 +60,13 @@ APK 使用本地调试证书签名，不能保证覆盖安装其他签名的 JMC
 Windows PowerShell 校验示例：
 
 ```powershell
-Get-FileHash .\JMComic3-Flutter-v1.7.45-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.7.46-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 当前 APK SHA-256：
 
 ```text
-743DC7848F2733FDC6931482A86BD790567AC79A411C7897A85735A5FA465E23
+74C4B9AA56D561E14C9636543D77261C1D8284611B64057EE0E226C7C3B380D7
 ```
 
 ## 构建
