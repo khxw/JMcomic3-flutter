@@ -1,5 +1,12 @@
 # 更新记录
 
+## v1.7.46+75 — 2026-10-24
+
+- 软件名称改为 **JMComic3 Mod**，明确这是非官方修改版。
+- Android `applicationId` 改为 `io.github.khxw.jmcomic3mod`。
+- Android、Windows、User-Agent 和默认目录统一使用 JMComic3 Mod 标识。
+- 重新构建并发布全新的 ARM64 APK，不再依赖旧包标识。
+
 ## v1.7.45+74 — 2026-10-24
 
 - 发布基于 JMComic3 Flutter 的非官方修改版，默认使用中文 README。

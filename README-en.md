@@ -11,9 +11,7 @@
 > with the upstream maintainer. This fork focuses on responsive UI, download and
 > export workflows, storage access, reader performance, and navigation.
 
-Starting with the next build, the Android package ID will be
-`io.github.khxw.jmcomic3mod`, allowing side-by-side installation with upstream.
-The current `v1.7.45+74` APK still uses the old package ID.
+The Android package ID is `io.github.khxw.jmcomic3mod`.
 
 <p align="center">
   <img src="mockup/home-redesign.png" width="330" alt="JMComic3 Mod home screen">
@@ -21,7 +19,7 @@ The current `v1.7.45+74` APK still uses the old package ID.
 
 ## Current release
 
-**v1.7.45+74** · Android ARM64 · API 24+
+**v1.7.46+75** · Android ARM64 · API 24+
 
 - [Latest GitHub Release](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - [Changelog](CHANGELOG.md)
@@ -31,7 +29,7 @@ The current `v1.7.45+74` APK still uses the old package ID.
 
 | File | Purpose |
 | --- | --- |
-| `JMComic3-Flutter-v1.7.45-arm64-v8a-release.apk` | Android ARM64 devices |
+| `JMComic3-Mod-v1.7.46-arm64-v8a-release.apk` | Android ARM64 devices |
 | `SHA256SUMS.txt` | APK integrity verification |
 
 This fork currently publishes only an **Android ARM64 APK**. ARM32, Windows,
@@ -68,13 +66,13 @@ version before installing this build.
 PowerShell verification:
 
 ```powershell
-Get-FileHash .\JMComic3-Flutter-v1.7.45-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.7.46-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 Current APK SHA-256:
 
 ```text
-743DC7848F2733FDC6931482A86BD790567AC79A411C7897A85735A5FA465E23
+74C4B9AA56D561E14C9636543D77261C1D8284611B64057EE0E226C7C3B380D7
 ```
 
 ## Build
