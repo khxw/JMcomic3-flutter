@@ -10,7 +10,8 @@
 > 本仓库是 JMComic3 Flutter 的**非官方修改分支**，与上游项目维护者无隶属关系。
 > 当前修改版聚焦界面重做、下载与导出流程、存储权限、阅读性能和响应式布局。
 
-Android 包标识为 `io.github.khxw.jmcomic3mod`。
+Android 包标识为 `io.github.khxw.jmcomic3mod`。修改版使用独立包标识，可与上游
+JMComic3 并存安装。
 
 <p align="center">
   <img src="mockup/home-redesign.png" width="330" alt="JMComic3 Mod 首页">
