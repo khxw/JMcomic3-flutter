@@ -600,6 +600,17 @@ void main() {
     await tester.tap(find.text('More').first);
     await tester.pumpAndSettle();
     expect(find.byType(CategoryComicsScreen), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('category-comics-screen')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('category-summary')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('category-sort-button')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    await _capture(tester, 'category-more');
     await tester.pageBack();
     await tester.pump(const Duration(milliseconds: 60));
     expect(tester.takeException(), isNull);
