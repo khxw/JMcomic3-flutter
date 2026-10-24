@@ -8,34 +8,33 @@ class ContentLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        var width = constraints.maxWidth;
-        var height = constraints.maxHeight;
-        var min = width < height ? width : height;
-        var theme = Theme.of(context);
-        return Center(
-          child: Column(
-            children: [
-              Expanded(child: Container()),
-              SizedBox(
-                width: min / 2,
-                height: min / 2,
-                child: CircularProgressIndicator(
-                  color: theme.colorScheme.secondary,
-                  backgroundColor: Colors.grey[100],
-                ),
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                color: theme.colorScheme.secondary,
+                backgroundColor: theme.colorScheme.surfaceContainerHighest,
               ),
-              Container(height: min / 10),
-              Text(
-                label ?? context.l10n.loading,
-                style: TextStyle(fontSize: min / 15),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              label ?? context.l10n.loading,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-              Expanded(child: Container()),
-            ],
-          ),
-        );
-      },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

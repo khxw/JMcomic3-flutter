@@ -1078,6 +1078,47 @@ void main() {
     expect(normalizeAndroidDisplayModeValue('144.000', modes), '');
   });
 
+  test('android refresh modes are parsed, deduplicated and sorted', () {
+    const modes = [
+      'Display.Mode{id=1, width=1080, height=2400, refreshRate=60.000}',
+      'Display.Mode{id=2, width=1080, height=2400, refreshRate=90.000}',
+      'Display.Mode{id=3, width=720, height=1600, refreshRate=120.000}',
+      'Display.Mode{id=4, width=1080, height=2400, refreshRate=120.000}',
+      'Display.Mode{id=5, width=1080, height=2400, refreshRate=24.000}',
+      'invalid-mode',
+    ];
+
+    expect(parseAndroidRefreshRate(modes[2]), 120);
+    final options = buildAndroidRefreshRateOptions(modes);
+    expect(options.map((option) => option.hz), [60, 90, 120]);
+    expect(options.last.rawMode, contains('id=4'));
+    expect(options.last.pixelCount, 1080 * 2400);
+
+    final structured = buildStructuredRefreshRateOptions(const [
+      AndroidRefreshModeInfo(
+        id: 11,
+        width: 1080,
+        height: 2400,
+        refreshRate: 60,
+      ),
+      AndroidRefreshModeInfo(
+        id: 12,
+        width: 720,
+        height: 1600,
+        refreshRate: 120,
+      ),
+      AndroidRefreshModeInfo(
+        id: 13,
+        width: 1080,
+        height: 2400,
+        refreshRate: 120,
+      ),
+    ]);
+    expect(structured.map((option) => option.hz), [60, 120]);
+    expect(structured.last.modeId, 13);
+    expect(structured.last.pixelCount, 1080 * 2400);
+  });
+
   test('sortCategories uses saved order without repeated index scans',
       () async {
     const channel = MethodChannel('methods');
@@ -1474,6 +1515,39 @@ void main() {
 
     // 通道返回混合类型时仍应稳定解析，避免设置页因为脏值直接抛错。
     expect(modes, ['60Hz', '120']);
+  });
+
+  test('Methods.loadAndroidRefreshModes keeps valid structured modes',
+      () async {
+    const channel = MethodChannel('methods');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'androidGetRefreshModes') {
+        return [
+          {
+            'id': 4,
+            'width': 1080,
+            'height': 2400,
+            'refresh_rate': 120.0,
+          },
+          {
+            'id': 0,
+            'width': 1080,
+            'height': 2400,
+            'refresh_rate': 60.0,
+          },
+          'invalid',
+        ];
+      }
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    final modes = await methods.loadAndroidRefreshModes();
+    expect(modes, hasLength(1));
+    expect(modes.single['id'], 4);
+    expect(modes.single['refresh_rate'], 120.0);
   });
 
   test('Methods.loadAndroidModes supports object payload with modes list',

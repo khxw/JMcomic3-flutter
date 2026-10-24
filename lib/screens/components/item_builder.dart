@@ -36,8 +36,11 @@ class ItemBuilder<T> extends StatelessWidget {
                     width: _maxWidth,
                     height: _loadingHeight,
                     child: Center(
-                      child:
-                          Icon(Icons.sync_problem, size: _loadingHeight / 1.5),
+                      child: Icon(
+                        Icons.sync_problem_rounded,
+                        size: 30,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                     ),
                   ),
                 );
@@ -47,7 +50,14 @@ class ItemBuilder<T> extends StatelessWidget {
                   width: _maxWidth,
                   height: _loadingHeight,
                   child: Center(
-                    child: Icon(Icons.sync, size: _loadingHeight / 1.5),
+                    child: SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
+                    ),
                   ),
                 );
               }

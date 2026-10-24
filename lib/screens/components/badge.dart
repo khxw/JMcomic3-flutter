@@ -73,7 +73,7 @@ class _VersionBadgedState extends State<VersionBadged> {
   Widget build(BuildContext context) {
     return Badged(
       child: widget.child,
-      badge: latestVersion == null ? null : "1",
+      badge: updatesTemporarilyDisabled || latestVersion == null ? null : "1",
     );
   }
 }

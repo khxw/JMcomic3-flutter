@@ -59,12 +59,14 @@ class _CommentsScreenState extends State<CommentsScreen>
           ],
         ),
         Expanded(
-          child: SingleChildScrollView(
-            child: _idx == 0
-                ? const ComicCommentsList(
-                    mode: "manhua", aid: null, gotoComic: true)
-                : const SelfCommentList(),
-          ),
+          child: _idx == 0
+              ? const ComicCommentsList(
+                  mode: "manhua",
+                  aid: null,
+                  gotoComic: true,
+                  scrollable: true,
+                )
+              : const SelfCommentList(),
         ),
       ],
     );
@@ -105,6 +107,7 @@ class _SelfCommentListState extends State<SelfCommentList> {
         aid: null,
         gotoComic: true,
         uid: selfInfo.uid,
+        scrollable: true,
       );
     }
     return Center(

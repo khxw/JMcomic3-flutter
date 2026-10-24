@@ -1,9 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/commons.dart';
+import 'package:jmcomic3/basic/local_bookshelf.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/basic/navigator.dart';
 import 'package:jmcomic3/configs/ignore_view_log.dart';
-import 'package:jmcomic3/configs/login.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
 import 'comic_download_screen.dart';
@@ -61,17 +63,37 @@ class ComicInfoScreen extends StatefulWidget {
 
 class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
   static const _contentWidth = 800.0;
-  bool _favouriteLoading = false;
-  int _tabIndex = 0;
-  final Set<int> _visitedTabs = {0};
+  bool _bookshelfLoading = true;
+  bool _inBookshelf = false;
+  Timer? _viewLogRefreshTimer;
   ModalRoute<void>? _route;
   late Future<AlbumResponse> _albumFuture = _loadAlbum();
   late Future<ViewLog?> _viewFuture = methods.findViewLog(widget.comicId);
 
-  Future<AlbumResponse> _loadAlbum() => methods.album(
-        widget.comicId,
-        ignoreViewLog: currentIgnoreVewLog(),
-      );
+  Future<AlbumResponse> _loadAlbum() async {
+    final bookshelfFuture = loadLocalBookshelf();
+    final album = await methods.album(
+      widget.comicId,
+      ignoreViewLog: currentIgnoreVewLog(),
+    );
+    unawaited(_syncBookshelf(bookshelfFuture, album.id));
+    return album;
+  }
+
+  Future<void> _syncBookshelf(Future<void> future, int comicId) async {
+    await future;
+    if (!mounted || widget.comicId != comicId) return;
+    setState(() {
+      _inBookshelf = localBookshelfContains(comicId);
+      _bookshelfLoading = false;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    localBookshelfEvent.subscribe(_bookshelfChanged);
+  }
 
   @override
   void didChangeDependencies() {
@@ -88,30 +110,41 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
   void didUpdateWidget(covariant ComicInfoScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.comicId != widget.comicId) {
+      _inBookshelf = false;
+      _bookshelfLoading = true;
       _albumFuture = _loadAlbum();
       _viewFuture = methods.findViewLog(widget.comicId);
-      _tabIndex = 0;
-      _visitedTabs
-        ..clear()
-        ..add(0);
     }
   }
 
   @override
   void didPopNext() {
-    setState(() {
-      _viewFuture = methods.findViewLog(widget.comicId);
+    _viewLogRefreshTimer?.cancel();
+    _viewLogRefreshTimer = Timer(const Duration(milliseconds: 180), () {
+      if (!mounted) return;
+      setState(() {
+        _viewFuture = methods.findViewLog(widget.comicId);
+      });
     });
   }
 
   @override
   void dispose() {
+    _viewLogRefreshTimer?.cancel();
+    localBookshelfEvent.unsubscribe(_bookshelfChanged);
     routeObserver.unsubscribe(this);
     super.dispose();
   }
 
+  void _bookshelfChanged(_) {
+    if (!mounted) return;
+    final inShelf = localBookshelfContains(widget.comicId);
+    if (_inBookshelf != inShelf) {
+      setState(() => _inBookshelf = inShelf);
+    }
+  }
+
   Future<void> _refresh() async {
-    if (_favouriteLoading) return;
     final future = _loadAlbum();
     setState(() {
       _albumFuture = future;
@@ -133,7 +166,7 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
       );
 
   void _read(AlbumResponse album, int chapterId, int page) {
-    Navigator.of(context).push(MaterialPageRoute(
+    Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => ComicReaderScreen(
         comic: albumToSimple(album),
         series: album.series,
@@ -144,56 +177,28 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
     ));
   }
 
-  Future<void> _changeFavourite(AlbumResponse album) async {
-    if (_favouriteLoading) return;
-    if (!await ensureJwtAccess(context,
-            feature: context.l10n.tr('收藏', en: 'Favorites')) ||
-        !mounted ||
-        _favouriteLoading) {
-      return;
-    }
-    setState(() => _favouriteLoading = true);
+  Future<void> _changeBookshelf(AlbumResponse album) async {
+    if (_bookshelfLoading) return;
+    setState(() => _bookshelfLoading = true);
     try {
-      final response = await methods.setFavorite(album.id);
+      final inShelf = await toggleLocalBookshelf(
+        albumToSimple(album),
+        group: album.tags.isEmpty ? '' : album.tags.first,
+      );
       if (!mounted) return;
-      if (const {'0', 'false', 'error', 'fail', 'failed'}
-          .contains(response.status.trim().toLowerCase())) {
-        throw StateError(response.msg.isEmpty
-            ? context.l10n.tr('收藏操作失败', en: 'Could not update favorites')
-            : response.msg);
-      }
       setState(() {
-        album.isFavorite = switch (response.type.toLowerCase()) {
-          'add' => true,
-          'remove' => false,
-          _ => !album.isFavorite,
-        };
+        _inBookshelf = inShelf;
       });
       defaultToast(
-          context,
-          album.isFavorite
-              ? context.l10n.tr('收藏成功', en: 'Favorited')
-              : context.l10n.tr('已取消收藏', en: 'Removed from favorites'));
-      if (album.isFavorite && favData.isNotEmpty) {
-        final folder = await chooseMapDialog<int>(context,
-            title: context.l10n.tr('移动到资料夹', en: 'Move to folder'),
-            values: {
-              for (final item in favData) item.name: item.fid,
-              context.l10n.tr('默认 / 不移动', en: 'Default / Keep'): 0,
-            });
-        if (!mounted) return;
-        if (folder != null && folder != 0) {
-          await methods.comicFavoriteFolderMove(album.id, folder);
-          if (mounted) {
-            defaultToast(
-                context, context.l10n.tr('移动成功', en: 'Moved successfully'));
-          }
-        }
-      }
+        context,
+        inShelf
+            ? context.l10n.tr('已加入书架', en: 'Added to bookshelf')
+            : context.l10n.tr('已从书架移除', en: 'Removed from bookshelf'),
+      );
     } catch (error) {
       if (mounted) defaultToast(context, '$error');
     } finally {
-      if (mounted) setState(() => _favouriteLoading = false);
+      if (mounted) setState(() => _bookshelfLoading = false);
     }
   }
 
@@ -230,9 +235,13 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
                       () => _download(album),
                       context.l10n.tr('下载', en: 'Download')),
                   _navButton(
-                      album.isFavorite ? Icons.bookmark : Icons.bookmark_border,
-                      _favouriteLoading ? null : () => _changeFavourite(album),
-                      context.l10n.tr('收藏', en: 'Favorites')),
+                      _inBookshelf
+                          ? Icons.bookmark_added_rounded
+                          : Icons.bookmark_add_outlined,
+                      _bookshelfLoading ? null : () => _changeBookshelf(album),
+                      _inBookshelf
+                          ? context.l10n.tr('已在书架', en: 'In bookshelf')
+                          : context.l10n.tr('加入书架', en: 'Add to bookshelf')),
                   const SizedBox(width: 8),
                 ],
               ],
@@ -277,7 +286,11 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
                 label: Text(context.l10n.tr('重试', en: 'Retry')),
               ),
             ])
-          : const CircularProgressIndicator(strokeWidth: 2),
+          : const SizedBox(
+              width: 30,
+              height: 30,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
     );
   }
 
@@ -301,50 +314,11 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
                         effectiveComicInfoSimple(widget.simple, widget.comicId),
                     onSearch: _search,
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                    child: _tabs(album),
-                  ),
-                  Divider(
-                    key: const ValueKey('comic-detail-directory-divider'),
-                    height: 24,
-                    thickness: .8,
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Offstage(
-                            key: const ValueKey('comic-detail-panel-chapters'),
-                            offstage: _tabIndex != 0,
-                            child: ComicDetailChapters(
-                              album: album,
-                              viewFuture: _viewFuture,
-                              onRead: (chapter, page) =>
-                                  _read(album, chapter, page),
-                            ),
-                          ),
-                          if (_visitedTabs.contains(1))
-                            Offstage(
-                              key:
-                                  const ValueKey('comic-detail-panel-comments'),
-                              offstage: _tabIndex != 1,
-                              child: ComicCommentsList(
-                                  mode: 'manhua', aid: album.id),
-                            ),
-                          if (_visitedTabs.contains(2))
-                            Offstage(
-                              key: const ValueKey('comic-detail-panel-related'),
-                              offstage: _tabIndex != 2,
-                              child: album.relatedList.isEmpty
-                                  ? _emptyPanel(context.l10n
-                                      .tr('暂无推荐', en: 'No recommendations'))
-                                  : ComicList(
-                                      data: album.relatedList, inScroll: true),
-                            ),
-                        ]),
+                  _ComicDetailDirectory(
+                    key: ValueKey('comic-detail-directory-${album.id}'),
+                    album: album,
+                    viewFuture: _viewFuture,
+                    onRead: (chapter, page) => _read(album, chapter, page),
                   ),
                 ]),
           ),
@@ -352,104 +326,6 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
       ),
     );
   }
-
-  Widget _tabs(AlbumResponse album) {
-    final scheme = Theme.of(context).colorScheme;
-    final labels = [
-      '${context.l10n.tr('章节', en: 'Chapters')} ${album.series.length}',
-      '${context.l10n.tr('评论', en: 'Comments')} ${album.commentTotal}',
-      '${context.l10n.tr('推荐', en: 'Recommended')} ${album.relatedList.length}',
-    ];
-    return Material(
-      color: scheme.onSurface.withValues(alpha: .05),
-      borderRadius: BorderRadius.circular(12),
-      clipBehavior: Clip.antiAlias,
-      child: LayoutBuilder(builder: (context, constraints) {
-        final widths = labels.map((label) {
-          final painter = TextPainter(
-            text: TextSpan(
-                text: label,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(fontSize: 13)),
-            textScaler: MediaQuery.textScalerOf(context),
-            textDirection: Directionality.of(context),
-          )..layout();
-          final width = painter.width + 24;
-          painter.dispose();
-          return width;
-        }).toList();
-        final scrollable =
-            widths.any((width) => width > constraints.maxWidth / 3);
-        Widget tab(int index) => Semantics(
-              selected: index == _tabIndex,
-              button: true,
-              child: InkWell(
-                key: ValueKey('comic-detail-tab-$index'),
-                onTap: () => setState(() {
-                  _tabIndex = index;
-                  _visitedTabs.add(index);
-                }),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(6, 14, 6, 0),
-                  child: Column(children: [
-                    Text(labels[index],
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: index == _tabIndex
-                                ? FontWeight.w500
-                                : FontWeight.w400,
-                            color: index == _tabIndex
-                                ? scheme.onSurface
-                                : scheme.onSurfaceVariant)),
-                    const SizedBox(height: 12),
-                    const Spacer(),
-                    Container(
-                        height: 2,
-                        width: 32,
-                        decoration: BoxDecoration(
-                          color: index == _tabIndex
-                              ? const Color(0xFF22CDE0)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(2),
-                        )),
-                  ]),
-                ),
-              ),
-            );
-        final row = IntrinsicHeight(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            for (var index = 0; index < labels.length; index++)
-              scrollable
-                  ? SizedBox(width: widths[index], child: tab(index))
-                  : Expanded(child: tab(index)),
-          ]),
-        );
-        return scrollable
-            ? SingleChildScrollView(
-                scrollDirection: Axis.horizontal, child: row)
-            : row;
-      }),
-    );
-  }
-
-  Widget _emptyPanel(String label) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .03),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontSize: 12)),
-      );
 
   Widget _bottomBar(AlbumResponse album, Color background) {
     return Container(
@@ -477,13 +353,15 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
                 const SizedBox(width: 4),
                 _action(
                     'comic-detail-favorite',
-                    _favouriteLoading
+                    _bookshelfLoading
                         ? Icons.sync
-                        : album.isFavorite
-                            ? Icons.bookmark
-                            : Icons.bookmark_border,
-                    context.l10n.tr('收藏', en: 'Favorites'),
-                    _favouriteLoading ? null : () => _changeFavourite(album)),
+                        : _inBookshelf
+                            ? Icons.bookmark_added_rounded
+                            : Icons.bookmark_add_outlined,
+                    _inBookshelf
+                        ? context.l10n.tr('已在书架', en: 'In bookshelf')
+                        : context.l10n.tr('加入书架', en: 'Add to bookshelf'),
+                    _bookshelfLoading ? null : () => _changeBookshelf(album)),
                 const SizedBox(width: 12),
                 Expanded(
                     child: FutureBuilder<ViewLog?>(
@@ -567,6 +445,239 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
               style:
                   const TextStyle(fontSize: 10, fontWeight: FontWeight.w400)),
         ]),
+      ),
+    );
+  }
+}
+
+class _ComicDetailDirectory extends StatefulWidget {
+  final AlbumResponse album;
+  final Future<ViewLog?> viewFuture;
+  final void Function(int chapterId, int page) onRead;
+
+  const _ComicDetailDirectory({
+    super.key,
+    required this.album,
+    required this.viewFuture,
+    required this.onRead,
+  });
+
+  @override
+  State<_ComicDetailDirectory> createState() => _ComicDetailDirectoryState();
+}
+
+class _ComicDetailDirectoryState extends State<_ComicDetailDirectory> {
+  int _tabIndex = 0;
+  final Set<int> _visitedTabs = {0};
+
+  @override
+  void didUpdateWidget(covariant _ComicDetailDirectory oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.album.id != widget.album.id) {
+      _tabIndex = 0;
+      _visitedTabs
+        ..clear()
+        ..add(0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final album = widget.album;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+          child: _tabs(context),
+        ),
+        Divider(
+          key: const ValueKey('comic-detail-directory-divider'),
+          height: 24,
+          thickness: .8,
+          color: Theme.of(context).colorScheme.outlineVariant,
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TickerMode(
+                enabled: _tabIndex == 0,
+                child: Offstage(
+                  key: const ValueKey('comic-detail-panel-chapters'),
+                  offstage: _tabIndex != 0,
+                  child: RepaintBoundary(
+                    child: ComicDetailChapters(
+                      album: album,
+                      viewFuture: widget.viewFuture,
+                      onRead: widget.onRead,
+                    ),
+                  ),
+                ),
+              ),
+              if (_visitedTabs.contains(1))
+                TickerMode(
+                  enabled: _tabIndex == 1,
+                  child: Offstage(
+                    key: const ValueKey('comic-detail-panel-comments'),
+                    offstage: _tabIndex != 1,
+                    child: RepaintBoundary(
+                      child: ComicCommentsList(
+                        mode: 'manhua',
+                        aid: album.id,
+                      ),
+                    ),
+                  ),
+                ),
+              if (_visitedTabs.contains(2))
+                TickerMode(
+                  enabled: _tabIndex == 2,
+                  child: Offstage(
+                    key: const ValueKey('comic-detail-panel-related'),
+                    offstage: _tabIndex != 2,
+                    child: RepaintBoundary(
+                      child: album.relatedList.isEmpty
+                          ? _emptyPanel(context)
+                          : ComicList(
+                              data: album.relatedList,
+                              inScroll: true,
+                            ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tabs(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final labels = [
+      '${context.l10n.tr('章节', en: 'Chapters')} ${widget.album.series.length}',
+      '${context.l10n.tr('评论', en: 'Comments')} ${widget.album.commentTotal}',
+      '${context.l10n.tr('推荐', en: 'Recommended')} '
+          '${widget.album.relatedList.length}',
+    ];
+    final textScaler = MediaQuery.textScalerOf(context);
+    final tabHeight =
+        (textScaler.scale(13) * 1.35 + 24).clamp(48.0, 76.0).toDouble();
+
+    return Material(
+      color: scheme.onSurface.withValues(alpha: .05),
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final widths = labels.map((label) {
+            final painter = TextPainter(
+              text: TextSpan(
+                text: label,
+                style: theme.textTheme.bodyMedium?.copyWith(fontSize: 13),
+              ),
+              textScaler: textScaler,
+              textDirection: Directionality.of(context),
+            )..layout();
+            final width = painter.width + 24;
+            painter.dispose();
+            return width;
+          }).toList();
+          final scrollable =
+              widths.any((width) => width > constraints.maxWidth / 3);
+
+          Widget tab(int index) {
+            final selected = index == _tabIndex;
+            return Semantics(
+              selected: selected,
+              button: true,
+              child: InkWell(
+                key: ValueKey('comic-detail-tab-$index'),
+                onTap: () => setState(() {
+                  _tabIndex = index;
+                  _visitedTabs.add(index);
+                }),
+                child: SizedBox(
+                  height: tabHeight,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          labels[index],
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight:
+                                selected ? FontWeight.w500 : FontWeight.w400,
+                            color: selected
+                                ? scheme.onSurface
+                                : scheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          height: 2,
+                          width: selected ? 32 : 0,
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? const Color(0xFF22CDE0)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          final row = SizedBox(
+            height: tabHeight,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var index = 0; index < labels.length; index++)
+                  scrollable
+                      ? SizedBox(width: widths[index], child: tab(index))
+                      : Expanded(child: tab(index)),
+              ],
+            ),
+          );
+          return scrollable
+              ? SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: row,
+                )
+              : row;
+        },
+      ),
+    );
+  }
+
+  Widget _emptyPanel(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: scheme.onSurface.withValues(alpha: .03),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        context.l10n.tr('暂无推荐', en: 'No recommendations'),
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: scheme.onSurfaceVariant,
+          fontSize: 12,
+        ),
       ),
     );
   }

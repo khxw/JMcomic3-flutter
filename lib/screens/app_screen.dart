@@ -1,47 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:jmcomic3/configs/android_display_mode.dart';
 import 'package:jmcomic3/configs/daily_sign.dart';
 import 'package:jmcomic3/configs/versions.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
+import 'package:jmcomic3/screens/bookshelf_screen.dart';
 import 'package:jmcomic3/screens/browser_screen.dart';
-import 'package:jmcomic3/screens/comic_search_screen.dart';
-import 'package:jmcomic3/screens/components/badge.dart';
-import 'package:jmcomic3/screens/components/floating_search_bar.dart';
+import 'package:jmcomic3/screens/components/compose_ui.dart';
+import 'package:jmcomic3/screens/search_screen.dart';
 import 'package:jmcomic3/screens/user_screen.dart';
-
-import 'components/comic_floating_search_bar.dart';
 
 class AppScreen extends StatefulWidget {
   const AppScreen({Key? key}) : super(key: key);
 
   @override
-  State<StatefulWidget> createState() => _AppScreenState();
+  State<AppScreen> createState() => _AppScreenState();
 }
 
-class _AppScreenState extends State<AppScreen> {
-  final _searchBarController = FloatingSearchBarController();
-
-  List<AppScreenData> _screens(BuildContext context) {
-    final l10n = context.l10n;
-    return [
-      AppScreenData(
-        BrowserScreenWrapper(searchBarController: _searchBarController),
-        l10n.navBrowse,
-        const Icon(Icons.menu_book_outlined),
-        const Icon(Icons.menu_book),
-      ),
-      AppScreenData(
-        const UserScreen(),
-        l10n.navLibrary,
-        const VersionBadged(child: Icon(Icons.image_outlined)),
-        const VersionBadged(child: Icon(Icons.image)),
-      ),
-    ];
-  }
+class _AppScreenState extends State<AppScreen>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late final AnimationController _pageMotionController;
+  late final Animation<double> _pageMotion;
+  var _selectedIndex = 0;
+  var _transitionDirection = 1.0;
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(Duration.zero, () async {
+    WidgetsBinding.instance.addObserver(this);
+    _pageMotionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+      value: 1,
+    );
+    _pageMotion = CurvedAnimation(
+      parent: _pageMotionController,
+      curve: Curves.easeOutQuart,
+    );
+    Future<void>.delayed(Duration.zero, () async {
       if (!mounted) return;
       versionPop(context);
       await checkDailySignStatus(context);
@@ -52,186 +47,141 @@ class _AppScreenState extends State<AppScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     versionEvent.unsubscribe(_versionSub);
-    _pageController.dispose();
+    _pageMotionController.dispose();
     super.dispose();
   }
 
-  _versionSub(_) {
+  void _versionSub(_) {
     versionPop(context);
   }
 
-  var _selectedIndex = 0;
-  late final _pageController = PageController(initialPage: 0);
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      reapplyAndroidDisplayMode();
+    }
+  }
 
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
     setState(() {
+      _transitionDirection = index > _selectedIndex ? 1 : -1;
       _selectedIndex = index;
     });
-    _pageController.jumpToPage(
-      index,
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _pageMotionController.value = 1;
+    } else {
+      _pageMotionController.forward(from: 0);
+    }
+  }
+
+  List<Widget> _screens() {
+    return [
+      _withNavigationInset(
+        BrowserScreenWrapper(onSearchRequested: _openSearch),
+      ),
+      _withNavigationInset(const BookshelfScreen()),
+      _withNavigationInset(const UserScreen()),
+    ];
+  }
+
+  Widget _withNavigationInset(Widget child) {
+    final media = MediaQuery.of(context);
+    const navigationInset = 76.0;
+    return MediaQuery(
+      data: media.copyWith(
+        padding: media.padding.copyWith(
+          bottom: media.padding.bottom + navigationInset,
+        ),
+        viewPadding: media.viewPadding.copyWith(
+          bottom: media.viewPadding.bottom + navigationInset,
+        ),
+      ),
+      child: child,
     );
+  }
+
+  void _openSearch() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const SearchScreen(),
+      ),
+    );
+  }
+
+  List<ComposeNavigationDestination> _destinations(BuildContext context) {
+    final l10n = context.l10n;
+    return [
+      ComposeNavigationDestination(
+        label: l10n.navBrowse,
+        icon: Icons.explore_outlined,
+        selectedIcon: Icons.explore_rounded,
+      ),
+      ComposeNavigationDestination(
+        label: l10n.navLibrary,
+        icon: Icons.collections_bookmark_outlined,
+        selectedIcon: Icons.collections_bookmark_rounded,
+      ),
+      ComposeNavigationDestination(
+        label: l10n.profile,
+        icon: Icons.person_outline_rounded,
+        selectedIcon: Icons.person_rounded,
+      ),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
-    final screens = _screens(context);
-    return ComicFloatingSearchBarScreen(
-      onQuery: (value) {
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) {
-          return ComicSearchScreen(initKeywords: value);
-        }));
-      },
-      controller: _searchBarController,
-      child: LayoutBuilder(builder: (context, constraints) {
-        final useRail = constraints.maxWidth >= 840;
-        return Scaffold(
-          body: Row(
-            children: [
-              if (useRail) _buildNavigationRail(context, screens),
-              Expanded(
-                key: const ValueKey('app-pages'),
-                child: PageView(
-                  physics: const NeverScrollableScrollPhysics(),
-                  allowImplicitScrolling: false,
-                  controller: _pageController,
-                  onPageChanged: (index) {
-                    setState(() {
-                      _selectedIndex = index;
-                    });
-                  },
-                  children: screens.map((e) => e.screen).toList(),
-                ),
-              ),
-            ],
+    final media = MediaQuery.of(context);
+    final keyboardVisible = media.viewInsets.bottom > 0;
+    final screens = _screens();
+    final pages = IndexedStack(
+      key: const ValueKey('app-pages'),
+      index: _selectedIndex,
+      children: [
+        for (var index = 0; index < screens.length; index++)
+          TickerMode(
+            enabled: index == _selectedIndex,
+            child: RepaintBoundary(child: screens[index]),
           ),
-          bottomNavigationBar:
-              useRail ? null : _buildBottomNavigationBar(context, screens),
-        );
-      }),
+      ],
     );
-  }
 
-  Widget _buildNavigationRail(
-      BuildContext context, List<AppScreenData> screens) {
-    final scheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        border: Border(right: BorderSide(color: scheme.outlineVariant)),
-      ),
-      child: SafeArea(
-        right: false,
-        child: LayoutBuilder(builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: IntrinsicHeight(
-                child: NavigationRail(
-                  backgroundColor: Colors.transparent,
-                  minWidth: 88,
-                  groupAlignment: -1,
-                  labelType: NavigationRailLabelType.all,
-                  leading: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 24, 12, 28),
-                    child: Tooltip(
-                      message: 'JMcomic3',
-                      child: Icon(Icons.auto_stories_rounded,
-                          color: scheme.primary, size: 30),
-                    ),
-                  ),
-                  selectedIndex: _selectedIndex,
-                  onDestinationSelected: _onItemTapped,
-                  destinations: screens
-                      .map((screen) => NavigationRailDestination(
-                            icon: screen.icon,
-                            selectedIcon: screen.activeIcon,
-                            label: Text(screen.title),
-                          ))
-                      .toList(),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavigationBar(
-      BuildContext context, List<AppScreenData> screens) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final navTheme = NavigationBarTheme.of(context);
-    final selectedColor = scheme.primary;
-    final unselectedColor = scheme.onSurfaceVariant;
-
-    return SafeArea(
-      top: false,
-      minimum: EdgeInsets.zero,
-      child: Material(
-        color: scheme.surface,
-        elevation: 0,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(
-                color: scheme.outlineVariant.withValues(alpha: .55),
-                width: .8,
-              ),
+    return Scaffold(
+      extendBody: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: AnimatedBuilder(
+              key: const ValueKey('app-page-motion'),
+              animation: _pageMotion,
+              child: pages,
+              builder: (context, child) {
+                final remaining = 1 - _pageMotion.value;
+                return Transform.translate(
+                  offset: Offset(_transitionDirection * remaining * 10, 0),
+                  child: child,
+                );
+              },
             ),
           ),
-          child: NavigationBarTheme(
-            data: navTheme.copyWith(
-              backgroundColor: Colors.transparent,
-              surfaceTintColor: Colors.transparent,
-              indicatorColor: selectedColor.withValues(
-                alpha: theme.brightness == Brightness.dark ? .22 : .12,
-              ),
-              elevation: 0,
-              height: 64,
-              labelBehavior:
-                  NavigationDestinationLabelBehavior.onlyShowSelected,
-              labelTextStyle: WidgetStateProperty.resolveWith((states) {
-                final selected = states.contains(WidgetState.selected);
-                return TextStyle(
-                  fontSize: 11,
-                  fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
-                  color: selected ? selectedColor : unselectedColor,
-                );
-              }),
-              iconTheme: WidgetStateProperty.resolveWith((states) {
-                final selected = states.contains(WidgetState.selected);
-                return IconThemeData(
-                  size: selected ? 23 : 21,
-                  color: selected ? selectedColor : unselectedColor,
-                );
-              }),
-            ),
-            child: NavigationBar(
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: ComposeFloatingNavigationBar(
+              key: const ValueKey('compose-bottom-navigation'),
+              destinations: _destinations(context),
               selectedIndex: _selectedIndex,
-              onDestinationSelected: _onItemTapped,
-              destinations: screens
-                  .map((e) => NavigationDestination(
-                        icon: e.icon,
-                        selectedIcon: e.activeIcon,
-                        label: e.title,
-                      ))
-                  .toList(),
+              visible: !keyboardVisible,
+              onSelected: _onItemTapped,
             ),
           ),
-        ),
+        ],
       ),
     );
   }
-}
-
-class AppScreenData {
-  final Widget screen;
-  final String title;
-  final Widget icon;
-  final Widget activeIcon;
-
-  const AppScreenData(this.screen, this.title, this.icon, this.activeIcon);
 }

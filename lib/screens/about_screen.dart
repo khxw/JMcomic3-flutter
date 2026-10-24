@@ -20,6 +20,7 @@ class _AboutState extends State<AboutScreen> {
   @override
   void initState() {
     super.initState();
+    if (updatesTemporarilyDisabled) return;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final info = latestVersionInfo();
       if ((info ?? "").trim().isEmpty) {
@@ -46,11 +47,15 @@ class _AboutState extends State<AboutScreen> {
           const Divider(),
           _buildCurrentVersion(),
           const Divider(),
-          _buildNewestVersion(),
-          if (latestVersion != null) _buildGotoGithub(),
-          const Divider(),
-          _buildVersionText(),
-          const Divider(),
+          if (updatesTemporarilyDisabled)
+            _buildUpdatesDisabled()
+          else ...[
+            _buildNewestVersion(),
+            if (latestVersion != null) _buildGotoGithub(),
+            const Divider(),
+            _buildVersionText(),
+            const Divider(),
+          ],
         ],
       ),
     );
@@ -97,6 +102,30 @@ class _AboutState extends State<AboutScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
       child: Text(context.l10n.currentVersionLabel(currentVersion())),
+    );
+  }
+
+  Widget _buildUpdatesDisabled() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+      child: Row(
+        children: [
+          Icon(
+            Icons.system_update_alt_rounded,
+            size: 20,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              context.l10n.tr(
+                '更新检查已暂时关闭',
+                en: 'Update checks are temporarily disabled',
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

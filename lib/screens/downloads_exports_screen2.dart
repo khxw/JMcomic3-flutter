@@ -3,10 +3,9 @@ import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/content_builder.dart';
 import 'package:jmcomic3/screens/downloads_exporting_screen2.dart';
-import '../basic/commons.dart';
-import 'components/comic_download_card.dart';
 import 'components/right_click_pop.dart';
 import 'downloads_export_shared.dart';
+import 'downloads_export_ui.dart';
 
 class DownloadsExportScreen2 extends StatefulWidget {
   const DownloadsExportScreen2({Key? key}) : super(key: key);
@@ -31,65 +30,51 @@ class _DownloadsExportScreen2State extends State<DownloadsExportScreen2> {
 
   Widget buildScreen(BuildContext context) {
     return Scaffold(
+      key: const ValueKey('batch-export-incomplete-select-page'),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
-        title: Text(
-          context.l10n.tr("批量导出(即使没有下载完)",
-              en: "Batch export (including unfinished downloads)"),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(context.l10n.tr("批量导出", en: "Batch export")),
+            Text(
+              context.l10n.tr(
+                "包含未完成的下载",
+                en: "Includes unfinished downloads",
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ],
         ),
-        actions: [
-          FutureBuilder(
-            future: _downloadsFuture,
-            builder: (BuildContext context,
-                AsyncSnapshot<List<DownloadAlbum>> snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return Container();
-              }
-              List<int> exportableIds = [];
-              for (var value in snapshot.requireData) {
-                exportableIds.add(value.id);
-              }
-              return _selectAllButton(exportableIds);
-            },
-          ),
-          _goToExport(),
-        ],
+        surfaceTintColor: Colors.transparent,
       ),
       body: ContentBuilder(
-        key: null,
         future: _downloadsFuture,
-        onRefresh: () async {
-          setState(() {
-            _downloadsFuture = _loadDownloads();
-          });
-        },
+        onRefresh: _refreshDownloads,
         successBuilder: (
           BuildContext context,
           AsyncSnapshot<List<DownloadAlbum>> snapshot,
         ) {
-          return ListView(
-            children: snapshot.requireData
-                .map((e) => GestureDetector(
-                      onTap: () {
-                        toggleSelectedDownloadId(selected, e.id);
-                        setState(() {});
-                      },
-                      child: Stack(children: [
-                        ComicDownloadCard(e),
-                        Row(children: [
-                          Expanded(child: Container()),
-                          Padding(
-                            padding: const EdgeInsets.all(5),
-                            child: Icon(
-                              selected.contains(e.id)
-                                  ? Icons.check_circle_sharp
-                                  : Icons.circle_outlined,
-                              color: Theme.of(context).colorScheme.secondary,
-                            ),
-                          ),
-                        ]),
-                      ]),
-                    ))
-                .toList(),
+          final albums = snapshot.requireData;
+          return DownloadExportSelectionView(
+            albums: albums,
+            selected: selected,
+            modeLabel: context.l10n.tr('包含未完成任务', en: 'Includes unfinished'),
+            onToggle: (album) {
+              setState(() {
+                toggleSelectedDownloadId(selected, album.id);
+              });
+            },
+            onSelectAll: () => _selectAll(albums),
+            onClear: () {
+              setState(selected.clear);
+            },
+            onContinue: _goToExport,
           );
         },
       ),
@@ -102,78 +87,51 @@ class _DownloadsExportScreen2State extends State<DownloadsExportScreen2> {
     return loadDownloadAlbums((album) => !album.isDeleting);
   }
 
-  Widget _selectAllButton(List<int> exportableIds) {
-    return MaterialButton(
-        minWidth: 0,
-        onPressed: () async {
-          setState(() {
-            if (selected.length >= exportableIds.length) {
-              selected.clear();
-            } else {
-              selected.clear();
-              selected.addAll(exportableIds);
-            }
-          });
-        },
-        child: Column(
-          children: [
-            Expanded(child: Container()),
-            const Icon(
-              Icons.select_all,
-              size: 18,
-              color: Colors.white,
-            ),
-            Text(
-              context.l10n.tr('全选', en: 'Select all'),
-              style: const TextStyle(fontSize: 14, color: Colors.white),
-            ),
-            Expanded(child: Container()),
-          ],
-        ));
+  Future<void> _refreshDownloads() async {
+    final future = _loadDownloads();
+    setState(() {
+      _downloadsFuture = future;
+    });
+    await future;
   }
 
-  Widget _goToExport() {
-    return MaterialButton(
-        minWidth: 0,
-        onPressed: () async {
-          if (selected.isEmpty) {
-            defaultToast(context, context.l10n.pleaseSelectExportContent);
-            return;
-          }
-          if (!await androidMangeStorageRequest()) {
-            throw Exception(
-                context.l10n.tr("申请权限被拒绝", en: "Permission denied"));
-          }
-          await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => DownloadsExportingScreen2(
-                idList: selected.toList(growable: false),
-              ),
-            ),
-          );
-          _downloadsFuture = _loadDownloads();
-          final pre = Set<int>.from(selected);
-          setState(() {
-            selected = <int>{};
-          });
-          final result = await _downloadsFuture;
-          selected = restoreSelectedIdSet(pre, result);
-          setState(() {});
-        },
-        child: Column(
-          children: [
-            Expanded(child: Container()),
-            const Icon(
-              Icons.check,
-              size: 18,
-              color: Colors.white,
-            ),
-            Text(
-              context.l10n.confirm,
-              style: const TextStyle(fontSize: 14, color: Colors.white),
-            ),
-            Expanded(child: Container()),
-          ],
-        ));
+  void _selectAll(List<DownloadAlbum> albums) {
+    final ids = albums.map((album) => album.id).toSet();
+    setState(() {
+      if (ids.isNotEmpty && ids.every(selected.contains)) {
+        selected.clear();
+      } else {
+        selected
+          ..clear()
+          ..addAll(ids);
+      }
+    });
+  }
+
+  Future<void> _goToExport() async {
+    if (selected.isEmpty) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => DownloadsExportingScreen2(
+          idList: selected.toList(growable: false),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    final previous = Set<int>.from(selected);
+    final future = _loadDownloads();
+    setState(() {
+      _downloadsFuture = future;
+      selected = <int>{};
+    });
+    try {
+      final latest = await future;
+      if (!mounted) return;
+      setState(() {
+        selected = restoreSelectedIdSet(previous, latest);
+      });
+    } catch (_) {
+      // ContentBuilder owns the retry state when the refreshed list fails.
+    }
   }
 }

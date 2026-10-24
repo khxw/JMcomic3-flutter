@@ -71,6 +71,7 @@ app.*.map.json
 /_desktop_build_*/
 /dist/
 /secrets/
+/release/
 /INVOKE_REFACTOR_PLAN_ZH.md
 /invoke_checks.txt
 

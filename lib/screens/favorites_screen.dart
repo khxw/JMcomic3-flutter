@@ -17,7 +17,6 @@ class FavoritesScreen extends StatefulWidget {
 
 class _FavoritesScreenState extends State<FavoritesScreen> {
   int _folderId = 0;
-  bool _isLoading = true;
 
   final Map<int, String> _folderMap = {
     0: "",
@@ -63,15 +62,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   @override
   void initState() {
-    Future.delayed(Duration.zero, () async {
-      if (!await ensureJwtAccess(
-            context,
-            feature: context.l10n.featureFavoritesFolder,
-          ) &&
-          mounted) {
-        Navigator.of(context).pop();
-      }
-    });
     for (var value in favData) {
       try {
         _folderMap[value.fid] = value.name;
@@ -88,23 +78,14 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     try {
       final sort = await methods.loadProperty("favorites_sort");
       if (!mounted) return;
-      if (sort.isNotEmpty && _sortNameMap(context).containsKey(sort)) {
+      if (sort.isNotEmpty &&
+          sort != _sort &&
+          _sortNameMap(context).containsKey(sort)) {
         setState(() {
           _sort = sort;
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
         });
       }
-    } catch (e) {
-      if (!mounted) return;
-      // 使用默认值
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    } catch (_) {}
   }
 
   @override
@@ -132,32 +113,29 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ComicPager(
-              key: Key("FAVOUR:$_folderId:$_sort"),
-              onPage: (int page) async {
-                final response =
-                    await methods.favorites(_folderId, page, _sort);
-                if (mounted) {
-                  setState(() {
-                    favData = response.folderList;
-                    _folderMap
-                      ..clear()
-                      ..addAll({
-                        0: context.l10n.all,
-                        for (final folder in response.folderList)
-                          folder.fid: folder.name,
-                      });
-                  });
-                }
-                // count 会随尾页条数变化，分页器应保留首批条数作为容量。
-                return InnerComicPage(
-                  total: response.total,
-                  list: response.list,
-                );
-              },
-            ),
+      body: ComicPager(
+        key: Key("FAVOUR:$_folderId:$_sort"),
+        onPage: (int page) async {
+          final response = await methods.favorites(_folderId, page, _sort);
+          if (mounted) {
+            setState(() {
+              favData = response.folderList;
+              _folderMap
+                ..clear()
+                ..addAll({
+                  0: context.l10n.all,
+                  for (final folder in response.folderList)
+                    folder.fid: folder.name,
+                });
+            });
+          }
+          // count 会随尾页条数变化，分页器应保留首批条数作为容量。
+          return InnerComicPage(
+            total: response.total,
+            list: response.list,
+          );
+        },
+      ),
     );
   }
 }

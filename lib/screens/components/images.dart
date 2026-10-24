@@ -659,7 +659,7 @@ class _JM3x4CoverState extends State<JM3x4Cover> {
       widget.height,
       fit: widget.fit,
       longPressMenuItems: widget.longPressMenuItems,
-      preserveSourceAspectRatio: true,
+      fitDecodeToBounds: true,
       onReload: _reload,
       onDecodeError: _autoRetryOnDecodeError,
     );
@@ -741,7 +741,7 @@ class _JMSquareCoverState extends State<JMSquareCover> {
       widget.height,
       fit: widget.fit,
       longPressMenuItems: widget.longPressMenuItems,
-      preserveSourceAspectRatio: true,
+      fitDecodeToBounds: true,
       onReload: _reload,
       onDecodeError: _autoRetryOnDecodeError,
     );
@@ -1019,7 +1019,8 @@ Widget pathFutureImage(
     VoidCallback? onDecodeError,
     ValueChanged<ImageProvider>? onImageProvider,
     bool offlineOnly = false,
-    bool preserveSourceAspectRatio = false}) {
+    bool preserveSourceAspectRatio = false,
+    bool fitDecodeToBounds = false}) {
   // 使用 FutureBuilder 渲染加载/错误/成功状态
   return FutureBuilder<String>(
       future: future,
@@ -1058,6 +1059,7 @@ Widget pathFutureImage(
             onDecodeError: onDecodeError,
             onImageProvider: onImageProvider,
             preserveSourceAspectRatio: preserveSourceAspectRatio,
+            fitDecodeToBounds: fitDecodeToBounds,
           );
         }
         if (snapshot.connectionState == ConnectionState.done) {
@@ -1198,18 +1200,32 @@ Widget buildError(BuildContext context, double? width, double? height,
 
 Widget buildLoading(BuildContext context, double? width, double? height,
     {List<LongPressMenuItem>? longPressMenuItems}) {
-  double? size;
+  double spinnerExtent = 28;
   if (width != null && height != null) {
-    size = width < height ? width : height;
+    final shortestSide = width < height ? width : height;
+    spinnerExtent = (shortestSide * .34).clamp(18.0, 34.0).toDouble();
   }
   final loading = SizedBox(
     width: width,
     height: height,
     child: Center(
-      child: Icon(
-        Icons.downloading,
-        size: size,
-        color: Colors.grey.withAlpha(150),
+      child: Container(
+        width: spinnerExtent,
+        height: spinnerExtent,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: .08),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: .12),
+          ),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.downloading_rounded,
+            size: spinnerExtent * .62,
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: .72),
+          ),
+        ),
       ),
     ),
   );
@@ -1341,7 +1357,8 @@ Widget buildFile(
     VoidCallback? onReload,
     VoidCallback? onDecodeError,
     ValueChanged<ImageProvider>? onImageProvider,
-    bool preserveSourceAspectRatio = false}) {
+    bool preserveSourceAspectRatio = false,
+    bool fitDecodeToBounds = false}) {
   final devicePixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
   final cacheWidth = _cacheExtent(width, devicePixelRatio);
   final cacheHeight = _cacheExtent(height, devicePixelRatio);
@@ -1349,9 +1366,19 @@ Widget buildFile(
   // Preserve the decoded cover pixels, then let BoxFit scale and crop them.
   // Exact width/height decode targets would distort the image before painting.
   final source = FileImage(File(file));
-  final provider = preserveSourceAspectRatio
-      ? source
-      : ResizeImage.resizeIfNeeded(cacheWidth, cacheHeight, source);
+  final ImageProvider provider;
+  if (preserveSourceAspectRatio) {
+    provider = source;
+  } else if (fitDecodeToBounds && (cacheWidth != null || cacheHeight != null)) {
+    provider = ResizeImage(
+      source,
+      width: cacheWidth,
+      height: cacheHeight,
+      policy: ResizeImagePolicy.fit,
+    );
+  } else {
+    provider = ResizeImage.resizeIfNeeded(cacheWidth, cacheHeight, source);
+  }
   onImageProvider?.call(provider);
   final image = Image(
     image: provider,

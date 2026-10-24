@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/methods.dart';
+import 'package:jmcomic3/configs/download_and_export_to.dart';
 import 'package:jmcomic3/configs/download_thread_count.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/content_loading.dart';
@@ -14,7 +15,9 @@ import 'download_album_screen.dart';
 import 'downloads_exports_screen.dart';
 
 class DownloadsScreen extends StatefulWidget {
-  const DownloadsScreen({Key? key}) : super(key: key);
+  final int? initialDownloadId;
+
+  const DownloadsScreen({Key? key, this.initialDownloadId}) : super(key: key);
 
   @override
   State<StatefulWidget> createState() => _DownloadsScreenState();
@@ -134,15 +137,72 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
   Widget _listView() {
     // 下载记录可能长期累积；列表页只构建可见卡片，避免进入页面时一次性创建全部 Widget。
+    final itemCount = 1 + _downloads.length + (_downloads.isEmpty ? 1 : 0);
     return ListView.builder(
-      itemCount: _downloads.length,
+      key: const ValueKey('downloads-list'),
+      padding: const EdgeInsets.only(top: 8, bottom: 20),
+      itemCount: itemCount,
       itemBuilder: (context, index) {
-        final download = _downloads[index];
-        return GestureDetector(
+        if (index == 0) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+            child: Material(
+              key: const ValueKey('download-directory-card'),
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outlineVariant
+                      .withValues(alpha: .5),
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: downloadDirectorySetting(compact: true),
+            ),
+          );
+        }
+        if (_downloads.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(24, 80, 24, 24),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.download_done_outlined,
+                  size: 42,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  context.l10n.tr(
+                    "还没有下载任务",
+                    en: "No downloads yet",
+                  ),
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  context.l10n.tr(
+                    "在漫画详情页选择章节后即可开始下载。",
+                    en: "Select chapters from a comic detail page to start downloading.",
+                  ),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+          );
+        }
+        final download = _downloads[index - 1];
+        return ComicDownloadCard(
+          download,
           key: Key("DOWNLOAD:${download.id}"),
+          highlighted: download.id == widget.initialDownloadId,
           onTap: () => _openDownload(download),
           onLongPress: () => _confirmDelete(download),
-          child: ComicDownloadCard(download),
         );
       },
     );

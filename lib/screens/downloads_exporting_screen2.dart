@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/log.dart';
 import 'package:jmcomic3/basic/methods.dart';
@@ -7,9 +5,8 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 
 import '../basic/commons.dart';
 import '../configs/export_path.dart';
-import '../configs/is_pro.dart';
-import 'components/content_loading.dart';
 import 'components/right_click_pop.dart';
+import 'downloads_export_ui.dart';
 
 class DownloadsExportingScreen2 extends StatefulWidget {
   final List<int> idList;
@@ -31,89 +28,135 @@ class _DownloadsExportingScreen2State extends State<DownloadsExportingScreen2> {
 
   Widget _body() {
     final l10n = context.l10n;
-    final proSuffix =
-        !hasProAccess ? '\n${l10n.tr('(发电后使用)', en: '(Pro required)')}' : '';
     if (exporting) {
-      return ContentLoading(
+      return ExportProgressPanel(
         label: exportMessage.isEmpty
             ? l10n.tr('正在导出', en: 'Exporting')
             : l10n.tr(exportMessage),
+        itemCount: widget.idList.length,
       );
     }
     if (exportFail) {
-      return Center(
-        child: Text(
-          '${l10n.tr('导出失败', en: 'Export failed')}\n$e\n($exportMessage)',
-        ),
+      return ExportResultPanel(
+        success: false,
+        title: l10n.tr('导出失败', en: 'Export failed'),
+        message: '$e',
+        onReset: () {
+          setState(() {
+            exportFail = false;
+            e = null;
+            exportMessage = '';
+          });
+        },
       );
     }
     if (exported) {
-      return Center(child: Text(l10n.tr('导出成功', en: 'Export succeeded')));
+      return ExportResultPanel(
+        success: true,
+        title: l10n.tr('导出成功', en: 'Export succeeded'),
+        message: l10n.tr(
+          '文件已保存到导出目录，可返回文件管理器查看。',
+          en: 'Files were saved to the export folder.',
+        ),
+        onReset: () => Navigator.of(context).maybePop(),
+      );
     }
-    return ListView(
-      children: [
-        // Container(height: 20),
-        // MaterialButton(
-        //   onPressed: _exportPkz,
-        //   child: const Text('导出PKZ'),
-        // ),
-        Container(height: 20),
-        displayExportPathInfo(),
-        Container(height: 20),
-        SwitchListTile(
-          title: Text(
-            l10n.tr('导出后删除原文件', en: 'Delete source files after export'),
-          ),
-          value: deleteExport,
-          onChanged: (value) {
-            setState(() {
-              deleteExport = value;
-            });
-          },
-        ),
-        Container(height: 20),
-        MaterialButton(
-          onPressed: _exportJpegs,
-          child: Text(
-            l10n.tr('导出成文件夹', en: 'Export as folders') + proSuffix,
-            style: TextStyle(
-              color: !hasProAccess ? Colors.grey : null,
+    final horizontal = MediaQuery.sizeOf(context).width >= 760 ? 24.0 : 14.0;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: ListView(
+          key: const ValueKey('batch-export-incomplete-format-list'),
+          padding: EdgeInsets.fromLTRB(horizontal, 10, horizontal, 28),
+          children: [
+            ExportPageIntro(
+              itemCount: widget.idList.length,
+              includesIncomplete: true,
             ),
-            textAlign: TextAlign.center,
-          ),
-        ),
-        Container(height: 20),
-        MaterialButton(
-          onPressed: _exportPdf2,
-          child: Text(
-            l10n.tr('导出成PDF', en: 'Export as PDF') + proSuffix,
-            style: TextStyle(
-              color: !hasProAccess ? Colors.grey : null,
+            const SizedBox(height: 14),
+            ExportSectionCard(
+              title: l10n.tr('选择导出方式', en: 'Export format'),
+              subtitle: l10n.tr(
+                '未完成的漫画也会一并处理',
+                en: 'Unfinished comics are included',
+              ),
+              icon: Icons.drive_file_move_outline,
+              children: [
+                ExportFormatTile(
+                  icon: Icons.folder_copy_outlined,
+                  title: l10n.tr('图片文件夹', en: 'Image folders'),
+                  subtitle: l10n.tr(
+                    '按漫画分别生成图片文件夹',
+                    en: 'Create an image folder for each comic',
+                  ),
+                  badge: l10n.tr('文件夹', en: 'Folder'),
+                  onPressed: _exportJpegs,
+                ),
+                const Divider(height: 1, indent: 64),
+                ExportFormatTile(
+                  icon: Icons.picture_as_pdf_outlined,
+                  title: 'PDF',
+                  subtitle: l10n.tr(
+                    '逐本生成 PDF 文档',
+                    en: 'Create one PDF per comic',
+                  ),
+                  badge: 'PDF',
+                  accent: Colors.deepOrange,
+                  onPressed: _exportPdf2,
+                ),
+                const Divider(height: 1, indent: 64),
+                ExportFormatTile(
+                  icon: Icons.menu_book_outlined,
+                  title: 'EPUB',
+                  subtitle: l10n.tr(
+                    '生成适合阅读器的电子书',
+                    en: 'Create reader-friendly e-books',
+                  ),
+                  badge: 'EPUB',
+                  accent: Colors.teal,
+                  onPressed: _exportEpub,
+                ),
+              ],
             ),
-            textAlign: TextAlign.center,
-          ),
-        ),
-        Container(height: 20),
-        MaterialButton(
-          onPressed: _exportEpub,
-          child: Text(
-            l10n.tr('导出成EPUB', en: 'Export as EPUB') + proSuffix,
-            style: TextStyle(
-              color: !hasProAccess ? Colors.grey : null,
+            const SizedBox(height: 12),
+            ExportSectionCard(
+              title: l10n.tr('保存位置与选项', en: 'Location and options'),
+              icon: Icons.tune_rounded,
+              children: [
+                displayExportPathInfo(),
+                const Divider(height: 1),
+                SwitchListTile(
+                  key: const ValueKey('export-delete-source-after-export'),
+                  title: Text(
+                    l10n.tr(
+                      '导出后删除原文件',
+                      en: 'Delete source files after export',
+                    ),
+                  ),
+                  subtitle: Text(
+                    l10n.tr(
+                      '导出成功后释放本地下载文件',
+                      en: 'Free local download files after a successful export',
+                    ),
+                  ),
+                  value: deleteExport,
+                  onChanged: (value) {
+                    setState(() {
+                      deleteExport = value;
+                    });
+                  },
+                ),
+              ],
             ),
-            textAlign: TextAlign.center,
-          ),
+          ],
         ),
-        Container(height: 20),
-      ],
+      ),
     );
   }
 
   Future<String?> _pickPath() async {
     try {
-      return Platform.isIOS
-          ? await methods.iosGetDocumentDir()
-          : await chooseFolder(context);
+      return await attachExportPath(context);
     } catch (e) {
       defaultToast(context, '$e');
       return null;
@@ -123,13 +166,6 @@ class _DownloadsExportingScreen2State extends State<DownloadsExportingScreen2> {
   Future<void> _runBatchExport({
     required Future<void> Function(String path) exporter,
   }) async {
-    if (!await ensureProAccess()) {
-      defaultToast(
-        context,
-        context.l10n.tr('请先发电鸭', en: 'Please activate Pro first'),
-      );
-      return;
-    }
     final path = await _pickPath();
     debugPrient('path $path');
     if (path == null) {
@@ -199,13 +235,28 @@ class _DownloadsExportingScreen2State extends State<DownloadsExportingScreen2> {
   Widget buildScreen(BuildContext context) {
     return WillPopScope(
       child: Scaffold(
+        key: const ValueKey('batch-export-incomplete-format-page'),
+        backgroundColor: Theme.of(context).colorScheme.surface,
         appBar: AppBar(
-          title: Text(
-            context.l10n.tr(
-              '批量导出(即使没有下载完)',
-              en: 'Batch export (including unfinished downloads)',
-            ),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(context.l10n.tr('批量导出', en: 'Batch export')),
+              Text(
+                context.l10n.tr(
+                  '包含未完成的下载',
+                  en: 'Includes unfinished downloads',
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
           ),
+          surfaceTintColor: Colors.transparent,
         ),
         body: _body(),
       ),

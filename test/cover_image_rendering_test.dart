@@ -143,8 +143,12 @@ void main() {
             rendered.dispose();
           }
         });
-        expect(raw.image!.width, sourceSize.width.toInt());
-        expect(raw.image!.height, sourceSize.height.toInt());
+        expect(
+          raw.image!.width < sourceSize.width ||
+              raw.image!.height < sourceSize.height,
+          isTrue,
+          reason: 'Cover decoding should stay below the source resolution.',
+        );
         expect(tester.takeException(), isNull);
       });
     }

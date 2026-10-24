@@ -7,6 +7,7 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 
 import '../basic/commons.dart';
 import '../basic/methods.dart';
+import 'download_and_export_to.dart';
 import 'string_property.dart';
 
 const String _propertyKey = "export_path";
@@ -43,7 +44,13 @@ String showExportPath(BuildContext context) {
       en: "\n\nThen you can find exported files in the Files app",
     );
   }
-  return "\n\n$_currentExportPath";
+  return "\n\n${_effectiveExportPath()}";
+}
+
+String _effectiveExportPath() {
+  return hasCustomDownloadDirectory
+      ? currentDownloadAndExportTo
+      : _currentExportPath;
 }
 
 Future _setExportPath(String folder) async {
@@ -56,50 +63,131 @@ Widget displayExportPathInfo() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       final l10n = context.l10n;
+      final theme = Theme.of(context);
+      final scheme = theme.colorScheme;
       if (Platform.isIOS) {
         return Container(
-          margin: const EdgeInsets.all(15),
-          padding: const EdgeInsets.all(15),
-          color: (Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black)
-              .withOpacity(.01),
-          child: Text(
-            l10n.tr(
-              "您正在使用iOS设备:\n导出到文件的内容请打开系统自带文件管理进行浏览",
-              en: "You are using iOS:\nOpen the system Files app to browse exported files",
-            ),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: scheme.primaryContainer.withValues(alpha: .35),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.folder_outlined, color: scheme.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  l10n.tr(
+                    "导出内容可在系统文件夹中找到",
+                    en: "Exported files are available in the Files app",
+                  ),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+            ],
           ),
         );
       }
-      return Column(children: [
-        if (!Platform.isMacOS)
-          ListTile(
-            onTap: () async {
-              await chooseEx(context);
-              setState(() {});
-            },
-            title:
-                Text(l10n.tr("导出路径 (点击可修改)", en: "Export path (tap to edit)")),
-            subtitle: Text(_currentExportPath),
+      final path = _effectiveExportPath();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () async {
+                await chooseEx(context);
+                setState(() {});
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: scheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.folder_copy_outlined,
+                        color: scheme.onPrimaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.tr(
+                              "导出位置",
+                              en: "Export location",
+                            ),
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            path.isEmpty
+                                ? l10n.tr(
+                                    "点击选择保存位置",
+                                    en: "Tap to choose a location",
+                                  )
+                                : path,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.edit_outlined,
+                      size: 19,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ...Platform.isAndroid
-            ? [
-                Container(height: 15),
-                Container(
-                  margin: const EdgeInsets.all(15),
-                  padding: const EdgeInsets.all(15),
-                  color: (Theme.of(context).textTheme.bodyMedium?.color ??
-                          Colors.black)
-                      .withOpacity(.01),
-                  child: Text(
-                    l10n.tr(
-                      "您正在使用安卓设备:\n如果不能成功导出并且提示权限不足, 可以尝试在Download或Document下建立子目录进行导出",
-                      en: "You are using Android:\nIf export fails due to insufficient permissions, try creating a subfolder under Download or Document",
+          if (Platform.isAndroid)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 15,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      l10n.tr(
+                        "如提示权限不足，可改选 Download 或 Documents 下的子文件夹",
+                        en: "If permission is denied, choose a subfolder under Download or Documents",
+                      ),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        height: 1.35,
+                      ),
                     ),
                   ),
-                ),
-              ]
-            : [],
-      ]);
+                ],
+              ),
+            ),
+        ],
+      );
     },
   );
 }
@@ -109,10 +197,15 @@ Future<String> attachExportPath(BuildContext context) async {
   if (Platform.isIOS) {
     path = await methods.iosGetDocumentDir();
   } else {
-    if (!await androidMangeStorageRequest()) {
-      throw Exception(context.l10n.tr("申请权限被拒绝", en: "Permission denied"));
+    path = _effectiveExportPath();
+    if (Platform.isAndroid && !await methods.androidDirectoryWritable(path)) {
+      final selected = await methods.androidPickDownloadDirectory();
+      if (selected == null || selected.trim().isEmpty) {
+        throw Exception(context.l10n.tr("申请权限被拒绝", en: "Permission denied"));
+      }
+      path = selected;
+      await _setExportPath(path);
     }
-    path = _currentExportPath;
   }
   if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
     await methods.mkdirs(path);
@@ -123,7 +216,9 @@ Future<String> attachExportPath(BuildContext context) async {
 }
 
 Future chooseEx(BuildContext context) async {
-  String? choose = await chooseFolder(context);
+  String? choose = Platform.isAndroid
+      ? await methods.androidPickDownloadDirectory()
+      : await chooseFolder(context);
   if (choose != null) {
     await _setExportPath(choose);
   }

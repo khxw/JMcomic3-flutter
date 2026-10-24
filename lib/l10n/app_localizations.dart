@@ -9,14 +9,13 @@ class AppLocalizations {
   static const LocalizationsDelegate<AppLocalizations> delegate =
       _AppLocalizationsDelegate();
 
-  static const supportedLocales = <Locale>[
-    Locale('zh'),
-    Locale('en'),
-  ];
+  static const supportedLocales = <Locale>[Locale('zh'), Locale('en')];
 
   static AppLocalizations of(BuildContext context) {
-    final result =
-        Localizations.of<AppLocalizations>(context, AppLocalizations);
+    final result = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     assert(result != null, 'No AppLocalizations found in context');
     return result!;
   }
@@ -24,6 +23,7 @@ class AppLocalizations {
   static const Map<String, Map<String, String>> _localizedValues = {
     'zh': {
       'navBrowse': '浏览',
+      'navSearch': '搜索',
       'navLibrary': '书架',
       'initializing': '初始化中...',
       'initFailedSetNetwork': '初始化失败，请设置网络',
@@ -111,6 +111,7 @@ class AppLocalizations {
     },
     'en': {
       'navBrowse': 'Browse',
+      'navSearch': 'Search',
       'navLibrary': 'Library',
       'initializing': 'Initializing...',
       'initFailedSetNetwork':
@@ -213,6 +214,7 @@ class AppLocalizations {
   }
 
   String get navBrowse => _text('navBrowse');
+  String get navSearch => _text('navSearch');
   String get navLibrary => _text('navLibrary');
   String get initializing => _text('initializing');
   String get initFailedSetNetwork => _text('initFailedSetNetwork');

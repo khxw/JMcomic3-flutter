@@ -10,9 +10,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jmcomic3/basic/entities.dart';
+import 'package:jmcomic3/basic/local_bookshelf.dart';
 import 'package:jmcomic3/basic/methods.dart' as native;
 import 'package:jmcomic3/basic/navigator.dart';
 import 'package:jmcomic3/configs/display_jmcode.dart';
+import 'package:jmcomic3/configs/download_thread_count.dart';
 import 'package:jmcomic3/configs/ignore_view_log.dart';
 import 'package:jmcomic3/configs/login.dart' as login;
 import 'package:jmcomic3/configs/no_animation.dart';
@@ -32,9 +34,11 @@ import 'package:jmcomic3/screens/comic_download_screen.dart';
 import 'package:jmcomic3/screens/comic_info_screen.dart';
 import 'package:jmcomic3/screens/comic_reader_screen.dart';
 import 'package:jmcomic3/screens/components/comic_comments_list.dart';
+import 'package:jmcomic3/screens/components/comic_download_card.dart';
 import 'package:jmcomic3/screens/components/comic_detail_chapters.dart';
 import 'package:jmcomic3/screens/components/comic_detail_header.dart';
 import 'package:jmcomic3/screens/components/images.dart';
+import 'package:jmcomic3/screens/downloads_screen.dart';
 
 const _channel = MethodChannel('methods');
 const _previewKey = ValueKey('comic-detail-preview');
@@ -147,6 +151,7 @@ class _Fixture {
   Completer<void>? favoriteGate;
   Completer<void>? viewLogGate;
   String? coverPath;
+  bool downloadCreated = false;
   final requests = <Map<String, dynamic>>[];
   final _pendingCover = Completer<String>();
   final properties = <String, String>{
@@ -229,6 +234,27 @@ class _Fixture {
         return _response({'list': <Object>[], 'total': 0});
       case 'download_by_id':
         return _response(null);
+      case 'create_download':
+        downloadCreated = true;
+        return _response('');
+      case 'all_downloads':
+        return _response(downloadCreated
+            ? [
+                DownloadAlbum.fromJson({
+                  'id': album.id,
+                  'name': album.name,
+                  'author': album.author,
+                  'tags': album.tags,
+                  'works': album.works,
+                  'description': album.description,
+                  'dl_status': 1,
+                  'image_count': 24,
+                  'dled_image_count': 24,
+                }).toJson(),
+              ]
+            : <Object>[]);
+      case 'load_download_thread':
+        return _response('1');
       case 'chapter':
         return _response({
           'id': int.parse(params),
@@ -394,6 +420,7 @@ Future<_Fixture> _prepare(
     tester.view.resetDevicePixelRatio();
   });
   await native.methods.logout();
+  resetLocalBookshelfMemory();
   clearAllImageMemoryCaches();
   await initIgnoreVewLog();
   await initSearchTitleWords();
@@ -408,6 +435,7 @@ Future<_Fixture> _prepare(
   await initTwoPageDirection();
   await initVolumeKeyControl();
   await initNoAnimation();
+  await initDownloadThreadCount();
   await _previewFonts(tester);
   if (_saveScreenshots) {
     await tester.runAsync(fixture.createCover);
@@ -1048,6 +1076,24 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('reader pop defers detail history refresh until transition ends',
+      (tester) async {
+    final fixture = await _prepare(tester);
+    await _mount(tester, fixture);
+    await _tapVisible(tester, _key('chapter-$_firstChapterId'));
+    expect(find.byType(ComicReaderScreen), findsOneWidget);
+    final historyCalls = fixture.calls('find_view_log').length;
+
+    await tester.pageBack();
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(fixture.calls('find_view_log'), hasLength(historyCalls));
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpAndSettle();
+    expect(fixture.calls('find_view_log').length, greaterThan(historyCalls));
+    expect(find.byType(ComicInfoScreen), findsOneWidget);
+  });
+
   testWidgets('the fixed download action navigates with the loaded album',
       (tester) async {
     final fixture = await _prepare(tester);
@@ -1061,6 +1107,104 @@ void main() {
     expect(download.album.series.map((chapter) => chapter.id),
         [_secondChapterId, _firstChapterId]);
     expect(fixture.calls('download_by_id').single['params'], '$_albumId');
+    expect(
+      find.byKey(const ValueKey('comic-download-overview')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('comic-download-action-bar')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('comic-download-chapter-$_secondChapterId')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('comic-download-chapter-$_firstChapterId')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('comic-download-select-all')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('2 of 2 selected'), findsOneWidget);
+    expect(find.text('Download 2'), findsOneWidget);
+    await _capture(tester, 'download-chapter-selection');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('download chapter controls fit a compact screen with large text',
+      (tester) async {
+    final fixture = await _prepare(tester, size: const Size(320, 700));
+    await tester.pumpWidget(_host(
+      ComicDownloadScreen(fixture.album),
+      textScale: 2,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('comic-download-page')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('comic-download-action-bar')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.drag(
+      find.byKey(const ValueKey('comic-download-chapters-scroll')),
+      const Offset(0, -1400),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('comic-download-chapter-$_secondChapterId')),
+      findsOneWidget,
+    );
+    await _capture(tester, 'download-compact-large-text');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'creating a download opens the download list and back returns to detail',
+      (tester) async {
+    final fixture = await _prepare(tester);
+    await _mount(tester, fixture);
+    await tester.tap(_key('download'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('comic-download-select-all')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('comic-download-confirm')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ComicDownloadScreen), findsNothing);
+    expect(find.byType(DownloadsScreen), findsOneWidget);
+    expect(find.byKey(const ValueKey('downloads-list')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('download-card-$_albumId')),
+      findsOneWidget,
+    );
+    final card = tester.widget<ComicDownloadCard>(
+      find.byKey(const Key('DOWNLOAD:$_albumId')),
+    );
+    expect(card.highlighted, isTrue);
+
+    final createCall = fixture.calls('create_download').single;
+    final request = jsonDecode(createCall['params'] as String) as Map;
+    final chapters = request['chapters'] as List;
+    expect(
+      chapters.map((chapter) => chapter['id']).toSet(),
+      {_firstChapterId, _secondChapterId},
+    );
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.byType(ComicInfoScreen), findsOneWidget);
+    expect(find.byType(DownloadsScreen), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -1105,110 +1249,59 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-      'favorite changes are single-flight and respect server add/remove',
+  testWidgets('guest can add and remove the comic from local bookshelf',
       (tester) async {
-    final fixture = await _prepare(tester, signedIn: true);
-    fixture.favoriteGate = Completer<void>();
+    final fixture = await _prepare(tester);
     await _mount(tester, fixture);
+
+    expect(find.text('Add to bookshelf'), findsOneWidget);
     await tester.tap(_key('favorite'));
-    // Two taps before the disabled state is rebuilt also exercise the async
-    // login/check guard, rather than merely relying on a disabled button.
-    await tester.tap(_key('favorite'));
-    await tester.pump();
-    expect(fixture.calls('set_favorite'), hasLength(1));
-    expect(tester.widget<TextButton>(_key('favorite')).onPressed, isNull);
-    fixture.favoriteGate!.complete();
     await tester.pumpAndSettle();
-    expect(
-        find.descendant(
-            of: _key('favorite'), matching: find.byIcon(Icons.bookmark)),
-        findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
-    fixture.favoriteGate = null;
-    fixture.favoriteType = 'remove';
+
+    expect(fixture.calls('set_favorite'), isEmpty);
+    expect(localBookshelfContains(_albumId), isTrue);
+    expect(localBookshelfItems.single.group, fixture.album.tags.first);
+    expect(find.text('In bookshelf'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: _key('favorite'),
+        matching: find.byIcon(Icons.bookmark_added_rounded),
+      ),
+      findsOneWidget,
+    );
+
     await tester.tap(_key('favorite'));
     await tester.pumpAndSettle();
-    expect(fixture.calls('set_favorite'), hasLength(2));
-    expect(
-        find.descendant(
-            of: _key('favorite'), matching: find.byIcon(Icons.bookmark_border)),
-        findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
+    expect(localBookshelfContains(_albumId), isFalse);
+    expect(find.text('Add to bookshelf'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('refresh cannot replace the album during a favorite update',
+  testWidgets('local bookshelf state restores when detail is reopened',
       (tester) async {
-    final fixture = await _prepare(tester, signedIn: true);
-    fixture.favoriteGate = Completer<void>();
+    final fixture = await _prepare(tester);
     await _mount(tester, fixture);
-    // Clear only transport caches so a broken refresh would issue a visible
-    // second request instead of silently constructing a new cached album.
-    await native.methods.cleanAllCache();
     await tester.tap(_key('favorite'));
-    await tester.pump();
-    expect(fixture.calls('set_favorite'), hasLength(1));
-    final indicator =
-        tester.state<RefreshIndicatorState>(find.byType(RefreshIndicator));
-    final refreshing = indicator.show();
     await tester.pumpAndSettle();
-    await refreshing;
-    expect(fixture.calls('album'), hasLength(1));
-    expect(fixture.calls('find_view_log'), hasLength(1));
-    fixture.favoriteGate!.complete();
-    await tester.pumpAndSettle();
-    expect(
-        find.descendant(
-            of: _key('favorite'), matching: find.byIcon(Icons.bookmark)),
-        findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-  });
+    expect(localBookshelfContains(_albumId), isTrue);
 
-  testWidgets('a failed favorite request keeps state and can be retried',
-      (tester) async {
-    final fixture = await _prepare(tester, signedIn: true);
-    fixture.favoriteError = 'network unavailable';
-    await _mount(tester, fixture);
-    await tester.tap(_key('favorite'));
-    await tester.pumpAndSettle();
-    expect(fixture.calls('set_favorite'), hasLength(1));
-    expect(
-        find.descendant(
-            of: _key('favorite'), matching: find.byIcon(Icons.bookmark_border)),
-        findsOneWidget);
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pumpAndSettle();
-    fixture.favoriteError = null;
-    await tester.tap(_key('favorite'));
-    await tester.pumpAndSettle();
-    expect(fixture.calls('set_favorite'), hasLength(2));
-    expect(
-        find.descendant(
-            of: _key('favorite'), matching: find.byIcon(Icons.bookmark)),
-        findsOneWidget);
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('finishing a favorite after leaving the screen does not setState',
-      (tester) async {
-    final fixture = await _prepare(tester, signedIn: true);
-    fixture.favoriteGate = Completer<void>();
-    await _mount(tester, fixture);
-    await tester.tap(_key('favorite'));
-    await tester.pump();
-    expect(fixture.calls('set_favorite'), hasLength(1));
     await tester.pumpWidget(_host(const Scaffold(body: Text('Left detail'))));
     await tester.pumpAndSettle();
-    fixture.favoriteGate!.complete();
-    await tester.pumpAndSettle();
-    expect(find.text('Left detail'), findsOneWidget);
+    await _mount(tester, fixture);
+    expect(find.text('In bookshelf'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: _key('favorite'),
+        matching: find.byIcon(Icons.bookmark_added_rounded),
+      ),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 }

@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>JMComic3 首页重构样图</title>
+  <style>
+    :root {
+      --page: #f7fafb;
+      --surface: rgba(255, 255, 255, 0.86);
+      --surface-solid: #fff;
+      --ink: #152025;
+      --muted: #75858c;
+      --line: rgba(36, 67, 77, 0.1);
+      --accent: #087f91;
+      --accent-soft: #d9f1f4;
+      --accent-2: #e8efff;
+      --shadow: 0 14px 38px rgba(35, 67, 77, 0.1);
+      --radius: 22px;
+      --side: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      min-height: 100%;
+      background:
+        radial-gradient(circle at 12% 12%, #dff4f3 0, transparent 27rem),
+        radial-gradient(circle at 88% 84%, #e7edff 0, transparent 30rem),
+        #edf2f3;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+    }
+
+    .app {
+      position: relative;
+      width: min(100%, 390px);
+      min-height: 100vh;
+      margin: 0 auto;
+      overflow: hidden;
+      padding-bottom: 132px;
+      background:
+        radial-gradient(circle at 92% 7%, rgba(201, 238, 240, 0.75), transparent 170px),
+        linear-gradient(180deg, #fbfdfd 0%, var(--page) 45%, #f6f9fa 100%);
+    }
+
+    .top-bar {
+      position: relative;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: calc(12px + env(safe-area-inset-top)) var(--side) 7px;
+    }
+
+    .search-box {
+      display: flex;
+      flex: 1;
+      min-width: 0;
+      height: 42px;
+      align-items: center;
+      gap: 9px;
+      padding: 0 13px;
+      border: 1px solid rgba(80, 134, 146, 0.12);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: 0 7px 22px rgba(38, 80, 90, 0.07);
+      color: var(--muted);
+      transition: box-shadow 180ms ease, border-color 180ms ease;
+    }
+
+    .search-box:focus-within {
+      border-color: rgba(8, 127, 145, 0.34);
+      box-shadow: 0 8px 25px rgba(8, 127, 145, 0.12);
+    }
+
+    .search-box svg {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      color: var(--accent);
+    }
+
+    .search-box input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      font-size: 13px;
+    }
+
+    .search-box input::placeholder { color: #8c999f; }
+
+    .menu-button {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      place-items: center;
+      border: 1px solid rgba(80, 134, 146, 0.11);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.8);
+      box-shadow: 0 7px 22px rgba(38, 80, 90, 0.06);
+      cursor: pointer;
+    }
+
+    .menu-button svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .carousel {
+      position: relative;
+      height: 188px;
+      margin: 8px var(--side) 22px;
+      overflow: hidden;
+      border-radius: 25px;
+      box-shadow: var(--shadow);
+      isolation: isolate;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transform: scale(1.035);
+      transition: opacity 520ms ease, transform 900ms ease;
+    }
+
+    .slide.is-active {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .slide::before {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      content: "";
+      background-image: var(--cover);
+      background-position: center;
+      background-size: cover;
+    }
+
+    .slide::after {
+      position: absolute;
+      inset: 0;
+      content: "";
+      background:
+        linear-gradient(90deg, rgba(13, 27, 33, 0.72) 0%, rgba(13, 27, 33, 0.2) 58%, rgba(13, 27, 33, 0.06) 100%),
+        linear-gradient(0deg, rgba(11, 25, 31, 0.36), transparent 52%);
+    }
+
+    .slide-copy {
+      position: absolute;
+      z-index: 2;
+      left: 20px;
+      right: 56%;
+      bottom: 24px;
+      color: #fff;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      padding: 0 9px;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.15);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      backdrop-filter: blur(7px);
+    }
+
+    .slide h1 {
+      margin: 9px 0 4px;
+      font-size: 23px;
+      line-height: 1.15;
+      letter-spacing: -0.04em;
+    }
+
+    .slide p {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.78);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .dots {
+      position: absolute;
+      z-index: 3;
+      right: 16px;
+      bottom: 17px;
+      display: flex;
+      gap: 5px;
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      padding: 0;
+      border: 0;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.42);
+      transition: width 220ms ease, background 220ms ease;
+      cursor: pointer;
+    }
+
+    .dot.is-active {
+      width: 18px;
+      background: #fff;
+    }
+
+    .rails {
+      display: grid;
+      gap: 25px;
+    }
+
+    .section {
+      min-width: 0;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--side) 10px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .section-title::before {
+      width: 4px;
+      height: 17px;
+      border-radius: 99px;
+      background: linear-gradient(180deg, #14a3b5, #91d9dd);
+      content: "";
+    }
+
+    .more {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .rail {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 0 var(--side) 3px;
+      scrollbar-width: none;
+      scroll-snap-type: x proximity;
+    }
+
+    .rail::-webkit-scrollbar { display: none; }
+
+    .comic-card {
+      width: calc((100vw - 52px) / 3);
+      max-width: 132px;
+      min-width: 104px;
+      flex: 0 0 auto;
+      scroll-snap-align: start;
+    }
+
+    .cover {
+      position: relative;
+      aspect-ratio: 3 / 4;
+      overflow: hidden;
+      border-radius: 15px;
+      background: #e4eeef;
+      box-shadow: 0 7px 18px rgba(29, 63, 72, 0.1);
+    }
+
+    .cover img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 320ms ease;
+    }
+
+    .comic-card:hover img { transform: scale(1.035); }
+
+    .cover::after {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      height: 38%;
+      content: "";
+      background: linear-gradient(transparent, rgba(10, 20, 25, 0.22));
+      pointer-events: none;
+    }
+
+    .tag {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      padding: 3px 7px;
+      border-radius: 99px;
+      background: rgba(12, 25, 31, 0.52);
+      color: #fff;
+      font-size: 9px;
+      backdrop-filter: blur(6px);
+    }
+
+    .comic-title {
+      margin: 8px 1px 2px;
+      overflow: hidden;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.35;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .comic-meta {
+      margin: 0 1px;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 10px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .weekly-tab {
+      position: fixed;
+      z-index: 20;
+      right: max(18px, calc((100vw - 390px) / 2 + 18px));
+      bottom: calc(84px + env(safe-area-inset-bottom));
+      display: inline-flex;
+      height: 38px;
+      align-items: center;
+      gap: 7px;
+      padding: 0 15px 0 12px;
+      border: 1px solid rgba(8, 127, 145, 0.16);
+      border-radius: 16px 16px 5px 16px;
+      background: rgba(224, 247, 249, 0.94);
+      box-shadow: 0 9px 25px rgba(21, 94, 104, 0.13);
+      color: #086b7b;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      backdrop-filter: blur(14px);
+    }
+
+    .weekly-tab svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .bottom-capsule {
+      position: fixed;
+      z-index: 30;
+      right: max(16px, calc((100vw - 390px) / 2 + 16px));
+      bottom: calc(14px + env(safe-area-inset-bottom));
+      left: max(16px, calc((100vw - 390px) / 2 + 16px));
+      display: grid;
+      max-width: 358px;
+      height: 60px;
+      grid-template-columns: repeat(3, 1fr);
+      padding: 6px;
+      border: 1px solid rgba(89, 125, 134, 0.14);
+      border-radius: 29px;
+      background: rgba(245, 249, 250, 0.94);
+      box-shadow: 0 12px 34px rgba(28, 66, 76, 0.16);
+      backdrop-filter: blur(18px);
+    }
+
+    .bottom-capsule::before {
+      content: none;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 0;
+      border-radius: 23px;
+      background: transparent;
+      color: #79888e;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color 180ms ease, background 180ms ease, transform 180ms ease;
+    }
+
+    .nav-item svg {
+      width: 19px;
+      height: 19px;
+    }
+
+    .nav-item.is-active {
+      background: var(--accent-soft);
+      color: #075f6d;
+    }
+
+    .nav-item:active { transform: scale(0.97); }
+
+    .menu-toast {
+      position: fixed;
+      z-index: 50;
+      top: 70px;
+      right: max(16px, calc((100vw - 390px) / 2 + 16px));
+      padding: 8px 11px;
+      border-radius: 12px;
+      background: rgba(21, 32, 37, 0.86);
+      color: #fff;
+      font-size: 11px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-5px);
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .menu-toast.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (min-width: 700px) {
+      .app {
+        margin-top: 24px;
+        min-height: calc(100vh - 48px);
+        border-radius: 30px;
+        box-shadow: 0 24px 70px rgba(31, 63, 72, 0.16);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" aria-label="JMComic3 首页重构样图">
+    <header class="top-bar">
+      <label class="search-box" aria-label="搜索漫画">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="m20 20-3.5-3.5"></path>
+        </svg>
+        <input type="search" placeholder="搜索漫画、作者或关键词">
+      </label>
+      <button class="menu-button" type="button" id="menuButton" aria-label="多选菜单">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M4 7h16M4 12h16M4 17h16"></path>
+        </svg>
+      </button>
+    </header>
+
+    <section class="carousel" aria-label="推荐轮播图">
+      <article class="slide is-active" style="--cover: url('./assets/cover_2.png')">
+        <div class="slide-copy">
+          <span class="eyebrow">本周精选</span>
+          <h1>雨后的城市<br>与未说完的故事</h1>
+          <p>编辑推荐 · 连续阅读更新中</p>
+        </div>
+      </article>
+      <article class="slide" style="--cover: url('./assets/cover_4.png')">
+        <div class="slide-copy">
+          <span class="eyebrow">人气新作</span>
+          <h1>沿着海岸线<br>寻找下一段心动</h1>
+          <p>本周热度上升最快</p>
+        </div>
+      </article>
+      <article class="slide" style="--cover: url('./assets/cover_1.png')">
+        <div class="slide-copy">
+          <span class="eyebrow">完结纪念</span>
+          <h1>把最后一页<br>留给温柔</h1>
+          <p>精选完结作品专题</p>
+        </div>
+      </article>
+      <div class="dots" aria-label="轮播图切换">
+        <button class="dot is-active" type="button" aria-label="第 1 张"></button>
+        <button class="dot" type="button" aria-label="第 2 张"></button>
+        <button class="dot" type="button" aria-label="第 3 张"></button>
+      </div>
+    </section>
+
+    <div class="rails">
+      <section class="section">
+        <div class="section-head">
+          <h2 class="section-title">最新 A 漫</h2>
+          <button class="more" type="button">查看更多 <span>›</span></button>
+        </div>
+        <div class="rail">
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_0.png" alt=""><span class="tag">连载</span></div>
+            <p class="comic-title">夏末回声</p><p class="comic-meta">更新至 24 话</p>
+          </article>
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_3.png" alt=""><span class="tag">新作</span></div>
+            <p class="comic-title">夜行列车</p><p class="comic-meta">更新至 12 话</p>
+          </article>
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_5.png" alt=""><span class="tag">热门</span></div>
+            <p class="comic-title">蓝色窗口</p><p class="comic-meta">更新至 18 话</p>
+          </article>
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_2.png" alt=""><span class="tag">连载</span></div>
+            <p class="comic-title">潮汐以后</p><p class="comic-meta">更新至 09 话</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h2 class="section-title">同人</h2>
+          <button class="more" type="button">查看更多 <span>›</span></button>
+        </div>
+        <div class="rail">
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_1.png" alt=""><span class="tag">短篇</span></div>
+            <p class="comic-title">月下的约定</p><p class="comic-meta">全 1 话</p>
+          </article>
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_4.png" alt=""><span class="tag">同人</span></div>
+            <p class="comic-title">春日来信</p><p class="comic-meta">全 2 话</p>
+          </article>
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_0.png" alt=""><span class="tag">新作</span></div>
+            <p class="comic-title">秘密花园</p><p class="comic-meta">更新至 05 话</p>
+          </article>
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_3.png" alt=""><span class="tag">同人</span></div>
+            <p class="comic-title">星光之后</p><p class="comic-meta">全 1 话</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h2 class="section-title">单本</h2>
+          <button class="more" type="button">查看更多 <span>›</span></button>
+        </div>
+        <div class="rail">
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_5.png" alt=""><span class="tag">完结</span></div>
+            <p class="comic-title">白色星期天</p><p class="comic-meta">全 1 本</p>
+          </article>
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_2.png" alt=""><span class="tag">单本</span></div>
+            <p class="comic-title">玻璃温室</p><p class="comic-meta">全 1 本</p>
+          </article>
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_1.png" alt=""><span class="tag">精选</span></div>
+            <p class="comic-title">南方慢车</p><p class="comic-meta">全 1 本</p>
+          </article>
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_4.png" alt=""><span class="tag">单本</span></div>
+            <p class="comic-title">午睡之前</p><p class="comic-meta">全 1 本</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h2 class="section-title">剧情</h2>
+          <button class="more" type="button">查看更多 <span>›</span></button>
+        </div>
+        <div class="rail">
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_3.png" alt=""><span class="tag">长篇</span></div>
+            <p class="comic-title">十二点以后</p><p class="comic-meta">更新至 31 话</p>
+          </article>
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_0.png" alt=""><span class="tag">剧情</span></div>
+            <p class="comic-title">远处灯塔</p><p class="comic-meta">更新至 16 话</p>
+          </article>
+          <article class="comic-card">
+            <div class="cover"><img src="./assets/cover_5.png" alt=""><span class="tag">连载</span></div>
+            <p class="comic-title">不眠之城</p><p class="comic-meta">更新至 22 话</p>
+          </article>
+        </div>
+      </section>
+    </div>
+
+    <button class="weekly-tab" type="button" id="weeklyTab">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <rect x="3" y="5" width="18" height="16" rx="3"></rect>
+        <path d="M8 3v4M16 3v4M3 10h18"></path>
+        <path d="m9 15 2 2 4-4"></path>
+      </svg>
+      每周必看
+    </button>
+
+    <nav class="bottom-capsule" aria-label="底部导航">
+      <button class="nav-item is-active" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"></circle>
+          <path d="m15.5 8.5-2.1 4.9-4.9 2.1 2.1-4.9 4.9-2.1Z"></path>
+        </svg>
+        <span>浏览</span>
+      </button>
+      <button class="nav-item" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5v-16Z"></path>
+          <path d="M4 18.5A2.5 2.5 0 0 1 6.5 16H20"></path>
+        </svg>
+        <span>书架</span>
+      </button>
+      <button class="nav-item" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="8" r="4"></circle>
+          <path d="M4.5 21c.8-4.2 3.3-6.2 7.5-6.2s6.7 2 7.5 6.2"></path>
+        </svg>
+        <span>个人</span>
+      </button>
+    </nav>
+
+    <div class="menu-toast" id="menuToast">多选菜单保持右上角位置</div>
+  </main>
+
+  <script>
+    const slides = [...document.querySelectorAll('.slide')];
+    const dots = [...document.querySelectorAll('.dot')];
+    let activeSlide = 0;
+    let timer;
+
+    function showSlide(index) {
+      activeSlide = (index + slides.length) % slides.length;
+      slides.forEach((slide, i) => slide.classList.toggle('is-active', i === activeSlide));
+      dots.forEach((dot, i) => dot.classList.toggle('is-active', i === activeSlide));
+    }
+
+    function startCarousel() {
+      clearInterval(timer);
+      timer = setInterval(() => showSlide(activeSlide + 1), 4500);
+    }
+
+    dots.forEach((dot, index) => {
+      dot.addEventListener('click', () => {
+        showSlide(index);
+        startCarousel();
+      });
+    });
+
+    document.querySelector('.carousel').addEventListener('pointerenter', () => clearInterval(timer));
+    document.querySelector('.carousel').addEventListener('pointerleave', startCarousel);
+    startCarousel();
+
+    document.querySelectorAll('.nav-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach((nav) => nav.classList.remove('is-active'));
+        item.classList.add('is-active');
+      });
+    });
+
+    const menuToast = document.querySelector('#menuToast');
+    document.querySelector('#menuButton').addEventListener('click', () => {
+      menuToast.classList.add('is-visible');
+      setTimeout(() => menuToast.classList.remove('is-visible'), 1400);
+    });
+
+    document.querySelector('#weeklyTab').addEventListener('click', () => {
+      showSlide(1);
+      document.querySelector('.carousel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  </script>
+</body>
+</html>

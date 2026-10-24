@@ -8,12 +8,18 @@ import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/http_client.dart';
 import 'package:jmcomic3/basic/log.dart';
 import 'package:jmcomic3/basic/methods.dart';
+import 'package:jmcomic3/l10n/app_localizations.dart';
 
 import 'int_property.dart';
 import 'ignore_upgrade_pop.dart';
 
 const _repoOwner = "MrYu-JMComic";
 const _repoName = "JMcomic3-flutter";
+
+/// Temporarily disables every user-facing update check and download entry.
+/// Set this to false to restore the original update flow.
+const updatesTemporarilyDisabled = true;
+
 const _releaseLatestUrl =
     "https://api.github.com/repos/$_repoOwner/$_repoName/releases/latest";
 const _releaseLatestMirrorUrls = [
@@ -52,6 +58,13 @@ Future initVersion() async {
     _version = (await rootBundle.loadString(_versionAssets)).trim();
   } catch (e) {
     _version = "dirty";
+  }
+  if (updatesTemporarilyDisabled) {
+    _latestVersion = null;
+    _latestVersionName = null;
+    _latestVersionInfo = null;
+    _downloadUrl = _defaultDownloadUrl;
+    return;
   }
   _latestVersionName = await methods.loadProperty(_latestNameCacheKey);
   if (_latestVersionName == "") {
@@ -103,6 +116,9 @@ String latestDownloadUrl() {
 }
 
 Future autoCheckNewVersion() {
+  if (updatesTemporarilyDisabled) {
+    return Future.value();
+  }
   if (_period != 0) {
     return Future.value();
   }
@@ -110,6 +126,16 @@ Future autoCheckNewVersion() {
 }
 
 Future manualCheckNewVersion(BuildContext context) async {
+  if (updatesTemporarilyDisabled) {
+    defaultToast(
+      context,
+      context.l10n.tr(
+        '更新功能暂时关闭',
+        en: 'Update checks are temporarily unavailable',
+      ),
+    );
+    return;
+  }
   try {
     defaultToast(context, "\u68c0\u67e5\u66f4\u65b0\u4e2d");
     await _versionCheck();
@@ -120,6 +146,7 @@ Future manualCheckNewVersion(BuildContext context) async {
 }
 
 Future silentCheckNewVersion() async {
+  if (updatesTemporarilyDisabled) return;
   await _versionCheck();
 }
 
@@ -454,6 +481,7 @@ String formatDateTimeToDateTime(DateTime c) {
 var _display = true;
 
 void versionPop(BuildContext context) {
+  if (updatesTemporarilyDisabled) return;
   if (latestVersion != null && _display && !currentIgnoreUpgradePop()) {
     _display = false;
     TopConfirm.topConfirm(

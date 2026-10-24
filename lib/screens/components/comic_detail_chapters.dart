@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/entities.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
-class ComicDetailChapters extends StatelessWidget {
+class ComicDetailChapters extends StatefulWidget {
   static const _spacing = 8.0;
   static const _horizontalPadding = 14.0;
 
@@ -20,6 +20,35 @@ class ComicDetailChapters extends StatelessWidget {
   });
 
   @override
+  State<ComicDetailChapters> createState() => _ComicDetailChaptersState();
+}
+
+class _ComicDetailChaptersState extends State<ComicDetailChapters> {
+  static const _spacing = ComicDetailChapters._spacing;
+  static const _horizontalPadding = ComicDetailChapters._horizontalPadding;
+
+  double? _cachedAvailableWidth;
+  String? _cachedLayoutSignature;
+  int? _cachedLastChapterId;
+  List<List<({Series chapter, double width})>>? _cachedRows;
+
+  @override
+  void didUpdateWidget(covariant ComicDetailChapters oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.album, widget.album) ||
+        !identical(oldWidget.album.series, widget.album.series)) {
+      _invalidateLayout();
+    }
+  }
+
+  void _invalidateLayout() {
+    _cachedAvailableWidth = null;
+    _cachedLayoutSignature = null;
+    _cachedLastChapterId = null;
+    _cachedRows = null;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
@@ -31,27 +60,28 @@ class ComicDetailChapters extends StatelessWidget {
             : const Color(0xFFF4F5F7),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: album.series.isEmpty
+      child: widget.album.series.isEmpty
           ? _singleChapter(context)
           : FutureBuilder<ViewLog?>(
-              future: viewFuture,
+              future: widget.viewFuture,
               builder: (context, snapshot) {
                 final log = snapshot.data;
                 final lastChapterId = log != null &&
-                        log.id == album.id &&
+                        log.id == widget.album.id &&
                         log.lastViewChapterId > 0 &&
-                        album.series.any(
+                        widget.album.series.any(
                           (chapter) => chapter.id == log.lastViewChapterId,
                         )
                     ? log.lastViewChapterId
                     : null;
                 return LayoutBuilder(
                   builder: (context, constraints) {
-                    return _chapterRows(
+                    final rows = _rowsFor(
                       context,
                       constraints.maxWidth,
                       lastChapterId,
                     );
+                    return _chapterRows(context, rows, lastChapterId);
                   },
                 );
               },
@@ -59,11 +89,28 @@ class ComicDetailChapters extends StatelessWidget {
     );
   }
 
-  Widget _chapterRows(
+  List<List<({Series chapter, double width})>> _rowsFor(
     BuildContext context,
     double availableWidth,
     int? lastChapterId,
   ) {
+    final textScaler = MediaQuery.textScalerOf(context);
+    final locale = Localizations.maybeLocaleOf(context);
+    final baseStyle = Theme.of(context).textTheme.bodyMedium;
+    final signature = [
+      textScaler.scale(13),
+      locale?.toLanguageTag() ?? '',
+      baseStyle?.fontFamily ?? '',
+      baseStyle?.fontFamilyFallback?.join(',') ?? '',
+      baseStyle?.fontSize ?? 0,
+    ].join('|');
+    if (_cachedRows != null &&
+        _cachedAvailableWidth == availableWidth &&
+        _cachedLayoutSignature == signature &&
+        _cachedLastChapterId == lastChapterId) {
+      return _cachedRows!;
+    }
+
     final rows = <List<({Series chapter, double width})>>[];
     var row = <({Series chapter, double width})>[];
     var rowWidth = 0.0;
@@ -77,7 +124,7 @@ class ComicDetailChapters extends StatelessWidget {
         fontWeight: FontWeight.w400,
       ),
     );
-    for (final chapter in album.series) {
+    for (final chapter in widget.album.series) {
       final titleWidth =
           _textWidth(context, _chapterTitle(chapter), titleStyle);
       final contentWidth = lastChapterId == chapter.id
@@ -98,14 +145,29 @@ class ComicDetailChapters extends StatelessWidget {
       rowWidth += width;
     }
     if (row.isNotEmpty) rows.add(row);
+    _cachedAvailableWidth = availableWidth;
+    _cachedLayoutSignature = signature;
+    _cachedLastChapterId = lastChapterId;
+    _cachedRows = rows;
+    return rows;
+  }
 
+  Widget _chapterRows(
+    BuildContext context,
+    List<List<({Series chapter, double width})>> rows,
+    int? lastChapterId,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (var index = 0; index < rows.length; index++) ...[
           if (index > 0) const SizedBox(height: _spacing),
           _filledChapterRow(
-              context, rows[index], availableWidth, lastChapterId),
+            context,
+            rows[index],
+            _cachedAvailableWidth!,
+            lastChapterId,
+          ),
         ],
       ],
     );
@@ -203,7 +265,7 @@ class ComicDetailChapters extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           TextButton.icon(
-            key: ValueKey('comic-detail-chapter-${album.id}'),
+            key: ValueKey('comic-detail-chapter-${widget.album.id}'),
             style: TextButton.styleFrom(
               foregroundColor: _accent(context),
               minimumSize: const Size(0, 48),
@@ -212,7 +274,7 @@ class ComicDetailChapters extends StatelessWidget {
                 fontWeight: FontWeight.w400,
               ),
             ),
-            onPressed: () => onRead(album.id, 0),
+            onPressed: () => widget.onRead(widget.album.id, 0),
             icon: const Icon(Icons.menu_book_outlined, size: 18),
             label: Text(
               context.l10n.tr('打开本章', en: 'Open chapter'),
@@ -260,7 +322,7 @@ class ComicDetailChapters extends StatelessWidget {
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           textStyle: _chapterTextStyle(context),
         ),
-        onPressed: () => onRead(chapter.id, 0),
+        onPressed: () => widget.onRead(chapter.id, 0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,

@@ -17,6 +17,8 @@ set blockStore(List<Block> values) {
   _event.broadcast();
 }
 
+List<Block> get searchBlocks => List<Block>.unmodifiable(_blockStore);
+
 set searchHistories(List<SearchHistory> values) {
   _histories.clear();
   _histories.addAll(normalizeSearchHistoriesForPanel(values));
@@ -87,10 +89,7 @@ class _ComicFloatingSearchBarScreenState
       padding: compact
           ? const EdgeInsets.all(10)
           : EdgeInsets.fromLTRB(12, 8, 12, 12 + viewInsets.bottom),
-      children: [
-        ..._buildHistory(),
-        ..._buildTags(),
-      ],
+      children: [..._buildHistory(), ..._buildTags()],
     );
   }
 
@@ -102,44 +101,51 @@ class _ComicFloatingSearchBarScreenState
     final yes = l10n.yes;
     final no = l10n.no;
     final List<Widget> widgets = [];
-    widgets.add(_buildTitle(l10n.tr("历史记录", en: "History"), clear: () async {
-      String? choose = await chooseListDialog(
-        context,
-        values: [yes, no],
-        title: l10n.tr("清除所有历史记录?", en: "Clear all history?"),
-      );
-      if (yes == choose) {
-        await methods.clearAllSearchLog();
-        _histories.clear();
-        _setState(null);
-      }
-    }));
-    widgets.add(Wrap(
-      children: _histories.map((e) {
-        return _buildSuggestionChip(
-          icon: Icons.history_rounded,
-          label: e.searchQuery,
-          onTap: () {
-            _onSubmitted(e.searchQuery);
-          },
-          onLongPress: () async {
-            String? choose = await chooseListDialog(
-              context,
-              values: [yes, no],
-              title: l10n.tr(
-                "清除历史记录\"${e.searchQuery}\"?",
-                en: "Clear history \"${e.searchQuery}\"?",
-              ),
-            );
-            if (yes == choose) {
-              await methods.clearASearchLog(e.searchQuery);
-              _histories.remove(e);
-              _setState(null);
-            }
-          },
-        );
-      }).toList(),
-    ));
+    widgets.add(
+      _buildTitle(
+        l10n.tr("历史记录", en: "History"),
+        clear: () async {
+          String? choose = await chooseListDialog(
+            context,
+            values: [yes, no],
+            title: l10n.tr("清除所有历史记录?", en: "Clear all history?"),
+          );
+          if (yes == choose) {
+            await methods.clearAllSearchLog();
+            _histories.clear();
+            _setState(null);
+          }
+        },
+      ),
+    );
+    widgets.add(
+      Wrap(
+        children: _histories.map((e) {
+          return _buildSuggestionChip(
+            icon: Icons.history_rounded,
+            label: e.searchQuery,
+            onTap: () {
+              _onSubmitted(e.searchQuery);
+            },
+            onLongPress: () async {
+              String? choose = await chooseListDialog(
+                context,
+                values: [yes, no],
+                title: l10n.tr(
+                  "清除历史记录\"${e.searchQuery}\"?",
+                  en: "Clear history \"${e.searchQuery}\"?",
+                ),
+              );
+              if (yes == choose) {
+                await methods.clearASearchLog(e.searchQuery);
+                _histories.remove(e);
+                _setState(null);
+              }
+            },
+          );
+        }).toList(),
+      ),
+    );
     return widgets;
   }
 
@@ -149,17 +155,19 @@ class _ComicFloatingSearchBarScreenState
     widgets.add(_buildTitle(l10n.tr("板块", en: "Blocks")));
     for (final block in _blockStore) {
       widgets.add(_buildSubTitle(block.title));
-      widgets.add(Wrap(
-        children: block.content.map((e) {
-          return _buildSuggestionChip(
-            icon: Icons.local_offer_outlined,
-            label: e,
-            onTap: () {
-              _onSubmitted(e);
-            },
-          );
-        }).toList(),
-      ));
+      widgets.add(
+        Wrap(
+          children: block.content.map((e) {
+            return _buildSuggestionChip(
+              icon: Icons.local_offer_outlined,
+              label: e,
+              onTap: () {
+                _onSubmitted(e);
+              },
+            );
+          }).toList(),
+        ),
+      );
     }
     return widgets;
   }
@@ -196,15 +204,10 @@ class _ComicFloatingSearchBarScreenState
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 8, bottom: 8),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          minHeight: 40,
-          maxWidth: 280,
-        ),
+        constraints: const BoxConstraints(minHeight: 40, maxWidth: 280),
         child: Material(
           color: scheme.secondaryContainer,
-          shape: StadiumBorder(
-            side: BorderSide(color: scheme.outlineVariant),
-          ),
+          shape: StadiumBorder(side: BorderSide(color: scheme.outlineVariant)),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
@@ -214,11 +217,7 @@ class _ComicFloatingSearchBarScreenState
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    icon,
-                    size: 18,
-                    color: scheme.onSecondaryContainer,
-                  ),
+                  Icon(icon, size: 18, color: scheme.onSecondaryContainer),
                   const SizedBox(width: 6),
                   Flexible(
                     child: Text(
@@ -246,12 +245,7 @@ class _ComicFloatingSearchBarScreenState
         margin: const EdgeInsets.only(top: 10, bottom: 5),
         child: Row(
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
             Expanded(child: Container()),
             IconButton(
               onPressed: clear,
@@ -263,21 +257,14 @@ class _ComicFloatingSearchBarScreenState
     }
     return Container(
       margin: const EdgeInsets.only(top: 10, bottom: 5),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontWeight: FontWeight.w500,
-        ),
-      ),
+      child: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
     );
   }
 
   Widget _buildSubTitle(String title) {
     return Container(
       margin: const EdgeInsets.only(top: 4, bottom: 2),
-      child: Text(
-        title,
-      ),
+      child: Text(title),
     );
   }
 }

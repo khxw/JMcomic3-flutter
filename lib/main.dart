@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:jmcomic3/configs/app_locale.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
+import 'package:jmcomic3/screens/components/compose_ui.dart';
 import 'package:jmcomic3/screens/components/mouse_and_touch_scroll_behavior.dart';
 import 'package:jmcomic3/screens/init_screen.dart';
 import 'basic/desktop.dart';
@@ -45,8 +46,10 @@ class _JennyState extends State<Jenny> {
     return MaterialApp(
       scrollBehavior: mouseAndTouchScrollBehavior,
       debugShowCheckedModeBanner: false,
-      theme: lightTheme,
-      darkTheme: darkTheme,
+      theme: lightTheme.copyWith(pageTransitionsTheme: composePageTransitions),
+      darkTheme: darkTheme.copyWith(
+        pageTransitionsTheme: composePageTransitions,
+      ),
       locale: currentAppLocale,
       localizationsDelegates: const [
         AppLocalizations.delegate,

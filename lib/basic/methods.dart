@@ -863,10 +863,42 @@ class Methods {
     }
   }
 
+  /// Get structured Android refresh modes on the UI thread.
+  Future<List<Map<String, dynamic>>> loadAndroidRefreshModes() async {
+    try {
+      final raw = await _channel.invokeMethod("androidGetRefreshModes");
+      dynamic decoded = raw;
+      if (decoded is String && decoded.trim().startsWith('[')) {
+        decoded = jsonDecode(decoded);
+      }
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map>()
+          .map((mode) => Map<String, dynamic>.from(mode))
+          .where((mode) {
+        final id = mode['id'];
+        final rate = mode['refresh_rate'];
+        return id is num && id > 0 && rate is num && rate > 0;
+      }).toList(growable: false);
+    } on PlatformException catch (e, s) {
+      debugPrient(
+        "androidGetRefreshModes fallback []: ${e.runtimeType}/${s.runtimeType}",
+      );
+      return const [];
+    }
+  }
+
   /// Set Android refresh mode
   Future setAndroidMode(String androidDisplayMode) {
     final normalizedMode = androidDisplayMode.trim();
     return _channel.invokeMethod("androidSetMode", {"mode": normalizedMode});
+  }
+
+  /// Set preferred display mode by its Android mode ID.
+  Future setAndroidRefreshMode(int? modeId) {
+    return _channel.invokeMethod("androidSetRefreshMode", {
+      "mode_id": modeId,
+    });
   }
 
   /// Get Android SDK version
@@ -1076,6 +1108,20 @@ class Methods {
 
   Future<String> androidDefaultExportsDir() async {
     return await _channel.invokeMethod("androidDefaultExportsDir");
+  }
+
+  Future<bool> androidDirectoryWritable(String path) async {
+    if (!Platform.isAndroid) return true;
+    return await _channel.invokeMethod<bool>(
+          "androidDirectoryWritable",
+          path,
+        ) ??
+        false;
+  }
+
+  Future<String?> androidPickDownloadDirectory() async {
+    if (!Platform.isAndroid) return null;
+    return _channel.invokeMethod<String>("androidPickDownloadDirectory");
   }
 
   Future<String> getDownloadAndExportTo() async {

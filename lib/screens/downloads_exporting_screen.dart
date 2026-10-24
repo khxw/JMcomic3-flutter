@@ -7,9 +7,8 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 import '../basic/commons.dart';
 import '../configs/export_path.dart';
 import '../configs/export_rename.dart';
-import '../configs/is_pro.dart';
-import 'components/content_loading.dart';
 import 'components/right_click_pop.dart';
+import 'downloads_export_ui.dart';
 
 class DownloadsExportingScreen extends StatefulWidget {
   final List<int> idList;
@@ -31,99 +30,171 @@ class _DownloadsExportingScreenState extends State<DownloadsExportingScreen> {
 
   Widget _body() {
     final l10n = context.l10n;
-    final proSuffix =
-        !hasProAccess ? '\n${l10n.tr('(发电后使用)', en: '(Pro required)')}' : '';
     if (exporting) {
-      return ContentLoading(
+      return ExportProgressPanel(
         label: exportMessage.isEmpty
             ? l10n.tr('正在导出', en: 'Exporting')
             : l10n.tr(exportMessage),
+        itemCount: widget.idList.length,
       );
     }
     if (exportFail) {
-      return Center(
-        child: Text(
-          '${l10n.tr('导出失败', en: 'Export failed')}\n$e\n($exportMessage)',
-        ),
+      return ExportResultPanel(
+        success: false,
+        title: l10n.tr('导出失败', en: 'Export failed'),
+        message: '$e',
+        onReset: () {
+          setState(() {
+            exportFail = false;
+            e = null;
+            exportMessage = '';
+          });
+        },
       );
     }
     if (exported) {
-      return Center(child: Text(l10n.tr('导出成功', en: 'Export succeeded')));
+      return ExportResultPanel(
+        success: true,
+        title: l10n.tr('导出成功', en: 'Export succeeded'),
+        message: l10n.tr(
+          '文件已保存到导出目录，可返回文件管理器查看。',
+          en: 'Files were saved to the export folder.',
+        ),
+        onReset: () => Navigator.of(context).maybePop(),
+      );
     }
-    return ListView(
-      children: [
-        // Container(height: 20),
-        // MaterialButton(
-        //   onPressed: _exportPkz,
-        //   child: const Text('导出PKZ'),
-        // ),
-        Container(height: 20),
-        displayExportPathInfo(),
-        Container(height: 20),
-        SwitchListTile(
-          title: Text(
-            l10n.tr('导出后删除下载的漫画', en: 'Delete downloads after export'),
-          ),
-          value: deleteExport,
-          onChanged: (value) {
-            setState(() {
-              deleteExport = value;
-            });
-          },
-        ),
-        Container(height: 20),
-        _buildButtonInner(
-          _exportJmis,
-          l10n.tr('分别导出JMI', en: 'Export JMI separately') + proSuffix,
-        ),
-        Container(height: 20),
-        _buildButtonInner(
-          _exportZips,
-          l10n.tr('分别导出JM.ZIP', en: 'Export JM.ZIP separately') + proSuffix,
-        ),
-        Container(height: 20),
-        _buildButtonInner(
-          _exportJpegZips,
-          l10n.tr('分别导出JPEGS.ZIP', en: 'Export JPEGS.ZIP separately') +
-              proSuffix,
-        ),
-        Container(height: 20),
-        _buildButtonInner(
-          _exportCbzsZips,
-          l10n.tr('分别导出CBZ', en: 'Export CBZ separately') + proSuffix,
-        ),
-        Container(height: 20),
-        _buildButtonInner(
-          _exportPdf,
-          l10n.tr('分别导出PDF', en: 'Export PDF separately') + proSuffix,
-        ),
-        Container(height: 20),
-        _buildButtonInner(
-          _exportEpubs,
-          l10n.tr('分别导出EPUB', en: 'Export EPUB separately') + proSuffix,
-        ),
-        Container(height: 20),
-      ],
-    );
-  }
-
-  Widget _buildButtonInner(VoidCallback? onPressed, String text) {
-    return MaterialButton(
-      onPressed: onPressed,
-      child: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          return Container(
-            width: constraints.maxWidth,
-            padding: const EdgeInsets.all(15),
-            color:
-                (Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black)
-                    .withOpacity(.05),
-            child: Text(
-              text,
-              textAlign: TextAlign.center,
+    final horizontal = MediaQuery.sizeOf(context).width >= 760 ? 24.0 : 14.0;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: ListView(
+          key: const ValueKey('batch-export-format-list'),
+          padding: EdgeInsets.fromLTRB(horizontal, 10, horizontal, 28),
+          children: [
+            ExportPageIntro(
+              itemCount: widget.idList.length,
+              includesIncomplete: false,
             ),
-          );
-        },
+            const SizedBox(height: 14),
+            ExportSectionCard(
+              title: l10n.tr('漫画压缩包', en: 'Comic archives'),
+              subtitle: l10n.tr(
+                '每本漫画单独生成一个文件',
+                en: 'One file per comic',
+              ),
+              icon: Icons.archive_outlined,
+              children: [
+                ExportFormatTile(
+                  icon: Icons.folder_zip_outlined,
+                  title: l10n.tr('JMI', en: 'JMI'),
+                  subtitle: l10n.tr(
+                    '保留原始图片和下载结构',
+                    en: 'Original images and download structure',
+                  ),
+                  badge: l10n.tr('可重命名', en: 'Rename'),
+                  onPressed: _exportJmis,
+                ),
+                const Divider(height: 1, indent: 64),
+                ExportFormatTile(
+                  icon: Icons.archive_outlined,
+                  title: l10n.tr('JM.ZIP', en: 'JM.ZIP'),
+                  subtitle: l10n.tr(
+                    '标准 ZIP 压缩包',
+                    en: 'Standard ZIP archive',
+                  ),
+                  badge: l10n.tr('ZIP', en: 'ZIP'),
+                  onPressed: _exportZips,
+                ),
+                const Divider(height: 1, indent: 64),
+                ExportFormatTile(
+                  icon: Icons.photo_library_outlined,
+                  title: l10n.tr('JPEGS.ZIP', en: 'JPEGS.ZIP'),
+                  subtitle: l10n.tr(
+                    '按图片格式打包为 ZIP',
+                    en: 'Package image files as ZIP',
+                  ),
+                  badge: l10n.tr('图片', en: 'Images'),
+                  onPressed: _exportJpegZips,
+                ),
+                const Divider(height: 1, indent: 64),
+                ExportFormatTile(
+                  icon: Icons.auto_stories_outlined,
+                  title: l10n.tr('CBZ', en: 'CBZ'),
+                  subtitle: l10n.tr(
+                    '适用于漫画阅读器的压缩包',
+                    en: 'Archive supported by comic readers',
+                  ),
+                  badge: 'CBZ',
+                  onPressed: _exportCbzsZips,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ExportSectionCard(
+              title: l10n.tr('电子书', en: 'E-books'),
+              subtitle: l10n.tr(
+                '适合阅读器与跨设备查看',
+                en: 'For readers and cross-device viewing',
+              ),
+              icon: Icons.book_outlined,
+              children: [
+                ExportFormatTile(
+                  icon: Icons.picture_as_pdf_outlined,
+                  title: 'PDF',
+                  subtitle: l10n.tr(
+                    '固定排版，可直接打开',
+                    en: 'Fixed layout, ready to open',
+                  ),
+                  badge: 'PDF',
+                  accent: Colors.deepOrange,
+                  onPressed: _exportPdf,
+                ),
+                const Divider(height: 1, indent: 64),
+                ExportFormatTile(
+                  icon: Icons.menu_book_outlined,
+                  title: 'EPUB',
+                  subtitle: l10n.tr(
+                    '适合电子书阅读器',
+                    en: 'Optimized for e-book readers',
+                  ),
+                  badge: 'EPUB',
+                  accent: Colors.teal,
+                  onPressed: _exportEpubs,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ExportSectionCard(
+              title: l10n.tr('保存位置与选项', en: 'Location and options'),
+              icon: Icons.tune_rounded,
+              children: [
+                displayExportPathInfo(),
+                const Divider(height: 1),
+                SwitchListTile(
+                  key: const ValueKey('export-delete-after-export'),
+                  title: Text(
+                    l10n.tr(
+                      '导出后删除下载的漫画',
+                      en: 'Delete downloads after export',
+                    ),
+                  ),
+                  subtitle: Text(
+                    l10n.tr(
+                      '导出成功后释放本地下载文件',
+                      en: 'Free local download files after a successful export',
+                    ),
+                  ),
+                  value: deleteExport,
+                  onChanged: (value) {
+                    setState(() {
+                      deleteExport = value;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -135,10 +206,6 @@ class _DownloadsExportingScreenState extends State<DownloadsExportingScreen> {
         exporter,
   }) async {
     final l10n = context.l10n;
-    if (!await ensureProAccess()) {
-      defaultToast(context, l10n.tr('请先发电鸭', en: 'Please activate Pro first'));
-      return;
-    }
     if (Platform.isMacOS) {
       await chooseEx(context);
     }
@@ -293,8 +360,25 @@ class _DownloadsExportingScreenState extends State<DownloadsExportingScreen> {
   Widget buildScreen(BuildContext context) {
     return WillPopScope(
       child: Scaffold(
+        key: const ValueKey('batch-export-format-page'),
+        backgroundColor: Theme.of(context).colorScheme.surface,
         appBar: AppBar(
-          title: Text(context.l10n.tr('批量导出', en: 'Batch export')),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(context.l10n.tr('批量导出', en: 'Batch export')),
+              Text(
+                context.l10n.tr('选择导出格式', en: 'Choose a format'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+          ),
+          surfaceTintColor: Colors.transparent,
         ),
         body: _body(),
       ),

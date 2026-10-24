@@ -966,12 +966,12 @@ class _UserScreenState extends State<UserScreen>
   Widget _buildSettingsIcon() {
     return IconButton(
       tooltip: context.l10n.settings,
-      onPressed: () async {
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (BuildContext context) {
-            return const SettingsScreen();
-          },
-        ));
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const SettingsScreen(),
+          ),
+        );
       },
       icon: const Icon(Icons.settings),
     );

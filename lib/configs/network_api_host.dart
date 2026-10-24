@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/basic/log.dart';
 import 'package:jmcomic3/configs/network_host.dart';
+import 'package:jmcomic3/configs/network_ping.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
 const _defaultApiHost = "www.cdngwc.club";
@@ -175,12 +176,12 @@ class ApiOptionRow extends StatefulWidget {
 }
 
 class _ApiOptionRowState extends State<ApiOptionRow> {
-  late Future<int> _feature;
+  late Future<HostPingResult> _feature;
 
   @override
   void initState() {
     super.initState();
-    _feature = methods.ping(widget.value);
+    _feature = measureHostPing(() => methods.ping(widget.value));
   }
 
   @override
@@ -193,61 +194,17 @@ class _ApiOptionRowState extends State<ApiOptionRow> {
           future: _feature,
           builder: (
             BuildContext context,
-            AsyncSnapshot<int> snapshot,
+            AsyncSnapshot<HostPingResult> snapshot,
           ) {
             if (snapshot.connectionState != ConnectionState.done) {
-              return PingStatus(
-                context.l10n.tr("测速中", en: "Testing"),
-                Colors.blue,
-              );
+              return const NetworkPingStatus.loading();
             }
             if (snapshot.hasError) {
-              return PingStatus(
-                context.l10n.tr("失败", en: "Failed"),
-                Colors.red,
-              );
+              return const NetworkPingStatus.failed();
             }
-            int ping = snapshot.requireData;
-            if (ping <= 200) {
-              return PingStatus(
-                "${ping}ms",
-                Colors.green,
-              );
-            }
-            if (ping <= 500) {
-              return PingStatus(
-                "${ping}ms",
-                Colors.yellow,
-              );
-            }
-            return PingStatus(
-              "${ping}ms",
-              Colors.orange,
-            );
+            return NetworkPingStatus.result(snapshot.requireData);
           },
         ),
-      ],
-    );
-  }
-}
-
-class PingStatus extends StatelessWidget {
-  final String title;
-  final Color color;
-
-  const PingStatus(this.title, this.color, {Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          '\u2022',
-          style: TextStyle(
-            color: color,
-          ),
-        ),
-        Text(" $title"),
       ],
     );
   }

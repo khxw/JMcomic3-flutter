@@ -72,23 +72,40 @@ class _ComicDetailHeaderState extends State<ComicDetailHeader> {
         );
 
         return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: JM3x4Cover(
-                      key: const Key('comic-detail-cover'),
-                      comicId: album.id,
-                      width: coverWidth,
-                      height: coverWidth * 4 / 3,
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: scheme.outlineVariant.withValues(alpha: .55),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: dark ? .28 : .12,
+                          ),
+                          blurRadius: 20,
+                          offset: const Offset(0, 9),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(13),
+                      child: JM3x4Cover(
+                        key: const Key('comic-detail-cover'),
+                        comicId: album.id,
+                        width: coverWidth,
+                        height: coverWidth * 4 / 3,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 3),
@@ -124,8 +141,8 @@ class _ComicDetailHeaderState extends State<ComicDetailHeader> {
                             text: title,
                             maxLines: 2,
                             style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
+                              fontSize: compact ? 15 : 17,
+                              fontWeight: FontWeight.w600,
                               height: 1.35,
                               color: scheme.onSurface,
                             ),
@@ -254,7 +271,10 @@ class _ComicDetailHeaderState extends State<ComicDetailHeader> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: panel,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: scheme.outlineVariant.withValues(alpha: .35),
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

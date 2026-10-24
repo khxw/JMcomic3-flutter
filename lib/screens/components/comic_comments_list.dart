@@ -17,12 +17,14 @@ class ComicCommentsList extends StatefulWidget {
   final int? aid;
   final int? uid;
   final bool gotoComic;
+  final bool scrollable;
 
   const ComicCommentsList({
     required this.mode,
     required this.aid,
     this.uid,
     this.gotoComic = false,
+    this.scrollable = false,
     Key? key,
   }) : super(key: key);
 
@@ -67,12 +69,43 @@ class _ComicCommentsListState extends State<ComicCommentsList> {
         BuildContext context,
         AsyncSnapshot<CommentPage> snapshot,
       ) {
+        final comments = snapshot.requireData.list;
+        if (widget.scrollable) {
+          return ListView.builder(
+            key: const ValueKey('comments-scroll-list'),
+            itemCount: comments.length + 3,
+            itemBuilder: (context, index) {
+              if (index == 0) return _buildPrePage();
+              if (index <= comments.length) {
+                return _buildComment(
+                  context,
+                  comments[index - 1],
+                  true,
+                  widget.mode,
+                  widget.gotoComic,
+                );
+              }
+              if (index == comments.length + 1) return _buildNextPage();
+              if (widget.aid == null) return const SizedBox.shrink();
+              return _buildPostComment(
+                context,
+                null,
+                widget.aid!,
+                () {
+                  setState(() {
+                    _future = _loadPage();
+                  });
+                },
+              );
+            },
+          );
+        }
         return Column(
           mainAxisAlignment: MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildPrePage(),
-            ...snapshot.requireData.list.map((e) => _buildComment(
+            ...comments.map((e) => _buildComment(
                   context,
                   e,
                   true,
