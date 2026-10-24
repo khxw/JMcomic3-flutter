@@ -74,9 +74,10 @@ class _SettingsState extends State<SettingsScreen> {
                     en: 'Refresh rate, appearance, language and display',
                   ),
                   initiallyExpanded: true,
+                  plainFirstChild: true,
+                  panelKey: const ValueKey('settings-common-expanded'),
                   children: [
                     androidDisplayModeSetting(),
-                    const Divider(height: 1),
                     themeSetting(context),
                     appLocaleSetting(context),
                     const Divider(height: 1),
@@ -91,6 +92,7 @@ class _SettingsState extends State<SettingsScreen> {
                     '阅读操作与双页方向',
                     en: 'Reading controls and spread direction',
                   ),
+                  panelKey: const ValueKey('settings-reading-expanded'),
                   children: [
                     volumeKeyControlSetting(),
                     noAnimationSetting(),
@@ -106,6 +108,7 @@ class _SettingsState extends State<SettingsScreen> {
                     '保存位置、导出命名与未完成任务',
                     en: 'Save location, export naming and unfinished tasks',
                   ),
+                  panelKey: const ValueKey('settings-storage-expanded'),
                   children: [
                     downloadDirectorySetting(),
                     const Divider(height: 1),
@@ -132,6 +135,7 @@ class _SettingsState extends State<SettingsScreen> {
                     '接口、网络与账号收藏夹',
                     en: 'API, network and account favorites',
                   ),
+                  panelKey: const ValueKey('settings-account-expanded'),
                   children: [
                     apiHostSetting(),
                     cdnHostSetting(),
@@ -172,6 +176,7 @@ class _SettingsState extends State<SettingsScreen> {
                     'WebDAV 备份与同步',
                     en: 'WebDAV backup and sync',
                   ),
+                  panelKey: const ValueKey('settings-sync-expanded'),
                   children: [
                     webDavSyncSwitchSetting(),
                     webDavUrlSetting(),
@@ -190,6 +195,7 @@ class _SettingsState extends State<SettingsScreen> {
                     '内容显示、操作方式与高级选项',
                     en: 'Content display, interaction and advanced options',
                   ),
+                  panelKey: const ValueKey('settings-system-expanded'),
                   children: [
                     displayJmcodeSetting(),
                     searchTitleWordsSetting(),
@@ -225,6 +231,8 @@ class _SettingsSection extends StatelessWidget {
   final String subtitle;
   final List<Widget> children;
   final bool initiallyExpanded;
+  final bool plainFirstChild;
+  final Key? panelKey;
 
   const _SettingsSection({
     required this.sectionKey,
@@ -233,6 +241,8 @@ class _SettingsSection extends StatelessWidget {
     required this.subtitle,
     required this.children,
     this.initiallyExpanded = false,
+    this.plainFirstChild = false,
+    this.panelKey,
   });
 
   @override
@@ -283,7 +293,71 @@ class _SettingsSection extends StatelessWidget {
               color: scheme.onSurfaceVariant,
             ),
           ),
-          children: children,
+          children: [
+            if (plainFirstChild && children.isNotEmpty) children.first,
+            if ((!plainFirstChild || children.length > 1))
+              _SettingsExpandedPanel(
+                panelKey: panelKey,
+                children: plainFirstChild
+                    ? children.skip(1).toList(growable: false)
+                    : children,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsExpandedPanel extends StatelessWidget {
+  final Key? panelKey;
+  final List<Widget> children;
+
+  const _SettingsExpandedPanel({
+    this.panelKey,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final titleStyle = theme.textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+      height: 1.3,
+    );
+    final subtitleStyle = theme.textTheme.bodySmall?.copyWith(
+      color: scheme.onSurfaceVariant,
+      height: 1.35,
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 10),
+      child: Material(
+        key: panelKey,
+        color: scheme.surfaceContainerHighest.withValues(alpha: .32),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: .48),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Theme(
+          data: theme.copyWith(
+            dividerColor: scheme.outlineVariant.withValues(alpha: .55),
+            listTileTheme: theme.listTileTheme.copyWith(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+              minLeadingWidth: 32,
+              minVerticalPadding: 10,
+              titleTextStyle: titleStyle,
+              subtitleTextStyle: subtitleStyle,
+              iconColor: scheme.onSurfaceVariant,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          ),
         ),
       ),
     );

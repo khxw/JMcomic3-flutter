@@ -910,6 +910,17 @@ void main() {
     expect(find.byKey(const ValueKey('settings-storage')), findsOneWidget);
     expect(find.byKey(const ValueKey('settings-account')), findsOneWidget);
     expect(find.byKey(const ValueKey('settings-sync')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('settings-common-expanded')),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(
+        of: find.text('Theme'),
+        matching: find.byKey(const ValueKey('settings-common-expanded')),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Theme'), findsOneWidget);
     expect(find.text('Organized by workflow'), findsNothing);
     expect(tester.takeException(), isNull);
