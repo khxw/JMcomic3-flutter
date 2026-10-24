@@ -36,10 +36,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 This fork currently publishes only an **Android ARM64 APK**. ARM32, Windows,
 and AAB packages are not provided for this modified release.
 
-The APK is signed with a local debug certificate. It may not upgrade an
-installation signed with another key. Back up bookshelf, history, and download
-settings before upgrading. If a signature conflict appears, uninstall the old
-version before installing this build.
+Back up bookshelf, history, and download settings before upgrading.
 
 ## Features
 
@@ -62,7 +59,7 @@ version before installing this build.
    [latest release](https://github.com/khxw/JMcomic3-flutter/releases/latest).
 2. Download and verify `SHA256SUMS.txt`.
 3. Allow installation from the file manager if required.
-4. Back up app data before replacing an installation with a different signature.
+4. Back up bookshelf, history, and download settings before upgrading.
 
 PowerShell verification:
 
