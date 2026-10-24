@@ -53,7 +53,6 @@ class _CategoryComicsScreenState extends State<CategoryComicsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _CategorySummary(category: widget.category),
             _CategoryToolbar(
               sortBy: _sortBy,
               onSort: _chooseSort,
@@ -78,85 +77,6 @@ class _CategoryComicsScreenState extends State<CategoryComicsScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _CategorySummary extends StatelessWidget {
-  final Categories category;
-
-  const _CategorySummary({required this.category});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final initial = category.name.trim().isEmpty
-        ? '#'
-        : String.fromCharCode(category.name.trim().runes.first);
-    return Container(
-      key: const ValueKey('category-summary'),
-      margin: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            scheme.primaryContainer,
-            scheme.tertiaryContainer.withValues(alpha: .55),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: scheme.primary.withValues(alpha: .12),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: scheme.surface.withValues(alpha: .58),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              initial,
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: scheme.primary,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  category.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: scheme.onPrimaryContainer,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${context.l10n.tr('分类漫画', en: 'Category comics')} · '
-                  '${category.totalAlbums} ${context.l10n.tr('本', en: 'items')}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onPrimaryContainer.withValues(alpha: .72),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

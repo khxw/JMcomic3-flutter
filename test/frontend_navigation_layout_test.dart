@@ -604,7 +604,6 @@ void main() {
       find.byKey(const ValueKey('category-comics-screen')),
       findsOneWidget,
     );
-    expect(find.byKey(const ValueKey('category-summary')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('category-sort-button')),
       findsOneWidget,
