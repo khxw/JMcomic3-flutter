@@ -101,6 +101,13 @@ class MainActivity : FlutterActivity() {
                 }
                 return
             }
+            "openExternalUrl" -> {
+                val url = call.argument<String>("url")?.trim() ?: ""
+                uiThreadHandler.post {
+                    openExternalUrl(url, result)
+                }
+                return
+            }
         }
         result.withCoroutine {
             when (call.method) {
@@ -556,6 +563,32 @@ class MainActivity : FlutterActivity() {
             throw IllegalStateException("无法创建更新缓存目录")
         }
         return dir
+    }
+
+    private fun openExternalUrl(
+        url: String,
+        result: MethodChannel.Result,
+    ) {
+        val uri = Uri.parse(url)
+        if (uri.scheme?.lowercase() !in setOf("http", "https") ||
+            uri.host.isNullOrBlank()
+        ) {
+            result.error("invalid_url", "Unsupported external URL.", null)
+            return
+        }
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                addCategory(Intent.CATEGORY_BROWSABLE)
+            }
+            startActivity(intent)
+            result.success(true)
+        } catch (e: Exception) {
+            result.error(
+                "browser_unavailable",
+                e.message ?: "No application can open this link.",
+                null,
+            )
+        }
     }
 
     private fun installUpdateApk(

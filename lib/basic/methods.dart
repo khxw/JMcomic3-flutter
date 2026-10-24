@@ -1124,6 +1124,15 @@ class Methods {
     return _channel.invokeMethod<String>("androidPickDownloadDirectory");
   }
 
+  Future<bool> openExternalUrl(String url) async {
+    if (!Platform.isAndroid) return false;
+    return await _channel.invokeMethod<bool>(
+          "openExternalUrl",
+          {"url": url},
+        ) ??
+        false;
+  }
+
   Future<String> getUpdateDownloadDir() async {
     if (!Platform.isAndroid) {
       throw UnsupportedError('In-app APK installation is Android-only');

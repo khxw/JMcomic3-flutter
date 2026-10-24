@@ -200,6 +200,15 @@ Future<bool> openUrl(String url) async {
       uri.host.isEmpty) {
     return false;
   }
+  if (Platform.isAndroid) {
+    try {
+      if (await methods.openExternalUrl(uri.toString())) {
+        return true;
+      }
+    } catch (_) {
+      // Fall through to url_launcher for compatibility.
+    }
+  }
   try {
     return await launch(
       uri.toString(),
