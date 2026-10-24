@@ -47,6 +47,7 @@ Future<T?> chooseMapDialog<T>(
   BuildContext buildContext, {
   required String title,
   required Map<String, T> values,
+  String? tips,
 }) async {
   final l10n = buildContext.l10n;
   final entries = values.entries
@@ -56,6 +57,7 @@ Future<T?> chooseMapDialog<T>(
     buildContext,
     title: l10n.tr(title),
     entries: entries,
+    tips: tips == null ? null : l10n.tr(tips),
   );
 }
 

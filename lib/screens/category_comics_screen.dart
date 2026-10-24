@@ -24,9 +24,11 @@ class _CategoryComicsScreenState extends State<CategoryComicsScreen> {
   late SortBy _sortBy = widget.sortBy;
 
   Future<void> _chooseSort() async {
-    final selected = await chooseListDialog<SortBy>(
+    final selected = await chooseMapDialog<SortBy>(
       context,
-      values: sorts,
+      values: {
+        for (final sort in sorts) sortByName(context, sort): sort,
+      },
       title: context.l10n.tr('选择排序方式', en: 'Choose sort order'),
       tips: context.l10n.tr(
         '切换排序后会从第一页重新加载。',
