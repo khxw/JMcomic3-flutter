@@ -1,4 +1,4 @@
-# JMComic3 Flutter 修改版
+# JMComic3 Mod
 
 [![版本](https://img.shields.io/github/v/release/khxw/JMcomic3-flutter)](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 

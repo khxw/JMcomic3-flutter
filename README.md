@@ -1,4 +1,4 @@
-# JMComic3 Flutter 修改版
+# JMComic3 Mod
 
 [![最新版本](https://img.shields.io/github/v/release/khxw/JMcomic3-flutter)](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 [![Android](https://img.shields.io/badge/Android-ARM64-3DDC84?logo=android&logoColor=white)](https://github.com/khxw/JMcomic3-flutter/releases/latest)
@@ -10,8 +10,11 @@
 > 本仓库是 JMComic3 Flutter 的**非官方修改分支**，与上游项目维护者无隶属关系。
 > 当前修改版聚焦界面重做、下载与导出流程、存储权限、阅读性能和响应式布局。
 
+下一次构建起使用 Android 包标识 `io.github.khxw.jmcomic3mod`，可与上游版本同时安装。
+当前 `v1.7.45+74` APK 仍使用旧包标识。
+
 <p align="center">
-  <img src="mockup/home-redesign.png" width="330" alt="JMComic3 Flutter 修改版首页">
+  <img src="mockup/home-redesign.png" width="330" alt="JMComic3 Mod 首页">
 </p>
 
 ## 当前版本

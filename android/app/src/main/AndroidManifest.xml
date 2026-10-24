@@ -19,7 +19,7 @@
     </queries>
 
     <application
-        android:label="JMcomic3"
+        android:label="JMComic3 Mod"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true"

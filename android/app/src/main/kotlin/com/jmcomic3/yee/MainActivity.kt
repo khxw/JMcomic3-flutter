@@ -293,7 +293,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun defaultJennyDir(): File {
-        return File(downloadsDir(), "jmtt2mic")
+        return File(downloadsDir(), "JMComic3Mod")
     }
 
     private fun androidDefaultExportsDir(): File {
