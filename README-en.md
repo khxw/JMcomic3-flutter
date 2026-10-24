@@ -11,7 +11,8 @@
 > with the upstream maintainer. This fork focuses on responsive UI, download and
 > export workflows, storage access, reader performance, and navigation.
 
-The Android package ID is `io.github.khxw.jmcomic3mod`.
+The Android package ID is `io.github.khxw.jmcomic3mod`. Its distinct package
+identity allows the modified app and upstream JMComic3 to be installed together.
 
 <p align="center">
   <img src="mockup/home-redesign.png" width="330" alt="JMComic3 Mod home screen">

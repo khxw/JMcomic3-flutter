@@ -4,6 +4,7 @@
 
 - 软件名称改为 **JMComic3 Mod**，明确这是非官方修改版。
 - Android `applicationId` 改为 `io.github.khxw.jmcomic3mod`。
+- 修改版使用独立包标识，可与上游 JMComic3 并存安装。
 - Android、Windows、User-Agent 和默认目录统一使用 JMComic3 Mod 标识。
 - 重新构建并发布全新的 ARM64 APK，不再依赖旧包标识。
 
