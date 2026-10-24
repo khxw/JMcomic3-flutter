@@ -78,7 +78,9 @@ class _AboutState extends State<AboutScreen> {
                     _UpdateStatusCard(
                       checking: _checking,
                       onCheck: _manualCheck,
-                      onOpenRelease: () => openUrl(latestDownloadUrl()),
+                      onInstallUpdate: () {
+                        downloadAndInstallLatestUpdate(context);
+                      },
                     ),
                     const SizedBox(height: 12),
                     _ReleaseNotesCard(
@@ -207,12 +209,12 @@ class _AboutHero extends StatelessWidget {
 class _UpdateStatusCard extends StatelessWidget {
   final bool checking;
   final VoidCallback onCheck;
-  final VoidCallback onOpenRelease;
+  final VoidCallback onInstallUpdate;
 
   const _UpdateStatusCard({
     required this.checking,
     required this.onCheck,
-    required this.onOpenRelease,
+    required this.onInstallUpdate,
   });
 
   @override
@@ -281,8 +283,8 @@ class _UpdateStatusCard extends StatelessWidget {
                     Text(
                       hasUpdate
                           ? context.l10n.tr(
-                              '可前往发布页面下载新版本',
-                              en: 'Open the release page to download it',
+                              '可直接在应用内下载并安装',
+                              en: 'Download and install inside the app',
                             )
                           : context.l10n.tr(
                               '更新来自当前 Fork 的 GitHub Releases',
@@ -321,10 +323,10 @@ class _UpdateStatusCard extends StatelessWidget {
               if (hasUpdate)
                 OutlinedButton.icon(
                   key: const ValueKey('about-download-update'),
-                  onPressed: onOpenRelease,
-                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                  onPressed: onInstallUpdate,
+                  icon: const Icon(Icons.download_rounded, size: 18),
                   label: Text(
-                    context.l10n.goToDownloadPage,
+                    context.l10n.tr('下载并安装', en: 'Download and install'),
                   ),
                 ),
             ],

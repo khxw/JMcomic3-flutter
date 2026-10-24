@@ -19,6 +19,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.Display
 import android.view.KeyEvent
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -31,6 +32,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import android.hardware.biometrics.BiometricPrompt
 import java.util.concurrent.TimeUnit
 import android.os.CancellationSignal
+import java.security.MessageDigest
 
 class MainActivity : FlutterActivity() {
 
@@ -38,12 +40,15 @@ class MainActivity : FlutterActivity() {
         private const val DIRECTORY_PICKER_REQUEST = 7412
         private const val STORAGE_PERMISSION_REQUEST = 7413
         private const val ALL_FILES_SETTINGS_REQUEST = 7414
+        private const val UNKNOWN_SOURCES_REQUEST = 7415
     }
 
     private val uiThreadHandler = Handler(Looper.getMainLooper())
     private val pool =
         Executors.newCachedThreadPool { runnable -> Thread(runnable).also { it.isDaemon = true } }
     private var pendingDirectoryResult: MethodChannel.Result? = null
+    private var pendingInstallResult: MethodChannel.Result? = null
+    private var pendingInstallPath: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         // 初始化
@@ -73,6 +78,27 @@ class MainActivity : FlutterActivity() {
             }
             "androidPickDownloadDirectory" -> {
                 uiThreadHandler.post { pickDownloadDirectory(result) }
+                return
+            }
+            "getUpdateDownloadDir" -> {
+                try {
+                    result.success(updateDownloadDir().absolutePath)
+                } catch (e: Exception) {
+                    result.error("update_dir", e.message, null)
+                }
+                return
+            }
+            "installUpdateApk" -> {
+                val args = call.arguments as? Map<*, *>
+                    ?: run {
+                        result.error("invalid_args", "Missing APK path", null)
+                        return
+                    }
+                val path = args["path"]?.toString() ?: ""
+                val digest = args["sha256"]?.toString() ?: ""
+                uiThreadHandler.post {
+                    installUpdateApk(path, digest, result)
+                }
                 return
             }
         }
@@ -402,6 +428,25 @@ class MainActivity : FlutterActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == UNKNOWN_SOURCES_REQUEST) {
+            val installResult = pendingInstallResult
+            val installPath = pendingInstallPath
+            pendingInstallResult = null
+            pendingInstallPath = null
+            if (installResult == null || installPath == null) return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                packageManager.canRequestPackageInstalls()
+            ) {
+                launchPackageInstaller(installPath, installResult)
+            } else {
+                installResult.error(
+                    "install_permission_denied",
+                    "请允许安装未知应用后重试。",
+                    null,
+                )
+            }
+            return
+        }
         if (requestCode == ALL_FILES_SETTINGS_REQUEST) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
                 Environment.isExternalStorageManager()
@@ -503,6 +548,133 @@ class MainActivity : FlutterActivity() {
         } else {
             File(root, relativePath).absolutePath
         }
+    }
+
+    private fun updateDownloadDir(): File {
+        val dir = File(cacheDir, "updates")
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw IllegalStateException("无法创建更新缓存目录")
+        }
+        return dir
+    }
+
+    private fun installUpdateApk(
+        path: String,
+        expectedSha256: String,
+        result: MethodChannel.Result,
+    ) {
+        try {
+            if (path.isBlank()) {
+                result.error("invalid_apk", "更新文件路径为空。", null)
+                return
+            }
+            val root = updateDownloadDir().canonicalFile
+            val apk = File(path).canonicalFile
+            if (apk.parentFile != root && !apk.path.startsWith(root.path + File.separator)) {
+                result.error("invalid_apk", "更新文件不在应用更新目录中。", null)
+                return
+            }
+            if (!apk.isFile || !apk.name.endsWith(".apk", ignoreCase = true)) {
+                result.error("invalid_apk", "更新 APK 不存在。", null)
+                return
+            }
+            val expected = expectedSha256
+                .removePrefix("sha256:")
+                .trim()
+                .lowercase()
+            if (expected.isNotEmpty() && sha256(apk) != expected) {
+                apk.delete()
+                result.error(
+                    "digest_mismatch",
+                    "更新文件校验失败，请重新下载。",
+                    null,
+                )
+                return
+            }
+            val archive = packageManager.getPackageArchiveInfo(
+                apk.absolutePath,
+                PackageManager.GET_ACTIVITIES,
+            )
+            if (archive == null || archive.packageName != packageName) {
+                apk.delete()
+                result.error(
+                    "package_mismatch",
+                    "更新 APK 与当前应用包名不一致。",
+                    null,
+                )
+                return
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                !packageManager.canRequestPackageInstalls()
+            ) {
+                if (pendingInstallResult != null) {
+                    result.error("install_busy", "安装设置页面已经打开。", null)
+                    return
+                }
+                pendingInstallResult = result
+                pendingInstallPath = apk.absolutePath
+                try {
+                    startActivityForResult(
+                        Intent(
+                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:$packageName"),
+                        ),
+                        UNKNOWN_SOURCES_REQUEST,
+                    )
+                } catch (e: Exception) {
+                    pendingInstallResult = null
+                    pendingInstallPath = null
+                    result.error(
+                        "install_settings_unavailable",
+                        e.message ?: "无法打开安装未知应用权限设置。",
+                        null,
+                    )
+                }
+                return
+            }
+            launchPackageInstaller(apk.absolutePath, result)
+        } catch (e: Exception) {
+            result.error("install_error", e.message ?: "无法启动 APK 安装器。", null)
+        }
+    }
+
+    private fun launchPackageInstaller(
+        path: String,
+        result: MethodChannel.Result,
+    ) {
+        try {
+            val apk = File(path)
+            if (!apk.isFile) {
+                result.error("invalid_apk", "更新 APK 不存在。", null)
+                return
+            }
+            val uri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                apk,
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(intent)
+            result.success("started")
+        } catch (e: Exception) {
+            result.error("install_launch_failed", e.message, null)
+        }
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered().use { stream ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = stream.read(buffer)
+                if (read < 0) break
+                if (read > 0) digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun auth(): Boolean {

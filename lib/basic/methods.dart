@@ -1124,6 +1124,34 @@ class Methods {
     return _channel.invokeMethod<String>("androidPickDownloadDirectory");
   }
 
+  Future<String> getUpdateDownloadDir() async {
+    if (!Platform.isAndroid) {
+      throw UnsupportedError('In-app APK installation is Android-only');
+    }
+    final path = await _channel.invokeMethod<String>("getUpdateDownloadDir");
+    if (path == null || path.trim().isEmpty) {
+      throw StateError('Android update cache directory is unavailable');
+    }
+    return path;
+  }
+
+  Future<String> installUpdateApk(
+    String path, {
+    String? expectedSha256,
+  }) async {
+    if (!Platform.isAndroid) {
+      throw UnsupportedError('In-app APK installation is Android-only');
+    }
+    final result = await _channel.invokeMethod<String>(
+      "installUpdateApk",
+      {
+        "path": path,
+        "sha256": expectedSha256 ?? "",
+      },
+    );
+    return result ?? '';
+  }
+
   Future<String> getDownloadAndExportTo() async {
     return await _invoke("get_download_and_export_to", "");
   }

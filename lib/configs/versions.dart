@@ -1,9 +1,11 @@
-import 'dart:async' show Future;
+import 'dart:async' show Future, unawaited;
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:event/event.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show PlatformException, rootBundle;
 import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/http_client.dart';
 import 'package:jmcomic3/basic/log.dart';
@@ -41,12 +43,17 @@ late String _version;
 String? _latestVersion;
 String? _latestVersionName;
 String? _latestVersionInfo;
+String? _latestApkName;
+String? _latestApkUrl;
+String? _latestApkDigest;
+int? _latestApkSize;
 String _downloadUrl = _defaultDownloadUrl;
 
 const _propertyName = "checkVersionPeriod";
 const _latestNameCacheKey = "latestVersionNameCache";
 const _latestInfoCacheKey = "latestVersionInfoCache";
 const _latestRepoCacheKey = "latestVersionRepoCache";
+const _latestApkCacheKey = "latestApkMetadataCache";
 const _repoToken = "$_repoOwner/$_repoName";
 final _repoTokenLower =
     "${_repoOwner.toLowerCase()}/${_repoName.toLowerCase()}";
@@ -63,6 +70,7 @@ Future initVersion() async {
     _latestVersion = null;
     _latestVersionName = null;
     _latestVersionInfo = null;
+    _clearLatestApkMetadata();
     _downloadUrl = _defaultDownloadUrl;
     return;
   }
@@ -74,13 +82,16 @@ Future initVersion() async {
   if (_latestVersionInfo == "") {
     _latestVersionInfo = null;
   }
+  await _loadLatestApkMetadata();
   final latestRepoCache = await methods.loadProperty(_latestRepoCacheKey);
   if (latestRepoCache != _repoToken) {
     // Repo source changed: drop stale cached latest-version content.
     _latestVersionName = null;
     _latestVersionInfo = null;
+    _clearLatestApkMetadata();
     await methods.saveProperty(_latestNameCacheKey, "");
     await methods.saveProperty(_latestInfoCacheKey, "");
+    await methods.saveProperty(_latestApkCacheKey, "");
     await methods.saveProperty(_latestRepoCacheKey, _repoToken);
   }
   if (_latestVersionName == null && _versionExp.hasMatch(_version)) {
@@ -118,6 +129,14 @@ String? latestVersionInfo() {
 String latestDownloadUrl() {
   return _sanitizeDownloadUrl(_downloadUrl);
 }
+
+String? latestApkDownloadUrl() => _latestApkUrl;
+
+String? latestApkAssetName() => _latestApkName;
+
+String? latestApkSha256() => _latestApkDigest;
+
+int? latestApkSize() => _latestApkSize;
 
 Future autoCheckNewVersion() {
   if (updatesTemporarilyDisabled) {
@@ -158,6 +177,278 @@ bool dirtyVersion() {
   return !_versionExp.hasMatch(_version);
 }
 
+enum _UpdateDownloadPhase {
+  preparing,
+  downloading,
+  verifying,
+}
+
+class _UpdateDownloadState {
+  final _UpdateDownloadPhase phase;
+  final double? progress;
+
+  const _UpdateDownloadState(this.phase, [this.progress]);
+}
+
+Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
+  final url = latestApkDownloadUrl();
+  if (url == null) {
+    defaultToast(
+      context,
+      context.l10n.tr(
+        '未找到可安装的 ARM64 APK，将打开发布页面。',
+        en: 'No installable ARM64 APK was found. Opening the release page.',
+      ),
+    );
+    await openUrl(latestDownloadUrl());
+    return;
+  }
+  if (!Platform.isAndroid) {
+    await openUrl(url);
+    return;
+  }
+
+  final progress = ValueNotifier<_UpdateDownloadState>(
+    const _UpdateDownloadState(_UpdateDownloadPhase.preparing),
+  );
+  BuildContext? dialogContext;
+  var dialogVisible = true;
+  unawaited(showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) {
+      dialogContext = ctx;
+      return _UpdateDownloadDialog(
+        state: progress,
+        assetName: latestApkAssetName() ?? 'JMComic3 Mod APK',
+        size: latestApkSize(),
+      );
+    },
+  ));
+  await Future<void>.delayed(const Duration(milliseconds: 50));
+
+  Future<void> closeProgress() async {
+    if (dialogVisible && dialogContext != null) {
+      dialogVisible = false;
+      Navigator.of(dialogContext!, rootNavigator: true).pop();
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+    }
+  }
+
+  try {
+    final directory = Directory(await methods.getUpdateDownloadDir());
+    await directory.create(recursive: true);
+    final fileName = _safeUpdateFileName(
+      latestApkAssetName() ?? 'JMComic3-Mod-update.apk',
+    );
+    final destination = File(
+      '${directory.path}${Platform.pathSeparator}$fileName',
+    );
+    await for (final entity in directory.list()) {
+      if (entity is File &&
+          entity.path != destination.path &&
+          (entity.path.endsWith('.apk') || entity.path.endsWith('.part'))) {
+        try {
+          await entity.delete();
+        } catch (_) {}
+      }
+    }
+
+    progress.value = const _UpdateDownloadState(
+      _UpdateDownloadPhase.downloading,
+      0,
+    );
+    await AppHttpClient.downloadFile(
+      url,
+      destination,
+      headers: const {
+        'Accept': 'application/octet-stream',
+        'User-Agent': 'JMComic3Mod/Flutter',
+      },
+      onProgress: (value) {
+        progress.value = _UpdateDownloadState(
+          _UpdateDownloadPhase.downloading,
+          value,
+        );
+      },
+    );
+    final expectedSize = latestApkSize();
+    if (expectedSize != null && expectedSize > 0) {
+      final actualSize = await destination.length();
+      if (actualSize != expectedSize) {
+        await destination.delete();
+        throw StateError(
+          '下载文件大小不一致：$actualSize/$expectedSize',
+        );
+      }
+    }
+    progress.value = const _UpdateDownloadState(
+      _UpdateDownloadPhase.verifying,
+      1,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    await closeProgress();
+
+    await methods.installUpdateApk(
+      destination.path,
+      expectedSha256: latestApkSha256(),
+    );
+    if (context.mounted) {
+      defaultToast(
+        context,
+        context.l10n.tr(
+          '更新已下载，正在打开系统安装器',
+          en: 'Update downloaded. Opening the system installer.',
+        ),
+      );
+    }
+  } catch (error) {
+    await closeProgress();
+    if (context.mounted) {
+      await _showUpdateInstallError(context, error);
+    }
+  } finally {
+    progress.dispose();
+  }
+}
+
+String _safeUpdateFileName(String raw) {
+  final cleaned = raw
+      .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_')
+      .replaceAll(RegExp(r'_+'), '_');
+  final base = cleaned.isEmpty ? 'JMComic3-Mod-update.apk' : cleaned;
+  return base.toLowerCase().endsWith('.apk') ? base : '$base.apk';
+}
+
+Future<void> _showUpdateInstallError(
+  BuildContext context,
+  Object error,
+) async {
+  final message = error is PlatformException
+      ? (error.message ?? error.code)
+      : error
+          .toString()
+          .replaceFirst(RegExp(r'^(Exception|StateError):\s*'), '');
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(context.l10n.tr('下载更新失败', en: 'Update failed')),
+      content: Text(
+        message,
+        style: Theme.of(dialogContext).textTheme.bodyMedium,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(dialogContext).pop();
+            openUrl(latestDownloadUrl());
+          },
+          child: Text(
+            context.l10n.tr('打开发布页', en: 'Open release page'),
+          ),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: Text(context.l10n.tr('关闭', en: 'Close')),
+        ),
+      ],
+    ),
+  );
+}
+
+class _UpdateDownloadDialog extends StatelessWidget {
+  final ValueListenable<_UpdateDownloadState> state;
+  final String assetName;
+  final int? size;
+
+  const _UpdateDownloadDialog({
+    required this.state,
+    required this.assetName,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return PopScope(
+      canPop: false,
+      child: AlertDialog(
+        key: const ValueKey('update-download-dialog'),
+        title: Row(
+          children: [
+            Icon(Icons.download_rounded, color: scheme.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                context.l10n.tr('下载并安装更新', en: 'Download update'),
+              ),
+            ),
+          ],
+        ),
+        content: ValueListenableBuilder<_UpdateDownloadState>(
+          valueListenable: state,
+          builder: (context, value, _) {
+            final percent =
+                value.progress == null ? null : (value.progress! * 100).round();
+            final status = switch (value.phase) {
+              _UpdateDownloadPhase.preparing =>
+                context.l10n.tr('正在准备下载...', en: 'Preparing download...'),
+              _UpdateDownloadPhase.downloading => percent == null
+                  ? context.l10n.tr('正在下载更新...', en: 'Downloading update...')
+                  : context.l10n.tr(
+                      '正在下载更新 $percent%',
+                      en: 'Downloading update $percent%',
+                    ),
+              _UpdateDownloadPhase.verifying =>
+                context.l10n.tr('正在校验安装包...', en: 'Verifying package...'),
+            };
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  status,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                LinearProgressIndicator(
+                  key: const ValueKey('update-download-progress'),
+                  value: value.phase == _UpdateDownloadPhase.preparing
+                      ? null
+                      : value.progress,
+                  minHeight: 7,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  assetName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                if (size != null && size! > 0) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '${(size! / (1024 * 1024)).toStringAsFixed(1)} MB',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 Future _versionCheck() async {
   if (_versionExp.hasMatch(_version)) {
     _downloadUrl = _defaultDownloadUrl;
@@ -183,10 +474,12 @@ Future _versionCheck() async {
               _isVersionNewer(latestVersion, _version) ? latestVersion : null;
           await methods.saveProperty(_latestNameCacheKey, latestVersion);
           await methods.saveProperty(_latestInfoCacheKey, body);
+          await _applyLatestApkAssets(json["assets"]);
         } else {
           _latestVersion = null;
           _latestVersionName = null;
           _latestVersionInfo = null;
+          _clearLatestApkMetadata();
         }
       } catch (e) {
         // keep cached values when network fetch fails
@@ -277,6 +570,117 @@ String _pickLatestVersion(String tagName, String releaseName) {
     return tagName;
   }
   return releaseName;
+}
+
+Future<void> _loadLatestApkMetadata() async {
+  final raw = await methods.loadProperty(_latestApkCacheKey);
+  if (raw.trim().isEmpty) {
+    _clearLatestApkMetadata();
+    return;
+  }
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) {
+      _clearLatestApkMetadata();
+      return;
+    }
+    _latestApkName = decoded["name"]?.toString();
+    _latestApkUrl = _sanitizeApkDownloadUrl(
+      decoded["url"]?.toString(),
+    );
+    _latestApkDigest = _sanitizeSha256(
+      decoded["digest"]?.toString(),
+    );
+    _latestApkSize = int.tryParse("${decoded['size'] ?? ''}");
+  } catch (_) {
+    _clearLatestApkMetadata();
+  }
+}
+
+Future<void> _applyLatestApkAssets(dynamic rawAssets) async {
+  final selected = _pickArm64ApkAsset(rawAssets);
+  if (selected == null) {
+    _clearLatestApkMetadata();
+    await methods.saveProperty(_latestApkCacheKey, "");
+    return;
+  }
+  _latestApkName = selected["name"]?.toString();
+  _latestApkUrl = _sanitizeApkDownloadUrl(
+    selected["browser_download_url"]?.toString(),
+  );
+  _latestApkDigest = _sanitizeSha256(selected["digest"]?.toString());
+  _latestApkSize = int.tryParse("${selected['size'] ?? ''}");
+  await methods.saveProperty(
+    _latestApkCacheKey,
+    jsonEncode({
+      "name": _latestApkName,
+      "url": _latestApkUrl,
+      "digest": _latestApkDigest,
+      "size": _latestApkSize,
+    }),
+  );
+}
+
+Map<String, dynamic>? _pickArm64ApkAsset(dynamic rawAssets) {
+  if (rawAssets is! List) return null;
+  Map<String, dynamic>? best;
+  var bestScore = -1;
+  for (final raw in rawAssets) {
+    if (raw is! Map) continue;
+    final asset = Map<String, dynamic>.from(raw);
+    final name = asset["name"]?.toString().trim() ?? "";
+    final lower = name.toLowerCase();
+    if (!lower.contains("arm64-v8a")) continue;
+    final url = _sanitizeApkDownloadUrl(
+      asset["browser_download_url"]?.toString(),
+    );
+    if (url == null || !lower.endsWith(".apk")) continue;
+    var score = 0;
+    if (lower.contains("arm64-v8a")) score += 100;
+    if (lower.contains("jmcomic3-mod")) score += 20;
+    if (!lower.contains("universal")) score += 5;
+    if (score > bestScore) {
+      best = asset;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+String? _sanitizeApkDownloadUrl(String? candidate) {
+  final text = (candidate ?? "").trim();
+  if (text.isEmpty) return null;
+  Uri uri;
+  try {
+    uri = Uri.parse(text);
+  } catch (_) {
+    return null;
+  }
+  if (uri.scheme.toLowerCase() != "https" ||
+      uri.host.toLowerCase() != "github.com") {
+    return null;
+  }
+  final expectedPrefix =
+      "/${_repoOwner.toLowerCase()}/${_repoName.toLowerCase()}/releases/download/";
+  if (!uri.path.toLowerCase().startsWith(expectedPrefix) ||
+      !uri.path.toLowerCase().endsWith(".apk")) {
+    return null;
+  }
+  return uri.toString();
+}
+
+String? _sanitizeSha256(String? candidate) {
+  final text = (candidate ?? "").trim().toLowerCase();
+  if (text.isEmpty) return null;
+  final value = text.startsWith("sha256:") ? text.substring(7) : text;
+  return RegExp(r'^[0-9a-f]{64}$').hasMatch(value) ? value : null;
+}
+
+void _clearLatestApkMetadata() {
+  _latestApkName = null;
+  _latestApkUrl = null;
+  _latestApkDigest = null;
+  _latestApkSize = null;
 }
 
 bool _isVersionNewer(String candidate, String current) {
@@ -551,9 +955,9 @@ void _showUpdatePrompt(BuildContext context) {
           ),
         ),
         onLater: () => Navigator.of(dialogContext).pop(),
-        onOpenRelease: () {
+        onInstallUpdate: () {
           Navigator.of(dialogContext).pop();
-          openUrl(latestDownloadUrl());
+          unawaited(downloadAndInstallLatestUpdate(context));
         },
       );
     },
@@ -580,14 +984,14 @@ class _UpdatePromptDialog extends StatelessWidget {
   final String latest;
   final String summary;
   final VoidCallback onLater;
-  final VoidCallback onOpenRelease;
+  final VoidCallback onInstallUpdate;
 
   const _UpdatePromptDialog({
     required this.current,
     required this.latest,
     required this.summary,
     required this.onLater,
-    required this.onOpenRelease,
+    required this.onInstallUpdate,
   });
 
   @override
@@ -789,10 +1193,10 @@ class _UpdatePromptDialog extends StatelessWidget {
                     );
                     final update = FilledButton.icon(
                       key: const ValueKey('update-prompt-open'),
-                      onPressed: onOpenRelease,
-                      icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                      onPressed: onInstallUpdate,
+                      icon: const Icon(Icons.download_rounded, size: 18),
                       label: Text(
-                        context.l10n.tr('前往更新', en: 'Open update'),
+                        context.l10n.tr('下载并安装', en: 'Download and install'),
                       ),
                     );
                     if (stack) {

@@ -16,7 +16,7 @@ GitHub 中仅保留手动诊断 CI。正式包在固定本地环境生成，再�
 ## 发布步骤
 
 1. 同步 `main`，确认工作区干净，建立收尾分支。
-2. 使用 `scripts/update_version.ps1 -Version 1.7.51+80` 同步 `pubspec.yaml`、
+2. 使用 `scripts/update_version.ps1 -Version 1.7.52+81` 同步 `pubspec.yaml`、
    `lib/assets/version.txt`、`ci/version.code.txt` 和本地 Android 版本；更新
    `ci/version.info.txt`、README 和 CHANGELOG 的实际内容。
 3. 固定 `ci/backend.commit.txt`，核对后端检出和锁文件；按 [BUILDING.md](BUILDING.md)
