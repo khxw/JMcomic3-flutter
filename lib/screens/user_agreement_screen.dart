@@ -213,16 +213,6 @@ class _WelcomeStep extends StatelessWidget {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          Text(
-                            context.l10n.tr(
-                              '下一步将展示用户协议',
-                              en: 'The next step shows the user agreement',
-                            ),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          ),
                         ],
                       ),
                     ),

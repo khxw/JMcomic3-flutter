@@ -82,6 +82,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('JMComic3 Mod'), findsOneWidget);
+    expect(find.text('下一步将展示用户协议'), findsNothing);
     expect(
       find.byKey(const ValueKey('agreement-terms-step')),
       findsNothing,
