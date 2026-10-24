@@ -232,7 +232,7 @@ Future<bool> editCustomDownloadDirectory(BuildContext context) async {
     final value = await displayTextInputDialog(
       context,
       title: context.l10n.tr("下载目录路径", en: "Download directory path"),
-      hint: "/storage/emulated/0/Download/JMComic3",
+      hint: "/storage/emulated/0/Download/JMComic3Mod",
       src: _currentDownloadDirectory,
     );
     final normalized = normalizeDownloadDirectoryPath(value);

@@ -1,4 +1,4 @@
-# JMComic3 Flutter Modified Edition
+# JMComic3 Mod
 
 [![Latest release](https://img.shields.io/github/v/release/khxw/JMcomic3-flutter)](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 [![Android](https://img.shields.io/badge/Android-ARM64-3DDC84?logo=android&logoColor=white)](https://github.com/khxw/JMcomic3-flutter/releases/latest)
@@ -11,8 +11,12 @@
 > with the upstream maintainer. This fork focuses on responsive UI, download and
 > export workflows, storage access, reader performance, and navigation.
 
+Starting with the next build, the Android package ID will be
+`io.github.khxw.jmcomic3mod`, allowing side-by-side installation with upstream.
+The current `v1.7.45+74` APK still uses the old package ID.
+
 <p align="center">
-  <img src="mockup/home-redesign.png" width="330" alt="JMComic3 Flutter home screen">
+  <img src="mockup/home-redesign.png" width="330" alt="JMComic3 Mod home screen">
 </p>
 
 ## Current release

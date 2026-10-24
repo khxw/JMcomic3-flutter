@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "JMComic3" "\0"
-            VALUE "FileDescription", "JMcomic3 comic browser" "\0"
+            VALUE "CompanyName", "JMComic3 Mod contributors" "\0"
+            VALUE "FileDescription", "JMComic3 Mod comic browser" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "JMcomic3" "\0"
-            VALUE "LegalCopyright", "JMComic3 contributors. Third-party notices: REFERENCES.md." "\0"
+            VALUE "InternalName", "JMComic3Mod" "\0"
+            VALUE "LegalCopyright", "JMComic3 Mod contributors. Third-party notices: REFERENCES.md." "\0"
             VALUE "OriginalFilename", "jmcomic3.exe" "\0"
-            VALUE "ProductName", "JMcomic3" "\0"
+            VALUE "ProductName", "JMComic3 Mod" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
