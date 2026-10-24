@@ -4,7 +4,7 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 
 import 'string_property.dart';
 
-const userAgreementVersion = '2026-10-24-v2';
+const userAgreementVersion = '2026-10-24-v3';
 const _userAgreementProperty = 'accepted_user_agreement_version';
 
 Future<bool> hasAcceptedCurrentUserAgreement() async {
@@ -81,14 +81,6 @@ class UserAgreementContent extends StatelessWidget {
         context.l10n.tr(
           '应用内更新仅从本项目 GitHub Release 获取，并校验下载地址、文件大小、SHA-256 和应用包名。最终是否安装仍由 Android 系统安装器确认；请勿安装来源不明的 APK。',
           en: 'In-app updates come only from this project’s GitHub Releases. The app verifies the URL, file size, SHA-256, and package name. Android’s system installer still confirms the final installation; do not install APKs from untrusted sources.',
-        ),
-      ),
-      (
-        Icons.manage_accounts_outlined,
-        context.l10n.tr('未成年人保护与协议更新', en: 'Minors and updates'),
-        context.l10n.tr(
-          '未成年人应在监护人指导下使用本应用，并由监护人协助判断内容是否适宜。协议发生重要变化时会显示新版本并要求重新确认；如不同意，请停止使用并退出应用。',
-          en: 'Minors should use the app under guardian supervision, with guardians helping determine whether content is appropriate. Important changes to this agreement require renewed confirmation; if you disagree, stop using and exit the app.',
         ),
       ),
     ];
