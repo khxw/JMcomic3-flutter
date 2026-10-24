@@ -1,12 +1,12 @@
-v1.7.46+75
+v1.7.47+76
 
 ## 更新内容
 
-- 软件名称改为 JMComic3 Mod。
-- Android applicationId 改为 io.github.khxw.jmcomic3mod。
-- 修改版使用独立包标识，可与上游 JMComic3 并存安装。
-- 统一 Android、Windows、User-Agent 和默认目录标识。
-- 发布全新包名的 Android ARM64 APK。
+- 恢复 GitHub Releases 检查更新、自动检查、更新红点和提示弹窗。
+- 更新源切换为当前 Fork。
+- 重做更新检查页的版本状态、版本对比和发布说明布局。
+- 手动检查时显示进度并防止重复触发。
+- 发布全新的 Android ARM64 APK。
 
 ## 构建
 
