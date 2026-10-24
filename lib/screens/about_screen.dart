@@ -26,7 +26,7 @@ class _AboutState extends State<AboutScreen> {
   }
 
   Future<void> _silentCheck() async {
-    if (!mounted || (latestVersionInfo() ?? '').trim().isNotEmpty) return;
+    if (!mounted) return;
     setState(() => _checking = true);
     try {
       await silentCheckNewVersion();
@@ -80,11 +80,13 @@ class _AboutState extends State<AboutScreen> {
                       onCheck: _manualCheck,
                       onOpenRelease: () => openUrl(latestDownloadUrl()),
                     ),
-                    const SizedBox(height: 12),
-                    _ReleaseNotesCard(
-                      notes: latestVersionInfo(),
-                      onCheck: _manualCheck,
-                    ),
+                    if (latestVersion != null) ...[
+                      const SizedBox(height: 12),
+                      _ReleaseNotesCard(
+                        notes: latestVersionInfo(),
+                        onCheck: _manualCheck,
+                      ),
+                    ],
                   ],
                   const SizedBox(height: 12),
                   const _ProjectCard(),
@@ -221,7 +223,9 @@ class _UpdateStatusCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     final hasUpdate = latestVersion != null;
     final statusColor = hasUpdate ? scheme.primary : Colors.green;
-    final latest = latestVersionName ?? currentVersion();
+    // The repository can lag behind a local build. Never label an older
+    // online release as the latest version.
+    final latest = hasUpdate ? latestVersion! : currentVersion();
 
     return Container(
       key: const ValueKey('about-update-status'),
@@ -295,13 +299,7 @@ class _UpdateStatusCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          _VersionComparison(
-            current: currentVersion(),
-            latest: latest,
-            hasUpdate: hasUpdate,
-          ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 9,
             runSpacing: 9,
@@ -333,6 +331,12 @@ class _UpdateStatusCard extends StatelessWidget {
                 ),
             ],
           ),
+          const SizedBox(height: 12),
+          _VersionComparison(
+            current: currentVersion(),
+            latest: latest,
+            hasUpdate: hasUpdate,
+          ),
         ],
       ),
     );
@@ -354,36 +358,24 @@ class _VersionComparison extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
-        final compact = constraints.maxWidth < 340 || scale > 1.35;
         final currentTile = _VersionTile(
+          key: const ValueKey('about-current-version'),
           label: context.l10n.currentVersion,
           version: current,
           highlighted: false,
         );
         final latestTile = _VersionTile(
+          key: const ValueKey('about-latest-version'),
           label: context.l10n.latestVersion,
           version: latest,
           highlighted: hasUpdate,
         );
-        if (compact) {
-          return Column(
-            children: [
-              currentTile,
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 5),
-                child: Icon(Icons.south_rounded, size: 18),
-              ),
-              latestTile,
-            ],
-          );
-        }
         return Row(
           children: [
             Expanded(child: currentTile),
             const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 9),
-              child: Icon(Icons.east_rounded, size: 18),
+              padding: EdgeInsets.symmetric(horizontal: 6),
+              child: Icon(Icons.east_rounded, size: 16),
             ),
             Expanded(child: latestTile),
           ],
@@ -399,6 +391,7 @@ class _VersionTile extends StatelessWidget {
   final bool highlighted;
 
   const _VersionTile({
+    super.key,
     required this.label,
     required this.version,
     required this.highlighted,
@@ -416,23 +409,33 @@ class _VersionTile extends StatelessWidget {
             : scheme.surfaceContainerHighest.withValues(alpha: .55),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: scheme.onSurfaceVariant,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
           ),
-          const SizedBox(height: 3),
-          Text(
-            version,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: highlighted ? scheme.onPrimaryContainer : null,
+          const SizedBox(width: 7),
+          Flexible(
+            flex: 2,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                version,
+                maxLines: 1,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: highlighted ? scheme.onPrimaryContainer : null,
+                ),
+              ),
             ),
           ),
         ],

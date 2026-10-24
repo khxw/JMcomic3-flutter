@@ -86,6 +86,10 @@ Future initVersion() async {
   if (_latestVersionName == null && _versionExp.hasMatch(_version)) {
     _latestVersionName = _version;
   }
+  _latestVersion = _latestVersionName != null &&
+          _isVersionNewer(_latestVersionName!, _version)
+      ? _latestVersionName
+      : null;
   final vStr = await methods.loadProperty(_propertyName);
   // 升级检查周期属于启动路径配置；旧缓存损坏时回退 0，避免版本页初始化直接抛异常。
   _period = parseBoundedIntPropertyValue(vStr, fallback: 0, min: 0);
@@ -187,6 +191,10 @@ Future _versionCheck() async {
       } catch (e) {
         // keep cached values when network fetch fails
       }
+      _latestVersion = _latestVersionName != null &&
+              _isVersionNewer(_latestVersionName!, _version)
+          ? _latestVersionName
+          : null;
       if ((_latestVersionInfo ?? "").trim().isEmpty) {
         final pageInfo = await _fetchLatestReleaseInfoFromPage();
         if (pageInfo != null && pageInfo.trim().isNotEmpty) {

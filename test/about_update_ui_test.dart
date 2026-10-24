@@ -106,6 +106,20 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('about-update-status')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('about-current-version')),
+        matching: find.text(currentVersion()),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('about-latest-version')),
+        matching: find.text('v9.9.9'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('发现新版本 v9.9.9'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('about-check-update')),
