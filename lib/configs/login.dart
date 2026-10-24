@@ -256,13 +256,25 @@ Future loginDialog(BuildContext context) async {
 }
 
 Future showLoginAgreementBottomSheet(BuildContext context) async {
-  await showMaterialModalBottomSheet(
+  await showMaterialModalBottomSheet<void>(
     context: context,
-    backgroundColor: const Color(0xAA000000),
+    backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withValues(alpha: .56),
+    useRootNavigator: true,
+    enableDrag: true,
+    duration: MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 260),
     builder: (context) {
-      return SizedBox(
-        height: MediaQuery.of(context).size.height * (.6),
-        child: const _LoginAgreementSheet(),
+      return Align(
+        alignment: Alignment.bottomCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * .88,
+            child: const _LoginAgreementSheet(),
+          ),
+        ),
       );
     },
   );
@@ -322,52 +334,151 @@ class _LoginAgreementSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Material(
-      color: Theme.of(context).scaffoldBackgroundColor,
+      key: const ValueKey('user-agreement-sheet'),
+      color: scheme.surface,
+      elevation: 18,
+      clipBehavior: Clip.antiAlias,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
       child: SafeArea(
         top: false,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 9, 10, 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    scheme.primaryContainer,
+                    scheme.tertiaryContainer.withValues(alpha: .52),
+                  ],
                 ),
-                Expanded(
-                  child: Text(
-                    context.l10n.tr("使用协议", en: "Terms of use"),
-                    style: textTheme.titleMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                border: Border(
+                  bottom: BorderSide(
+                    color: scheme.outlineVariant.withValues(alpha: .55),
                   ),
                 ),
-                const SizedBox(width: 48),
-              ],
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: scheme.onSurface.withValues(alpha: .22),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                  const SizedBox(height: 13),
+                  Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: scheme.surface.withValues(alpha: .66),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Icon(
+                          Icons.policy_outlined,
+                          color: scheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              context.l10n.tr('用户协议', en: 'User agreement'),
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                color: scheme.onPrimaryContainer,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              context.l10n.tr(
+                                '使用前请了解数据、内容与更新规则',
+                                en: 'Review data, content, and update rules',
+                              ),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: scheme.onPrimaryContainer
+                                    .withValues(alpha: .72),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        key: const ValueKey('user-agreement-close'),
+                        onPressed: () => Navigator.of(context).pop(),
+                        tooltip: context.l10n.tr('关闭', en: 'Close'),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: scheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: scheme.surface.withValues(alpha: .58),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        '${context.l10n.tr("版本", en: "Version")} '
+                        '$userAgreementVersion',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: scheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const Divider(height: 1),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                key: const ValueKey('user-agreement-scroll'),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
                 children: [
                   const UserAgreementContent(),
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: MaterialButton(
-                  color: Colors.orange.shade700,
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Text(
-                      context.l10n.tr("我知道了", en: "Got it"),
-                      style: const TextStyle(color: Colors.white),
-                    ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 11, 16, 14),
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                border: Border(
+                  top: BorderSide(
+                    color: scheme.outlineVariant.withValues(alpha: .55),
+                  ),
+                ),
+              ),
+              child: FilledButton.icon(
+                key: const ValueKey('user-agreement-got-it'),
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.check_rounded, size: 19),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  child: Text(
+                    context.l10n.tr('我已阅读', en: 'I have read this'),
                   ),
                 ),
               ),

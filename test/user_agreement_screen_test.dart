@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jmcomic3/configs/login.dart';
 import 'package:jmcomic3/configs/theme.dart';
 import 'package:jmcomic3/configs/user_agreement.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
@@ -155,5 +156,65 @@ void main() {
     expect(find.text('同意并继续'), findsOneWidget);
     expect(find.byKey(const ValueKey('agreement-exit')), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shared agreement sheet is scrollable and compact-safe',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final navigatorKey = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      _host(navigatorKey: navigatorKey, textScale: 1.35),
+    );
+    navigatorKey.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (context) => Scaffold(
+          body: Builder(
+            builder: (buttonContext) => Center(
+              child: FilledButton(
+                onPressed: () => showLoginAgreementBottomSheet(buttonContext),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('user-agreement-sheet')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('user-agreement-scroll')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('agreement-summary-card')),
+      findsOneWidget,
+    );
+    expect(find.text('用户协议'), findsOneWidget);
+    expect(find.textContaining(userAgreementVersion), findsOneWidget);
+    expect(find.text('本地数据'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('user-agreement-got-it')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(
+      find.byKey(const ValueKey('user-agreement-got-it')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('user-agreement-sheet')),
+      findsNothing,
+    );
   });
 }
