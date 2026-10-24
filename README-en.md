@@ -96,8 +96,6 @@ flutter build apk --release --no-pub --target-platform android-arm64 --split-per
   app-local storage or user-selected folders.
 - Keystores, `key.properties`, `android/local.properties`, APKs, and build
   outputs are not committed.
-- Release audits check for API keys, tokens, private keys, passwords, and
-  personal absolute paths.
 - Third-party services control their own availability and data policies.
 - Download APKs only from this repository's Releases page.
 
@@ -108,8 +106,6 @@ flutter build apk --release --no-pub --target-platform android-arm64 --split-per
   download storage; deleting a task may not remove old external copies.
 - Rust backend source is not included in this repository; the release uses the
   tracked prebuilt JNI libraries.
-- This build uses a debug signing certificate and is not suitable for a public
-  app-store release.
 
 ## References
 
