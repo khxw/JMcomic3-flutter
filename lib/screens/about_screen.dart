@@ -5,6 +5,7 @@ import 'package:jmcomic3/configs/versions.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/badge.dart';
 
+import 'components/app_icon.dart';
 import 'components/right_click_pop.dart';
 
 class AboutScreen extends StatefulWidget {
@@ -109,28 +110,20 @@ class _AboutHero extends StatelessWidget {
     final compact = MediaQuery.sizeOf(context).width < 360 ||
         MediaQuery.textScalerOf(context).scale(14) > 19;
     final icon = Container(
+      key: const ValueKey('about-app-icon'),
       width: 64,
       height: 64,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF19CADE), Color(0xFF347FF5)],
-        ),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF347FF5).withValues(alpha: .24),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: .2),
+            blurRadius: 16,
+            offset: const Offset(0, 7),
           ),
         ],
       ),
-      child: const Icon(
-        Icons.auto_stories_rounded,
-        color: Colors.white,
-        size: 33,
-      ),
+      child: const AppIcon(size: 64, borderRadius: 16),
     );
     final details = Column(
       crossAxisAlignment:

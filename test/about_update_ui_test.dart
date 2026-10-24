@@ -92,6 +92,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('about-update-page')), findsOneWidget);
+    expect(find.byKey(const ValueKey('about-app-icon')), findsOneWidget);
+    expect(
+      find.image(
+        const AssetImage('lib/assets/app_icon_background.png'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.image(
+        const AssetImage('lib/assets/app_icon_foreground.png'),
+      ),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('about-update-status')), findsOneWidget);
     expect(find.text('发现新版本 v9.9.9'), findsOneWidget);
     expect(

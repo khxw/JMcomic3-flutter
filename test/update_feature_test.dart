@@ -14,6 +14,18 @@ String _response(Object? data) => jsonEncode({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('only a semantically newer release is treated as an update', () {
+    const current = 'v1.7.47+76';
+    expect(isVersionNewerForTest('v1.7.46+75', current), isFalse);
+    expect(isVersionNewerForTest('v1.7.47+75', current), isFalse);
+    expect(isVersionNewerForTest('v1.7.47+76', current), isFalse);
+    expect(isVersionNewerForTest('v1.7.47+77', current), isTrue);
+    expect(isVersionNewerForTest('v1.7.48+0', current), isTrue);
+    expect(isVersionNewerForTest('v1.8.0+0', current), isTrue);
+    expect(isVersionNewerForTest('v2.0.0+0', current), isTrue);
+    expect(isVersionNewerForTest('invalid', current), isFalse);
+  });
+
   test('update checks are enabled for the fork release source', () async {
     final properties = <String, String>{};
     final messenger =

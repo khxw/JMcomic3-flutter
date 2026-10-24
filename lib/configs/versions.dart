@@ -9,6 +9,7 @@ import 'package:jmcomic3/basic/http_client.dart';
 import 'package:jmcomic3/basic/log.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
+import 'package:jmcomic3/screens/components/app_icon.dart';
 
 import 'int_property.dart';
 import 'ignore_upgrade_pop.dart';
@@ -174,7 +175,8 @@ Future _versionCheck() async {
           final body = json["body"]?.toString() ?? "";
           _latestVersionName = latestVersion;
           _latestVersionInfo = body;
-          _latestVersion = latestVersion != _version ? latestVersion : null;
+          _latestVersion =
+              _isVersionNewer(latestVersion, _version) ? latestVersion : null;
           await methods.saveProperty(_latestNameCacheKey, latestVersion);
           await methods.saveProperty(_latestInfoCacheKey, body);
         } else {
@@ -227,7 +229,8 @@ Future<bool> _applyRemoteAppConfig() async {
   final body = config["changeLog"]?.toString() ?? "";
   _latestVersionName = latestVersion;
   _latestVersionInfo = body;
-  _latestVersion = latestVersion != _version ? latestVersion : null;
+  _latestVersion =
+      _isVersionNewer(latestVersion, _version) ? latestVersion : null;
   await methods.saveProperty(_latestNameCacheKey, latestVersion);
   await methods.saveProperty(_latestInfoCacheKey, body);
   return true;
@@ -266,6 +269,38 @@ String _pickLatestVersion(String tagName, String releaseName) {
     return tagName;
   }
   return releaseName;
+}
+
+bool _isVersionNewer(String candidate, String current) {
+  final candidateParts = _parseVersion(candidate);
+  final currentParts = _parseVersion(current);
+  if (candidateParts == null || currentParts == null) {
+    return false;
+  }
+  for (var index = 0; index < 3; index++) {
+    final comparison = candidateParts[index].compareTo(currentParts[index]);
+    if (comparison != 0) {
+      return comparison > 0;
+    }
+  }
+  return candidateParts[3] > currentParts[3];
+}
+
+List<int>? _parseVersion(String raw) {
+  final match =
+      RegExp(r'^v(\d+)\.(\d+)\.(\d+)(?:\+(\d+))?$').firstMatch(raw.trim());
+  if (match == null) return null;
+  return [
+    int.tryParse(match.group(1)!) ?? -1,
+    int.tryParse(match.group(2)!) ?? -1,
+    int.tryParse(match.group(3)!) ?? -1,
+    int.tryParse(match.group(4) ?? '0') ?? -1,
+  ];
+}
+
+@visibleForTesting
+bool isVersionNewerForTest(String candidate, String current) {
+  return _isVersionNewer(candidate, current);
 }
 
 Future<Map<String, dynamic>> _fetchLatestReleaseJson() async {
@@ -483,78 +518,368 @@ void versionPop(BuildContext context) {
   if (updatesTemporarilyDisabled) return;
   if (latestVersion != null && _display && !currentIgnoreUpgradePop()) {
     _display = false;
-    TopConfirm.topConfirm(
-      context,
-      "\u53d1\u73b0\u65b0\u7248\u672c",
-      "\u53d1\u73b0\u65b0\u7248\u672c $latestVersion\uff0c\u8bf7\u5230\u5173\u4e8e\u9875\u9762\u66f4\u65b0",
+    _showUpdatePrompt(context);
+  }
+}
+
+void _showUpdatePrompt(BuildContext context) {
+  final reduceMotion = MediaQuery.disableAnimationsOf(context);
+  showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: Colors.black.withValues(alpha: .5),
+    transitionDuration:
+        reduceMotion ? Duration.zero : const Duration(milliseconds: 220),
+    pageBuilder: (dialogContext, _, __) {
+      return _UpdatePromptDialog(
+        current: currentVersion(),
+        latest: latestVersion ?? latestVersionName ?? currentVersion(),
+        summary: _updatePromptSummary(
+          latestVersionInfo(),
+          context.l10n.tr(
+            '包含界面优化、功能改进和问题修复。',
+            en: 'Includes UI, feature, and reliability improvements.',
+          ),
+        ),
+        onLater: () => Navigator.of(dialogContext).pop(),
+        onOpenRelease: () {
+          Navigator.of(dialogContext).pop();
+          openUrl(latestDownloadUrl());
+        },
+      );
+    },
+    transitionBuilder: (_, animation, secondaryAnimation, child) {
+      if (reduceMotion) return child;
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: .94, end: 1).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
+class _UpdatePromptDialog extends StatelessWidget {
+  final String current;
+  final String latest;
+  final String summary;
+  final VoidCallback onLater;
+  final VoidCallback onOpenRelease;
+
+  const _UpdatePromptDialog({
+    required this.current,
+    required this.latest,
+    required this.summary,
+    required this.onLater,
+    required this.onOpenRelease,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return SafeArea(
+      child: Dialog(
+        key: const ValueKey('update-prompt-dialog'),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+        backgroundColor: scheme.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(26),
+          side: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: .4),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 430),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(18, 18, 14, 17),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      scheme.primaryContainer,
+                      scheme.tertiaryContainer.withValues(alpha: .72),
+                    ],
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      key: const ValueKey('update-prompt-app-icon'),
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: const AppIcon(
+                        size: 46,
+                        borderRadius: 13,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            context.l10n.tr(
+                              '发现新版本',
+                              en: 'Update available',
+                            ),
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              color: scheme.onPrimaryContainer,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            context.l10n.tr(
+                              '新版本已准备好，可以前往发布页面下载。',
+                              en: 'A new version is ready on the release page.',
+                            ),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.onPrimaryContainer
+                                  .withValues(alpha: .7),
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: context.l10n.tr('稍后', en: 'Later'),
+                      onPressed: onLater,
+                      icon: Icon(
+                        Icons.close_rounded,
+                        color: scheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final scale =
+                              MediaQuery.textScalerOf(context).scale(14) / 14;
+                          final stack =
+                              constraints.maxWidth < 300 || scale > 1.35;
+                          final currentTile = _PromptVersionTile(
+                            label: context.l10n.currentVersion,
+                            version: current,
+                          );
+                          final latestTile = _PromptVersionTile(
+                            label: context.l10n.latestVersion,
+                            version: latest,
+                            highlighted: true,
+                          );
+                          if (stack) {
+                            return Column(
+                              children: [
+                                currentTile,
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 5),
+                                  child: Icon(
+                                    Icons.south_rounded,
+                                    size: 18,
+                                  ),
+                                ),
+                                latestTile,
+                              ],
+                            );
+                          }
+                          return Row(
+                            children: [
+                              Expanded(child: currentTile),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 9),
+                                child: Icon(Icons.east_rounded, size: 18),
+                              ),
+                              Expanded(child: latestTile),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 13),
+                      Container(
+                        padding: const EdgeInsets.all(13),
+                        decoration: BoxDecoration(
+                          color: scheme.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            color: scheme.outlineVariant.withValues(alpha: .38),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.notes_rounded,
+                                  size: 17,
+                                  color: scheme.primary,
+                                ),
+                                const SizedBox(width: 7),
+                                Text(
+                                  context.l10n.updateContent,
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 7),
+                            Text(
+                              summary,
+                              maxLines: 4,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                                height: 1.45,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final scale =
+                        MediaQuery.textScalerOf(context).scale(14) / 14;
+                    final stack = constraints.maxWidth < 300 || scale > 1.3;
+                    final later = OutlinedButton(
+                      key: const ValueKey('update-prompt-later'),
+                      onPressed: onLater,
+                      child: Text(context.l10n.tr('稍后', en: 'Later')),
+                    );
+                    final update = FilledButton.icon(
+                      key: const ValueKey('update-prompt-open'),
+                      onPressed: onOpenRelease,
+                      icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                      label: Text(
+                        context.l10n.tr('前往更新', en: 'Open update'),
+                      ),
+                    );
+                    if (stack) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          update,
+                          const SizedBox(height: 8),
+                          later,
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: later),
+                        const SizedBox(width: 9),
+                        Expanded(child: update),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
 
-class TopConfirm {
-  static topConfirm(BuildContext context, String title, String message,
-      {Function()? afterIKnown}) {
-    late OverlayEntry overlayEntry;
-    overlayEntry = OverlayEntry(builder: (BuildContext context) {
-      return LayoutBuilder(
-        builder: (
-          BuildContext context,
-          BoxConstraints constraints,
-        ) {
-          var mq = MediaQuery.of(context).size.width - 30;
-          return Material(
-            color: Colors.transparent,
-            child: Container(
-              width: constraints.maxWidth,
-              height: constraints.maxHeight,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(.35),
-              ),
-              child: Column(
-                children: [
-                  Expanded(child: Container()),
-                  SizedBox(
-                    width: mq,
-                    child: Card(
-                      child: Column(
-                        children: [
-                          Container(height: 30),
-                          Text(
-                            title,
-                            style: const TextStyle(
-                              fontSize: 28,
-                            ),
-                          ),
-                          Container(height: 15),
-                          Text(
-                            message,
-                            style: const TextStyle(
-                              fontSize: 16,
-                            ),
-                          ),
-                          Container(height: 25),
-                          MaterialButton(
-                            elevation: 0,
-                            color: Colors.grey.shade700.withOpacity(.1),
-                            onPressed: () {
-                              overlayEntry.remove();
-                            },
-                            child: const Text("\u77e5\u9053\u4e86"),
-                          ),
-                          Container(height: 30),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Expanded(child: Container()),
-                ],
-              ),
+class _PromptVersionTile extends StatelessWidget {
+  final String label;
+  final String version;
+  final bool highlighted;
+
+  const _PromptVersionTile({
+    required this.label,
+    required this.version,
+    this.highlighted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: highlighted
+            ? scheme.primaryContainer.withValues(alpha: .58)
+            : scheme.surfaceContainerHighest.withValues(alpha: .52),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant,
             ),
-          );
-        },
-      );
-    });
-    final overlay = Overlay.of(context);
-    overlay.insert(overlayEntry);
+          ),
+          const SizedBox(height: 3),
+          Text(
+            version,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: highlighted ? scheme.onPrimaryContainer : null,
+            ),
+          ),
+        ],
+      ),
+    );
   }
+}
+
+String _updatePromptSummary(String? raw, String fallback) {
+  final text = (raw ?? '').trim();
+  if (text.isEmpty) {
+    return fallback;
+  }
+  final lines = text
+      .split('\n')
+      .map((line) => line.trim())
+      .where((line) => line.isNotEmpty)
+      .where((line) => !line.startsWith('#'))
+      .map(
+        (line) => line
+            .replaceAll(RegExp(r'^[-*]\s*'), '')
+            .replaceAll(RegExp(r'[*_`>]'), ''),
+      )
+      .where((line) => line.isNotEmpty)
+      .take(3)
+      .join('\n');
+  return lines.isEmpty ? fallback : lines;
 }
