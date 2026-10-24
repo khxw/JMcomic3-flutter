@@ -183,7 +183,6 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
     try {
       final inShelf = await toggleLocalBookshelf(
         albumToSimple(album),
-        group: album.tags.isEmpty ? '' : album.tags.first,
       );
       if (!mounted) return;
       setState(() {

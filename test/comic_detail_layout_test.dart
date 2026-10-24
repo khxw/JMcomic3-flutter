@@ -1262,7 +1262,8 @@ void main() {
 
     expect(fixture.calls('set_favorite'), isEmpty);
     expect(localBookshelfContains(_albumId), isTrue);
-    expect(localBookshelfItems.single.group, fixture.album.tags.first);
+    expect(localBookshelfItems.single.group, isEmpty);
+    expect(localBookshelfGroupNames, isEmpty);
     expect(find.text('In bookshelf'), findsOneWidget);
     expect(
       find.descendant(
