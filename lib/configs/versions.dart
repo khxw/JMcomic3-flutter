@@ -13,12 +13,11 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'int_property.dart';
 import 'ignore_upgrade_pop.dart';
 
-const _repoOwner = "MrYu-JMComic";
+const _repoOwner = "khxw";
 const _repoName = "JMcomic3-flutter";
 
-/// Temporarily disables every user-facing update check and download entry.
-/// Set this to false to restore the original update flow.
-const updatesTemporarilyDisabled = true;
+/// Enables user-facing update checks and download entries for this fork.
+const updatesTemporarilyDisabled = false;
 
 const _releaseLatestUrl =
     "https://api.github.com/repos/$_repoOwner/$_repoName/releases/latest";
