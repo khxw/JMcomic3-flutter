@@ -5,29 +5,46 @@ import 'package:jmcomic3/configs/versions.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/badge.dart';
 
+import 'components/app_icon.dart';
 import 'components/right_click_pop.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({Key? key}) : super(key: key);
 
   @override
-  State<StatefulWidget> createState() {
-    return _AboutState();
-  }
+  State<StatefulWidget> createState() => _AboutState();
 }
 
 class _AboutState extends State<AboutScreen> {
+  bool _checking = false;
+
   @override
   void initState() {
     super.initState();
     if (updatesTemporarilyDisabled) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final info = latestVersionInfo();
-      if ((info ?? "").trim().isEmpty) {
-        await silentCheckNewVersion();
-        if (mounted) setState(() {});
-      }
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _silentCheck());
+  }
+
+  Future<void> _silentCheck() async {
+    if (!mounted) return;
+    setState(() => _checking = true);
+    try {
+      await silentCheckNewVersion();
+    } catch (_) {
+      // The manual action reports network errors; startup stays quiet.
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  Future<void> _manualCheck() async {
+    if (_checking) return;
+    setState(() => _checking = true);
+    try {
+      await manualCheckNewVersion(context);
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
   }
 
   @override
@@ -36,84 +53,571 @@ class _AboutState extends State<AboutScreen> {
   }
 
   Widget buildScreen(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
+      key: const ValueKey('about-update-page'),
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         title: Text(context.l10n.about),
+        surfaceTintColor: Colors.transparent,
       ),
       body: ListView(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 28),
         children: [
-          const Divider(),
-          _buildLogo(),
-          const Divider(),
-          _buildCurrentVersion(),
-          const Divider(),
-          if (updatesTemporarilyDisabled)
-            _buildUpdatesDisabled()
-          else ...[
-            _buildNewestVersion(),
-            if (latestVersion != null) _buildGotoGithub(),
-            const Divider(),
-            _buildVersionText(),
-            const Divider(),
-          ],
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _AboutHero(version: currentVersion()),
+                  const SizedBox(height: 12),
+                  if (updatesTemporarilyDisabled)
+                    const _UpdatesDisabledCard()
+                  else ...[
+                    _UpdateStatusCard(
+                      checking: _checking,
+                      onCheck: _manualCheck,
+                      onOpenRelease: () => openUrl(latestDownloadUrl()),
+                    ),
+                    const SizedBox(height: 12),
+                    _ReleaseNotesCard(
+                      notes: latestVersionInfo(),
+                      onCheck: _manualCheck,
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  const _ProjectCard(),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildLogo() {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        double? width, height;
-        if (constraints.maxWidth < constraints.maxHeight) {
-          width = constraints.maxWidth / 3;
-        } else {
-          height = constraints.maxHeight / 3;
-        }
-        double l = width ?? height!;
-        return Column(
-          children: [
-            Container(height: l / 4),
-            SizedBox(
-              width: l,
-              height: l,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints.expand(),
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  child: Opacity(
-                    opacity: 0.9,
-                    child: Icon(
-                      Icons.abc,
-                      size: l,
+class _AboutHero extends StatelessWidget {
+  final String version;
+
+  const _AboutHero({required this.version});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final compact = MediaQuery.sizeOf(context).width < 360 ||
+        MediaQuery.textScalerOf(context).scale(14) > 19;
+    final icon = Container(
+      key: const ValueKey('about-app-icon'),
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .2),
+            blurRadius: 16,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: const AppIcon(size: 64, borderRadius: 16),
+    );
+    final details = Column(
+      crossAxisAlignment:
+          compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      children: [
+        Text(
+          'JMComic3 Mod',
+          textAlign: compact ? TextAlign.center : TextAlign.start,
+          style: theme.textTheme.titleLarge?.copyWith(
+            color: scheme.onPrimaryContainer,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -.2,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          context.l10n.tr(
+            'Flutter + Rust 漫画阅读与管理客户端',
+            en: 'Flutter + Rust comic reader and manager',
+          ),
+          textAlign: compact ? TextAlign.center : TextAlign.start,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: scheme.onPrimaryContainer.withValues(alpha: .7),
+          ),
+        ),
+        const SizedBox(height: 9),
+        VersionBadged(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: scheme.surface.withValues(alpha: .58),
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text(
+              version,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onPrimaryContainer,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            scheme.primaryContainer,
+            scheme.tertiaryContainer.withValues(alpha: .72),
+          ],
+        ),
+        border: Border.all(
+          color: scheme.primary.withValues(alpha: .12),
+        ),
+      ),
+      child: compact
+          ? Column(
+              children: [
+                icon,
+                const SizedBox(height: 13),
+                details,
+              ],
+            )
+          : Row(
+              children: [
+                icon,
+                const SizedBox(width: 15),
+                Expanded(child: details),
+              ],
+            ),
+    );
+  }
+}
+
+class _UpdateStatusCard extends StatelessWidget {
+  final bool checking;
+  final VoidCallback onCheck;
+  final VoidCallback onOpenRelease;
+
+  const _UpdateStatusCard({
+    required this.checking,
+    required this.onCheck,
+    required this.onOpenRelease,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final hasUpdate = latestVersion != null;
+    final statusColor = hasUpdate ? scheme.primary : Colors.green;
+    // The repository can lag behind a local build. Never label an older
+    // online release as the latest version.
+    final latest = hasUpdate ? latestVersion! : currentVersion();
+
+    return Container(
+      key: const ValueKey('about-update-status'),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: statusColor.withValues(alpha: .2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: .1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  hasUpdate
+                      ? Icons.system_update_alt_rounded
+                      : Icons.verified_rounded,
+                  color: statusColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      checking
+                          ? context.l10n
+                              .tr('正在检查更新', en: 'Checking for updates')
+                          : hasUpdate
+                              ? context.l10n.tr(
+                                  '发现新版本 $latest',
+                                  en: 'New version $latest is available',
+                                )
+                              : context.l10n.tr(
+                                  '当前已是最新版本',
+                                  en: 'You are up to date',
+                                ),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
+                    const SizedBox(height: 3),
+                    Text(
+                      hasUpdate
+                          ? context.l10n.tr(
+                              '可前往发布页面下载新版本',
+                              en: 'Open the release page to download it',
+                            )
+                          : context.l10n.tr(
+                              '更新来自当前 Fork 的 GitHub Releases',
+                              en: 'Updates come from this fork’s GitHub Releases',
+                            ),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 9,
+            runSpacing: 9,
+            children: [
+              FilledButton.icon(
+                key: const ValueKey('about-check-update'),
+                onPressed: checking ? null : onCheck,
+                icon: checking
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded, size: 18),
+                label: Text(
+                  checking
+                      ? context.l10n.tr('检查中...', en: 'Checking...')
+                      : context.l10n.checkUpdate,
+                ),
+              ),
+              if (hasUpdate)
+                OutlinedButton.icon(
+                  key: const ValueKey('about-download-update'),
+                  onPressed: onOpenRelease,
+                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                  label: Text(
+                    context.l10n.goToDownloadPage,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _VersionComparison(
+            current: currentVersion(),
+            latest: latest,
+            hasUpdate: hasUpdate,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VersionComparison extends StatelessWidget {
+  final String current;
+  final String latest;
+  final bool hasUpdate;
+
+  const _VersionComparison({
+    required this.current,
+    required this.latest,
+    required this.hasUpdate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final currentTile = _VersionTile(
+      key: const ValueKey('about-current-version'),
+      label: context.l10n.currentVersion,
+      version: current,
+      highlighted: false,
+    );
+    if (!hasUpdate) {
+      return currentTile;
+    }
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: currentTile),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _VersionTile(
+              key: const ValueKey('about-latest-version'),
+              label: context.l10n.latestVersion,
+              version: latest,
+              highlighted: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VersionTile extends StatelessWidget {
+  final String label;
+  final String version;
+  final bool highlighted;
+
+  const _VersionTile({
+    super.key,
+    required this.label,
+    required this.version,
+    required this.highlighted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: highlighted
+            ? scheme.primaryContainer.withValues(alpha: .55)
+            : scheme.surfaceContainerHighest.withValues(alpha: .55),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(
+                highlighted
+                    ? Icons.cloud_download_rounded
+                    : Icons.phone_android_rounded,
+                size: 17,
+                color: highlighted ? scheme.primary : scheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              version,
+              maxLines: 1,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: highlighted ? scheme.onPrimaryContainer : null,
+              ),
             ),
-            Container(height: l / 4),
-          ],
-        );
-      },
+          ),
+          const SizedBox(height: 4),
+          Text(
+            highlighted
+                ? context.l10n.tr('可更新到此版本', en: 'Available update')
+                : context.l10n.tr('当前安装', en: 'Installed'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant.withValues(alpha: .75),
+            ),
+          ),
+        ],
+      ),
     );
   }
+}
 
-  Widget _buildCurrentVersion() {
+class _ReleaseNotesCard extends StatelessWidget {
+  final String? notes;
+  final VoidCallback onCheck;
+
+  const _ReleaseNotesCard({required this.notes, required this.onCheck});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final available = (notes ?? '').trim().isNotEmpty;
+    final normalized = available ? _normalizeReleaseNotes(notes!) : '';
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-      child: Text(context.l10n.currentVersionLabel(currentVersion())),
+      key: const ValueKey('about-release-notes'),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: .45),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            child: Row(
+              children: [
+                Icon(Icons.notes_rounded, size: 19, color: scheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    context.l10n.updateContent,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: scheme.outlineVariant),
+          if (available)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+              child: MarkdownBody(
+                data: normalized,
+                selectable: true,
+                onTapLink: (_, href, __) {
+                  if (href != null && href.trim().isNotEmpty) {
+                    openUrl(href);
+                  }
+                },
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.article_outlined,
+                    size: 34,
+                    color: scheme.onSurfaceVariant.withValues(alpha: .65),
+                  ),
+                  const SizedBox(height: 9),
+                  Text(
+                    context.l10n.updateContentUnavailable,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: onCheck,
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: Text(context.l10n.checkUpdate),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
+}
 
-  Widget _buildUpdatesDisabled() {
+class _ProjectCard extends StatelessWidget {
+  const _ProjectCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Material(
+      color: scheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(
+          color: scheme.outlineVariant.withValues(alpha: .4),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        key: const ValueKey('about-project-link'),
+        onTap: () => openUrl(releasePageUrl),
+        leading: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: scheme.primary.withValues(alpha: .1),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(
+            Icons.code_rounded,
+            size: 20,
+            color: scheme.primary,
+          ),
+        ),
+        title: Text(
+          context.l10n.tr('项目主页', en: 'Project page'),
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        subtitle: const Text('khxw/JMcomic3-flutter'),
+        trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+      ),
+    );
+  }
+}
+
+class _UpdatesDisabledCard extends StatelessWidget {
+  const _UpdatesDisabledCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: .4),
+        ),
+      ),
       child: Row(
         children: [
           Icon(
             Icons.system_update_alt_rounded,
-            size: 20,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            color: scheme.onSurfaceVariant,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -128,76 +632,18 @@ class _AboutState extends State<AboutScreen> {
       ),
     );
   }
+}
 
-  Widget _buildNewestVersion() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-      child: Text.rich(TextSpan(
-        children: [
-          TextSpan(text: "${context.l10n.latestVersion}: "),
-          _buildNewestVersionSpan(),
-          _buildCheckButton(),
-        ],
-      )),
-    );
+String _normalizeReleaseNotes(String input) {
+  final lines = input.trim().split('\n');
+  while (lines.isNotEmpty && lines.first.trim().isEmpty) {
+    lines.removeAt(0);
   }
-
-  InlineSpan _buildNewestVersionSpan() {
-    final versionText = latestVersionName ?? context.l10n.noNewVersion;
-    return WidgetSpan(
-      child: Container(
-        padding: const EdgeInsets.only(right: 20),
-        child: VersionBadged(
-          child: Text(
-            "$versionText    ",
-          ),
-        ),
-      ),
-    );
+  if (lines.isNotEmpty && lines.first.trimLeft().startsWith('# ')) {
+    lines.removeAt(0);
   }
-
-  InlineSpan _buildCheckButton() {
-    return WidgetSpan(
-      child: GestureDetector(
-        child: Text(
-          context.l10n.checkUpdate,
-          style: TextStyle(height: 1.3, color: Colors.blue),
-          strutStyle: const StrutStyle(height: 1.3),
-        ),
-        onTap: () async {
-          await manualCheckNewVersion(context);
-          setState(() {});
-        },
-      ),
-    );
+  while (lines.isNotEmpty && lines.first.trim().isEmpty) {
+    lines.removeAt(0);
   }
-
-  Widget _buildGotoGithub() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-      child: GestureDetector(
-        child: Text(
-          context.l10n.goToDownloadPage,
-          style: TextStyle(color: Colors.blue),
-        ),
-        onTap: () async {
-          openUrl(releasePageUrl);
-        },
-      ),
-    );
-  }
-
-  Widget _buildVersionText() {
-    var info = latestVersionInfo();
-    if (info != null && info.trim().isNotEmpty) {
-      info = "## ${context.l10n.updateContent}\n\n$info";
-    } else {
-      info =
-          "${context.l10n.updateContent}\n\n${context.l10n.updateContentUnavailable}";
-    }
-    return Container(
-      padding: const EdgeInsets.all(20),
-      child: MarkdownBody(data: info),
-    );
-  }
+  return lines.join('\n').trim();
 }
