@@ -6,7 +6,7 @@
 
 JMComic3 is a Flutter comic reader with a Rust service backend. This repository
 maintains the Flutter app, Android and Windows runners, tests, and local release
-tools. The current local release is **v1.7.44+73**.
+tools. The current fork release is **v1.7.45+74**.
 
 ## Download
 
