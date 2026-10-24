@@ -458,6 +458,8 @@ void controlComicReaderForTest(String direction) {
 
 abstract class _ComicReaderState extends State<_ComicReader>
     with WidgetsBindingObserver {
+  static const double _bottomControlsHeight = 58;
+
   late ReaderPosition _position;
   late ReaderProgressWriter _progressWriter;
   late bool _fullScreen;
@@ -707,13 +709,27 @@ abstract class _ComicReaderState extends State<_ComicReader>
       appBar: _fullScreen
           ? null
           : AppBar(
-              title: Text(widget.chapter.name),
+              backgroundColor: Colors.black.withValues(alpha: .74),
+              foregroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              title: Text(
+                widget.chapter.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               actions: [
                 IconButton(
-                    onPressed: _onChooseEp, icon: const Icon(Icons.menu_open)),
+                  tooltip: context.l10n.tr('章节列表', en: 'Chapters'),
+                  onPressed: _onChooseEp,
+                  icon: const Icon(Icons.menu_book_rounded),
+                ),
                 IconButton(
-                    onPressed: _onMoreSetting,
-                    icon: const Icon(Icons.more_horiz)),
+                  tooltip: context.l10n.tr('阅读设置', en: 'Reading settings'),
+                  onPressed: _onMoreSetting,
+                  icon: const Icon(Icons.tune_rounded),
+                ),
               ],
             ),
       body: Stack(children: [
@@ -724,30 +740,46 @@ abstract class _ComicReaderState extends State<_ComicReader>
                 ? Alignment.centerLeft
                 : Alignment.centerRight,
             child: Container(
-                width: 36,
-                height: 300,
+              width: 34,
+              height: 280,
+              decoration: BoxDecoration(
                 color: const Color(0x88000000),
-                child: _buildSliderWidget(Axis.vertical)),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: _buildSliderWidget(Axis.vertical),
+            ),
           ),
         if (currentReaderControllerType == ReaderControllerType.controller &&
             (_fullScreen || sideSlider))
           SafeArea(
               child: Align(
             alignment: Alignment.bottomLeft,
-            child: IconButton(
-                onPressed: _toggleFullscreen,
-                color: Colors.white,
-                icon: Icon(
-                    _fullScreen ? Icons.fullscreen_exit : Icons.fullscreen)),
+            child: _readerIconButton(
+              tooltip: _fullScreen
+                  ? context.l10n.tr('退出全屏', en: 'Exit full screen')
+                  : context.l10n.tr('全屏', en: 'Full screen'),
+              icon: _fullScreen
+                  ? Icons.fullscreen_exit_rounded
+                  : Icons.fullscreen_rounded,
+              onPressed: _toggleFullscreen,
+            ),
           )),
         if (_position.preview != null)
           IgnorePointer(
               child: Center(
                   child: Container(
-            padding: const EdgeInsets.all(12),
-            color: const Color(0xAA000000),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xCC000000),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: .12)),
+            ),
             child: Text('${_slider + 1} / ${widget.chapter.images.length}',
-                style: const TextStyle(color: Colors.white, fontSize: 28)),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                )),
           ))),
       ]),
       bottomNavigationBar: _fullScreen || sideSlider
@@ -758,25 +790,69 @@ abstract class _ComicReaderState extends State<_ComicReader>
               child: SafeArea(
                 top: false,
                 child: SizedBox(
-                  height: 45,
-                  child: Row(children: [
-                    IconButton(
+                  height: _bottomControlsHeight,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(children: [
+                      _readerIconButton(
+                        tooltip: context.l10n.tr('全屏', en: 'Full screen'),
+                        icon: Icons.fullscreen_rounded,
                         onPressed: _toggleFullscreen,
-                        color: Colors.white,
-                        icon: const Icon(Icons.fullscreen)),
-                    Expanded(
-                      child: _buildSliderWidget(Axis.horizontal),
-                    ),
-                    Text('${_slider + 1}/${widget.chapter.images.length}',
-                        style: const TextStyle(color: Colors.white)),
-                    IconButton(
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _buildSliderWidget(Axis.horizontal),
+                      ),
+                      Container(
+                        key: const ValueKey('reader-page-indicator'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: .1),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          '${_slider + 1} / ${widget.chapter.images.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      _readerIconButton(
+                        tooltip: _nextChapterId != null
+                            ? context.l10n.tr('下一章', en: 'Next chapter')
+                            : context.l10n.tr('结束阅读', en: 'Finish reading'),
+                        icon: Icons.skip_next_rounded,
                         onPressed: _onNextAction,
-                        color: Colors.white,
-                        icon: const Icon(Icons.skip_next_outlined)),
-                  ]),
+                      ),
+                    ]),
+                  ),
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _readerIconButton({
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        minimumSize: const Size(38, 38),
+        padding: EdgeInsets.zero,
+        foregroundColor: Colors.white,
+        backgroundColor: Colors.white.withValues(alpha: .08),
+      ),
+      icon: Icon(icon, size: 21),
     );
   }
 
@@ -858,7 +934,7 @@ abstract class _ComicReaderState extends State<_ComicReader>
       padding: EdgeInsets.only(
           bottom: !_fullScreen &&
                   currentReaderSliderPosition == ReaderSliderPosition.bottom
-              ? 45 + MediaQuery.viewPaddingOf(context).bottom
+              ? _bottomControlsHeight + MediaQuery.viewPaddingOf(context).bottom
               : 0),
       child: SizedBox(
           height: 100,
@@ -881,13 +957,29 @@ abstract class _ComicReaderState extends State<_ComicReader>
     if (_modalInFlight || _navigationInFlight) return;
     _modalInFlight = true;
     try {
-      await showMaterialModalBottomSheet(
+      await showMaterialModalBottomSheet<void>(
         context: context,
-        backgroundColor: const Color(0xDD000000),
-        builder: (_) => SizedBox(
-            height: MediaQuery.sizeOf(context).height * .45,
-            child: _EpChooser(widget.chapter, (id, _) => _navigate(id),
-                series: _series)),
+        backgroundColor: const Color(0xF21B1B1F),
+        barrierColor: Colors.black.withValues(alpha: .62),
+        useRootNavigator: true,
+        enableDrag: true,
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 240),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        ),
+        builder: (sheetContext) => SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * .62,
+          child: SafeArea(
+            top: false,
+            child: _EpChooser(
+              widget.chapter,
+              (id, _) => _navigate(id),
+              series: _series,
+            ),
+          ),
+        ),
       );
     } catch (error) {
       debugPrient('reader chapter chooser failed: ${error.runtimeType}');
@@ -900,12 +992,26 @@ abstract class _ComicReaderState extends State<_ComicReader>
     if (_modalInFlight || _navigationInFlight) return;
     _modalInFlight = true;
     try {
-      await showMaterialModalBottomSheet(
-          context: context,
-          backgroundColor: const Color(0xDD000000),
-          builder: (_) => SizedBox(
-              height: MediaQuery.sizeOf(context).height / 2,
-              child: _SettingPanel()));
+      await showMaterialModalBottomSheet<void>(
+        context: context,
+        backgroundColor: const Color(0xF21B1B1F),
+        barrierColor: Colors.black.withValues(alpha: .62),
+        useRootNavigator: true,
+        enableDrag: true,
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 220),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        ),
+        builder: (sheetContext) => SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * .48,
+          child: SafeArea(
+            top: false,
+            child: _SettingPanel(),
+          ),
+        ),
+      );
     } catch (error) {
       debugPrient('reader settings failed: ${error.runtimeType}');
       return;

@@ -120,6 +120,7 @@ void main() {
     direction = readDirection;
     await initReaderControllerType();
     await initReaderDirection();
+    await initReaderType();
     await initReaderSliderPosition();
     await initNoAnimation();
     await initVolumeKeyControl();
@@ -285,6 +286,44 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('reader chapter and settings sheets stay compact',
+      (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await mountReader(
+      tester,
+      ReaderType.gallery,
+      ReaderDirection.topToBottom,
+      theme: app_theme.darkTheme,
+    );
+
+    await tester.tap(find.byIcon(Icons.tune_rounded));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('reader-settings-sheet')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+
+    await tester.tapAt(const Offset(8, 8));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('reader-settings-sheet')),
+      findsNothing,
+    );
+
+    await tester.tap(find.byIcon(Icons.menu_book_rounded));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('reader-chapter-sheet')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   for (final type in [ReaderType.gallery, ReaderType.twoPageGallery]) {
     for (final readDirection in ReaderDirection.values) {
