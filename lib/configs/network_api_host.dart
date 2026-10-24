@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/basic/log.dart';
 import 'package:jmcomic3/configs/network_host.dart';
@@ -131,38 +132,19 @@ Future<T?> chooseApiDialog<T>(BuildContext buildContext) async {
   );
 }
 
-final TextEditingController _controller = TextEditingController();
-
-Future<String> _manualInputApiHost(BuildContext context) async {
-  _controller.text = _apiHost;
-  return await showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        title: Text(
-            context.l10n.tr("手动输入API地址", en: "Enter API address manually")),
-        content: TextField(
-          controller: _controller,
-          decoration: const InputDecoration(
-            hintText: "www.example.com",
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: Text(context.l10n.tr("取消", en: "Cancel")),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.of(context).pop(_controller.text);
-            },
-            child: Text(context.l10n.confirm),
-          ),
-        ],
-      );
-    },
+Future<String?> _manualInputApiHost(BuildContext context) {
+  return displayTextInputDialog(
+    context,
+    title: context.l10n.tr(
+      "手动输入API地址",
+      en: "Enter API address manually",
+    ),
+    hint: "www.example.com",
+    src: _apiHost,
+    desc: context.l10n.tr(
+      "支持域名或 host:port 格式。",
+      en: "Domain or host:port format is supported.",
+    ),
   );
 }
 

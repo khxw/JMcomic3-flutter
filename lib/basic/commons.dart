@@ -32,29 +32,14 @@ void defaultToast(BuildContext context, String title) {
 Future<T?> chooseListDialog<T>(BuildContext context,
     {required List<T> values, required String title, String? tips}) async {
   final l10n = context.l10n;
-  return showDialog<T>(
-    context: context,
-    builder: (BuildContext context) {
-      return SimpleDialog(
-        title: Text(l10n.tr(title)),
-        children: [
-          ...values.map((e) => SimpleDialogOption(
-                onPressed: () {
-                  Navigator.of(context).pop(e);
-                },
-                child: Text(l10n.tr('$e')),
-              )),
-          ...tips != null
-              ? [
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(15, 5, 15, 15),
-                    child: Text(l10n.tr(tips)),
-                  ),
-                ]
-              : [],
-        ],
-      );
-    },
+  final entries = values
+      .map((value) => (label: l10n.tr('$value'), value: value))
+      .toList(growable: false);
+  return _showChoiceDialog<T>(
+    context,
+    title: l10n.tr(title),
+    entries: entries,
+    tips: tips == null ? null : l10n.tr(tips),
   );
 }
 
@@ -64,21 +49,169 @@ Future<T?> chooseMapDialog<T>(
   required Map<String, T> values,
 }) async {
   final l10n = buildContext.l10n;
-  return await showDialog<T>(
-    context: buildContext,
-    builder: (BuildContext context) {
-      return SimpleDialog(
-        title: Text(l10n.tr(title)),
-        children: values.entries
-            .map((e) => SimpleDialogOption(
-                  child: Text(l10n.tr(e.key)),
-                  onPressed: () {
-                    Navigator.of(context).pop(e.value);
-                  },
-                ))
-            .toList(),
-      );
-    },
+  final entries = values.entries
+      .map((entry) => (label: l10n.tr(entry.key), value: entry.value))
+      .toList(growable: false);
+  return _showChoiceDialog<T>(
+    buildContext,
+    title: l10n.tr(title),
+    entries: entries,
+  );
+}
+
+Future<T?> _showChoiceDialog<T>(
+  BuildContext context, {
+  required String title,
+  required List<({String label, T value})> entries,
+  String? tips,
+}) {
+  final theme = Theme.of(context);
+  final scheme = theme.colorScheme;
+  return showDialog<T>(
+    context: context,
+    builder: (dialogContext) => Dialog(
+      key: const ValueKey('app-choice-dialog'),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 460,
+          maxHeight: MediaQuery.sizeOf(dialogContext).height * .78,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 15, 9, 14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    scheme.primaryContainer,
+                    scheme.tertiaryContainer.withValues(alpha: .55),
+                  ],
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: scheme.surface.withValues(alpha: .62),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.tune_rounded,
+                      color: scheme.primary,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: scheme.onPrimaryContainer,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: dialogContext.l10n.tr('关闭', en: 'Close'),
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: scheme.onPrimaryContainer,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (tips != null && tips.trim().isNotEmpty)
+              Container(
+                margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest.withValues(alpha: .5),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 17,
+                      color: scheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        tips,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                itemCount: entries.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                itemBuilder: (context, index) {
+                  final entry = entries[index];
+                  return Material(
+                    color: scheme.surfaceContainerHighest.withValues(
+                      alpha: .42,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () => Navigator.of(dialogContext).pop(entry.value),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 13,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                entry.label,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              size: 19,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+              child: TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(context.l10n.tr('取消', en: 'Cancel')),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
   );
 }
 
@@ -219,69 +352,134 @@ Future<bool> openUrl(String url) async {
   }
 }
 
-final _controller = TextEditingController();
-
 Future<String?> displayTextInputDialog(BuildContext context,
     {String? title,
     String src = "",
     String? hint,
     String? desc,
-    bool isPasswd = false}) {
+    bool isPasswd = false}) async {
   final l10n = context.l10n;
-  _controller.text = src;
-  return showDialog(
+  final controller = TextEditingController(text: src);
+  final theme = Theme.of(context);
+  final scheme = theme.colorScheme;
+  var obscureText = isPasswd;
+  final result = await showDialog<String>(
     context: context,
-    builder: (context) {
-      return AlertDialog(
-        title: title == null ? null : Text(l10n.tr(title)),
-        content: SingleChildScrollView(
-          child: ListBody(
-            children: [
-              TextField(
-                controller: _controller,
-                decoration: InputDecoration(
-                  hintText: hint == null ? null : l10n.tr(hint),
-                ),
-                obscureText: isPasswd,
-                obscuringCharacter: '\u2022',
-              ),
-              ...(desc == null
-                  ? []
-                  : [
-                      Container(
-                        padding: EdgeInsets.only(top: 20, bottom: 10),
-                        child: Text(
-                          l10n.tr(desc),
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.color
-                                  ?.withOpacity(.5)),
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (dialogContext, setState) {
+        void submit() {
+          Navigator.of(dialogContext).pop(controller.text);
+        }
+
+        return AlertDialog(
+          key: const ValueKey('app-text-input-dialog'),
+          icon: Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer,
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Icon(
+              isPasswd ? Icons.lock_outline_rounded : Icons.edit_note_rounded,
+              color: scheme.primary,
+            ),
+          ),
+          title: Text(
+            title == null ? l10n.tr('输入内容', en: 'Enter value') : l10n.tr(title),
+            textAlign: TextAlign.center,
+          ),
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: 380,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    key: const ValueKey('app-text-input-field'),
+                    controller: controller,
+                    autofocus: true,
+                    obscureText: obscureText,
+                    obscuringCharacter: '\u2022',
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => submit(),
+                    decoration: InputDecoration(
+                      hintText: hint == null ? null : l10n.tr(hint),
+                      prefixIcon: const Icon(Icons.keyboard_rounded, size: 19),
+                      suffixIcon: isPasswd
+                          ? IconButton(
+                              tooltip: obscureText
+                                  ? l10n.tr('显示内容', en: 'Show value')
+                                  : l10n.tr('隐藏内容', en: 'Hide value'),
+                              onPressed: () {
+                                setState(() => obscureText = !obscureText);
+                              },
+                              icon: Icon(
+                                obscureText
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                                size: 19,
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                  if (desc != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(11),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHighest.withValues(
+                          alpha: .48,
                         ),
-                      )
-                    ]),
-            ],
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 17,
+                            color: scheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              l10n.tr(desc),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
-        ),
-        actions: <Widget>[
-          MaterialButton(
-            child: Text(l10n.tr('取消', en: 'Cancel')),
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-          ),
-          MaterialButton(
-            child: Text(l10n.confirm),
-            onPressed: () {
-              Navigator.of(context).pop(_controller.text);
-            },
-          ),
-        ],
-      );
-    },
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(l10n.tr('取消', en: 'Cancel')),
+            ),
+            FilledButton.icon(
+              key: const ValueKey('app-text-input-confirm'),
+              onPressed: submit,
+              icon: const Icon(Icons.check_rounded, size: 18),
+              label: Text(l10n.confirm),
+            ),
+          ],
+        );
+      },
+    ),
   );
+  await Future<void>.delayed(const Duration(milliseconds: 250));
+  controller.dispose();
+  return result;
 }
 
 /// 复制内容到剪切板
@@ -297,23 +495,38 @@ Future<bool> confirmDialog(
   return await showDialog(
           context: context,
           builder: (context) => AlertDialog(
-                title: Text(l10n.tr(title)),
-                content: new SingleChildScrollView(
-                  child: new ListBody(
-                    children: <Widget>[
-                      new Text(l10n.tr(content)),
-                    ],
+                key: const ValueKey('app-confirm-dialog'),
+                icon: Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Icon(
+                    Icons.help_outline_rounded,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
-                actions: <Widget>[
-                  new MaterialButton(
-                    child: new Text(l10n.tr('取消', en: 'Cancel')),
+                title: Text(l10n.tr(title)),
+                content: SingleChildScrollView(
+                  child: Text(
+                    l10n.tr(content),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          height: 1.5,
+                        ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    child: Text(l10n.tr('取消', en: 'Cancel')),
                     onPressed: () {
                       Navigator.of(context).pop(false);
                     },
                   ),
-                  new MaterialButton(
-                    child: new Text(l10n.confirm),
+                  FilledButton.icon(
+                    icon: const Icon(Icons.check_rounded, size: 18),
+                    label: Text(l10n.confirm),
                     onPressed: () {
                       Navigator.of(context).pop(true);
                     },

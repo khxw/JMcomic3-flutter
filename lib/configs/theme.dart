@@ -144,11 +144,37 @@ ThemeData _buildAppTheme(ColorScheme scheme, Brightness brightness) {
       surfaceTintColor: Colors.transparent,
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: scheme.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      backgroundColor: scheme.surfaceContainerLow,
+      elevation: 10,
+      shadowColor: Colors.black.withValues(alpha: .22),
+      surfaceTintColor: Colors.transparent,
+      iconColor: scheme.primary,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(
+          color: scheme.outlineVariant.withValues(alpha: .58),
+        ),
+      ),
       titleTextStyle:
-          textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w500),
-      contentTextStyle: textTheme.bodyMedium,
+          textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+      contentTextStyle: textTheme.bodyMedium?.copyWith(height: 1.5),
+      actionsPadding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: scheme.surface,
+      modalBackgroundColor: scheme.surface,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.black.withValues(alpha: .24),
+      modalElevation: 12,
+      showDragHandle: false,
+      dragHandleColor: scheme.onSurface.withValues(alpha: .22),
+      dragHandleSize: const Size(38, 4),
+      clipBehavior: Clip.antiAlias,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
     ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: scheme.surfaceVariant,
