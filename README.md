@@ -1,71 +1,121 @@
-# JMComic3 Flutter
+# JMComic3 Flutter 修改版
 
-[![版本](https://img.shields.io/github/v/release/khxw/JMcomic3-flutter)](https://github.com/khxw/JMcomic3-flutter/releases/latest)
+[![最新版本](https://img.shields.io/github/v/release/khxw/JMcomic3-flutter)](https://github.com/khxw/JMcomic3-flutter/releases/latest)
+[![Android](https://img.shields.io/badge/Android-ARM64-3DDC84?logo=android&logoColor=white)](https://github.com/khxw/JMcomic3-flutter/releases/latest)
+[![Flutter](https://img.shields.io/badge/Flutter-3.41.2-02569B?logo=flutter)](https://flutter.dev/)
+[![Rust](https://img.shields.io/badge/Backend-Rust-000000?logo=rust)](https://www.rust-lang.org/)
 
 简体中文 · [English](README-en.md)
 
-JMComic3 使用 Flutter 构建界面、Rust 提供服务能力。本仓库维护 Flutter 应用、
-Android / Windows 平台入口、测试和本地发布工具。当前修改版为 **v1.7.45+74**。
+> 本仓库是 JMComic3 Flutter 的**非官方修改分支**，与上游项目维护者无隶属关系。
+> 当前修改版聚焦界面重做、下载与导出流程、存储权限、阅读性能和响应式布局。
 
-## 下载与安装
+<p align="center">
+  <img src="mockup/home-redesign.png" width="330" alt="JMComic3 Flutter 修改版首页">
+</p>
 
-从 [GitHub Releases](https://github.com/khxw/JMcomic3-flutter/releases/latest)
-下载本地构建的发布包。
+## 当前版本
+
+**v1.7.45+74** · Android ARM64 · API 24+
+
+- 最新发布：[GitHub Releases](https://github.com/khxw/JMcomic3-flutter/releases/latest)
+- 完整更新记录：[CHANGELOG.md](CHANGELOG.md)
+- 源码分支：[`main`](https://github.com/khxw/JMcomic3-flutter/tree/main)
+
+## 下载
 
 | 文件 | 用途 |
 | --- | --- |
-| `Jmcomic3-arm64-v8a-*.apk` | 适用于大多数当前 Android 设备 |
-| `Jmcomic3-armeabi-v7a-*.apk` | 适用于需要 32 位 ARM 的 Android 设备 |
-| `Jmcomic3-android-*.aab` | Android App Bundle，用于分发工具，不能直接安装 |
-| `Jmcomic3-windows-x64-*.zip` | 完整解压后运行 `jmcomic3.exe` |
-| `SHA256SUMS.txt` / `build-info.json` | 校验下载文件并查看源码、工具链及验证信息 |
+| `JMComic3-Flutter-v1.7.45-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
+| `SHA256SUMS.txt` | 校验 APK 文件完整性 |
 
-Windows 压缩包中的 EXE、DLL 与 `data` 目录需要一起保留。Windows 程序未进行代码
-签名，部分系统需要安装 Visual C++ 运行库。
+当前 Fork 只发布 **Android ARM64 APK**。本仓库没有为这个修改版提供 ARM32、Windows 或 AAB 安装包。
 
-Android v1.7.26+55 沿用已发布 v1.7.25+54 的签名密钥，使用相同架构的 APK 可以覆盖
-更新该版本。使用更早签名密钥的安装需要先备份数据，再卸载并重新安装。
+APK 使用本地调试证书签名，不能保证覆盖安装其他签名的 JMComic3。升级前请备份书架、
+阅读记录和下载设置；如提示签名冲突，需要卸载旧版后重新安装。
 
-本次正式发布和验证的平台为 **Android ARM64 / ARM32 与 Windows x64**；
-其他平台不在本版本的发布范围内。
+## 修改版特性
 
-## 主要功能
+- 重做首页、搜索、个人中心、书架、下载详情、批量导出和设置页布局。
+- 使用响应式导航和更紧凑的信息层级，适配窄屏、大字体及明暗主题。
+- 重做下载漫画卡片，统一显示下载状态、封面、百分比和图片数量。
+- 下载任务创建成功后直接进入下载列表，并高亮刚创建的漫画任务。
+- 支持章节选择、全选、清除、批量导出和导出结果状态反馈。
+- 支持自定义下载目录、存储权限申请、目录可写性检测和旧路径恢复。
+- 支持普通连续、自由缩放连续、单页与双页阅读。
+- 保存实际可见页阅读进度，并在返回详情页后继续阅读。
+- 支持封面与页图解码缓存控制、分页补全及阅读器资源释放。
+- 支持主题、语言、字体、刷新率、网络线路和 WebDAV 设置。
 
-- 漫画浏览、搜索、分类、详情、彩色标签和章节目录。
-- 收藏、阅读历史、每周必看与评论。
-- 普通连续、自由缩放连续、单页和双页阅读，支持阅读方向切换与实际可见页进度保存。
-- 离线章节阅读、下载管理、导入导出与 WebDAV 同步。
-- 响应式导航、主题、语言和网络线路配置。
+## 安装
 
-本次更新内容见 [CHANGELOG.md](CHANGELOG.md)。
+1. 从 [最新 Release](https://github.com/khxw/JMcomic3-flutter/releases/latest)
+   下载 ARM64 APK。
+2. 下载 `SHA256SUMS.txt` 并校验 APK。
+3. 允许文件管理器安装未知来源应用。
+4. 如设备已安装不同签名的版本，请先备份数据再卸载旧版。
 
-## 开发与维护
+Windows PowerShell 校验示例：
 
-Flutter 版本由 [.fvmrc](.fvmrc) 固定。Rust 后端位于独立的
-[jmcomic3-rust-backend](https://github.com/MrYu-JMComic/jmcomic3-rust-backend)
-仓库，发布使用的提交记录在 [ci/backend.commit.txt](ci/backend.commit.txt)。
-后端检出目录、工具链、签名密钥和构建产物不提交到本仓库。
+```powershell
+Get-FileHash .\JMComic3-Flutter-v1.7.45-arm64-v8a-release.apk -Algorithm SHA256
+```
 
-- [构建与测试](docs/BUILDING.md)
-- [分支、PR 与发布规范](docs/RELEASING.md)
-- [Android 阅读器回归](integration_test/README.md)
+当前 APK SHA-256：
 
-## 引用与致谢
+```text
+743DC7848F2733FDC6931482A86BD790567AC79A411C7897A85735A5FA465E23
+```
 
-- [ComicSparks/jasmine](https://github.com/ComicSparks/jasmine)：Flutter 阅读器结构
-  和阅读交互参考，固定参考提交为
+## 构建
+
+构建环境与发布步骤见 [docs/BUILDING.md](docs/BUILDING.md) 和
+[docs/RELEASING.md](docs/RELEASING.md)。
+
+基本要求：
+
+- Flutter 版本由 [.fvmrc](.fvmrc) 固定。
+- JDK 17 或更高版本。
+- Android SDK 36 和 Android NDK `25.2.9519653`。
+- 完整 Rust 后端源码或预构建 JNI 库。
+
+常用命令：
+
+```powershell
+flutter pub get --enforce-lockfile
+flutter analyze --no-pub --no-fatal-infos lib test integration_test test_driver
+flutter test --no-pub
+flutter build apk --release --no-pub --target-platform android-arm64 --split-per-abi
+```
+
+## 安全与隐私
+
+- 登录信息、下载目录、阅读历史和 WebDAV 配置保存在应用本地或用户选择的目录中。
+- 仓库不提交 keystore、`key.properties`、`android/local.properties`、APK 或构建缓存。
+- 发布前会扫描 API Key、Token、私钥、密码和个人绝对路径。
+- 应用访问第三方服务，服务可用性和数据处理规则由对应服务提供方决定。
+- 请只从本仓库 Release 页面下载 APK，避免使用来源不明的转载文件。
+
+## 已知限制
+
+- 当前 Rust JNI 后端未提供漫画任务级暂停/恢复接口，因此暂不支持暂停下载。
+- 自定义下载目录目前是应用内部下载之外的副本；删除任务不一定会清理旧目录中的副本。
+- Rust 后端源码未包含在当前仓库中，当前发布包使用仓库内跟踪的预构建 JNI 库。
+- 修改版使用调试证书签名，不适合作为正式商店发行包。
+
+## 引用与声明
+
+- [ComicSparks/jasmine](https://github.com/ComicSparks/jasmine)：阅读器结构、连续阅读、
+  图库缩放和阅读进度交互参考，固定提交
   [`e514be1`](https://github.com/ComicSparks/jasmine/commit/e514be163ec39a6f9e0d2799580d132324e23470)。
 - [hect0x7/JMComic-Crawler-Python](https://github.com/hect0x7/JMComic-Crawler-Python)：
-  独立 Rust 后端的移动端 API 协议、请求签名与请求头、登录和域名回退参考；
-  本应用没有将该 Python 项目作为运行时依赖。
-- `zoomable_positioned_list` 1.1.0：连续阅读组件，保留上游版权和许可证，本地补丁
-  见 [PATCHES.md](third_party/zoomable_positioned_list/PATCHES.md)。
+  Rust 后端的移动端 API 协议、请求签名、登录与域名回退参考，不作为运行时依赖。
+- `zoomable_positioned_list` 1.1.0：连续阅读组件，许可证与本地补丁见
+  [PATCHES.md](third_party/zoomable_positioned_list/PATCHES.md)。
 
-详细引用范围和第三方声明见 [REFERENCES.md](REFERENCES.md)。相关项目名称及版权
-归各自作者所有，本项目独立维护。
+完整来源范围见 [REFERENCES.md](REFERENCES.md)。相关项目名称、代码和内容权利归各自作者所有。
 
 ## 使用约定
 
-应用访问第三方服务，服务可用性取决于外部站点。请在遵守当地规定和内容权利的前提下
-用于个人学习。沿用原项目的禁止商用、禁止转发内容资产约定；第三方组件继续适用
-各自许可证。
+请遵守所在地法律法规、服务条款和内容版权。沿用原项目的禁止商用及禁止转发内容资产约定。
+本项目只提供程序修改与构建说明，不提供漫画内容。
