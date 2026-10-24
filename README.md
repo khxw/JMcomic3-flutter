@@ -19,7 +19,7 @@ JMComic3 并存安装。
 
 ## 当前版本
 
-**v1.7.59+88** · Android ARM64 · API 24+
+**v1.7.60+89** · Android ARM64 · API 24+
 
 - 最新发布：[GitHub Releases](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - 完整更新记录：[CHANGELOG.md](CHANGELOG.md)
@@ -29,7 +29,7 @@ JMComic3 并存安装。
 
 | 文件 | 用途 |
 | --- | --- |
-| `JMComic3-Mod-v1.7.59-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
+| `JMComic3-Mod-v1.7.60-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
 | `SHA256SUMS.txt` | 校验 APK 文件完整性 |
 
 当前 Fork 只发布 **Android ARM64 APK**。本仓库没有为这个修改版提供 ARM32、Windows 或 AAB 安装包。
@@ -45,6 +45,7 @@ JMComic3 并存安装。
 - 支持章节选择、全选、清除、批量导出和导出结果状态反馈。
 - 支持自定义下载目录、存储权限申请、目录可写性检测和旧路径恢复。
 - 支持普通连续、自由缩放连续、单页与双页阅读。
+- 重做阅读页顶栏、底部翻页控制、章节列表和阅读设置面板。
 - 保存实际可见页阅读进度，并在返回详情页后继续阅读。
 - 支持封面与页图解码缓存控制、分页补全及阅读器资源释放。
 - 支持主题、语言、字体、刷新率、网络线路和 WebDAV 设置。
@@ -60,13 +61,13 @@ JMComic3 并存安装。
 Windows PowerShell 校验示例：
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.7.59-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.7.60-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 当前 APK SHA-256：
 
 ```text
-99BE7FEFB31C09E980A1293DB34F51F40F3859A06F0B4364FECFD939C51BADEE
+16E71512E267C844BCAC38233F6F759BE13A5002707BD6B6655E36EEA2E67F65
 ```
 
 ## 构建
