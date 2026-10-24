@@ -61,7 +61,7 @@ void main() {
           return _response({
             'tag_name': 'v1.7.47+76',
             'name': 'JMComic3 Mod v1.7.47+76',
-            'body': '## 旧版本\n\n- 不应显示为最新版本',
+            'body': '## 更新日志\n\n- 线上发布说明仍然可见',
           });
         default:
           return _response('');
@@ -76,13 +76,12 @@ void main() {
 
     expect(find.text('当前已是最新版本'), findsOneWidget);
     expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('about-latest-version')),
-        matching: find.text(currentVersion()),
-      ),
-      findsOneWidget,
+      find.byKey(const ValueKey('about-latest-version')),
+      findsNothing,
     );
-    expect(find.byKey(const ValueKey('about-release-notes')), findsNothing);
+    expect(find.byKey(const ValueKey('about-current-version')), findsOneWidget);
+    expect(find.byKey(const ValueKey('about-release-notes')), findsOneWidget);
+    expect(find.textContaining('线上发布说明仍然可见'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

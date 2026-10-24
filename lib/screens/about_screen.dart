@@ -80,13 +80,11 @@ class _AboutState extends State<AboutScreen> {
                       onCheck: _manualCheck,
                       onOpenRelease: () => openUrl(latestDownloadUrl()),
                     ),
-                    if (latestVersion != null) ...[
-                      const SizedBox(height: 12),
-                      _ReleaseNotesCard(
-                        notes: latestVersionInfo(),
-                        onCheck: _manualCheck,
-                      ),
-                    ],
+                    const SizedBox(height: 12),
+                    _ReleaseNotesCard(
+                      notes: latestVersionInfo(),
+                      onCheck: _manualCheck,
+                    ),
                   ],
                   const SizedBox(height: 12),
                   const _ProjectCard(),
@@ -356,31 +354,31 @@ class _VersionComparison extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final currentTile = _VersionTile(
-          key: const ValueKey('about-current-version'),
-          label: context.l10n.currentVersion,
-          version: current,
-          highlighted: false,
-        );
-        final latestTile = _VersionTile(
-          key: const ValueKey('about-latest-version'),
-          label: context.l10n.latestVersion,
-          version: latest,
-          highlighted: hasUpdate,
-        );
-        return Row(
-          children: [
-            Expanded(child: currentTile),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6),
-              child: Icon(Icons.east_rounded, size: 16),
+    final currentTile = _VersionTile(
+      key: const ValueKey('about-current-version'),
+      label: context.l10n.currentVersion,
+      version: current,
+      highlighted: false,
+    );
+    if (!hasUpdate) {
+      return currentTile;
+    }
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: currentTile),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _VersionTile(
+              key: const ValueKey('about-latest-version'),
+              label: context.l10n.latestVersion,
+              version: latest,
+              highlighted: true,
             ),
-            Expanded(child: latestTile),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
   }
 }
@@ -402,40 +400,61 @@ class _VersionTile extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: highlighted
             ? scheme.primaryContainer.withValues(alpha: .55)
             : scheme.surfaceContainerHighest.withValues(alpha: .55),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Flexible(
+          Row(
+            children: [
+              Icon(
+                highlighted
+                    ? Icons.cloud_download_rounded
+                    : Icons.phone_android_rounded,
+                size: 17,
+                color: highlighted ? scheme.primary : scheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
             child: Text(
-              label,
+              version,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.onSurfaceVariant,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: highlighted ? scheme.onPrimaryContainer : null,
               ),
             ),
           ),
-          const SizedBox(width: 7),
-          Flexible(
-            flex: 2,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: Text(
-                version,
-                maxLines: 1,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: highlighted ? scheme.onPrimaryContainer : null,
-                ),
-              ),
+          const SizedBox(height: 4),
+          Text(
+            highlighted
+                ? context.l10n.tr('可更新到此版本', en: 'Available update')
+                : context.l10n.tr('当前安装', en: 'Installed'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant.withValues(alpha: .75),
             ),
           ),
         ],
