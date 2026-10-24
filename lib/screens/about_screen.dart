@@ -572,7 +572,17 @@ class _ProjectCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: ListTile(
         key: const ValueKey('about-project-link'),
-        onTap: () => openUrl(releasePageUrl),
+        onTap: () async {
+          final opened = await openUrl(projectHomeUrl);
+          if (!context.mounted || opened) return;
+          defaultToast(
+            context,
+            context.l10n.tr(
+              '无法打开浏览器，请检查系统默认应用设置。',
+              en: 'Could not open a browser. Check the system default apps.',
+            ),
+          );
+        },
         leading: Container(
           width: 38,
           height: 38,

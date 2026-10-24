@@ -189,13 +189,24 @@ String add0(int num, int len) {
   return rsp;
 }
 
-/// 打开web页面
-Future<dynamic> openUrl(String url) async {
-  if (await canLaunch(url)) {
-    await launch(
-      url,
+/// 打开网页或外部应用链接。
+///
+/// Android 11+ 上 `canLaunch` 可能因为包可见性返回 false。
+/// 因此这里直接尝试启动，并在失败时返回 false，由调用方提供反馈。
+Future<bool> openUrl(String url) async {
+  final uri = Uri.tryParse(url.trim());
+  if (uri == null ||
+      (uri.scheme != 'http' && uri.scheme != 'https') ||
+      uri.host.isEmpty) {
+    return false;
+  }
+  try {
+    return await launch(
+      uri.toString(),
       forceSafariVC: false,
     );
+  } catch (_) {
+    return false;
   }
 }
 

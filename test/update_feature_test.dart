@@ -61,6 +61,10 @@ void main() {
       releasePageUrl,
       'https://github.com/khxw/JMcomic3-flutter/releases/',
     );
+    expect(
+      projectHomeUrl,
+      'https://github.com/khxw/JMcomic3-flutter',
+    );
   });
 
   test('update check selects and caches the trusted ARM64 APK asset', () async {

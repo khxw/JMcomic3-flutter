@@ -33,6 +33,7 @@ const _releaseLatestPageUrl =
 const _releaseLatestPageMirrorUrls = [
   "https://r.jina.ai/http://github.com/$_repoOwner/$_repoName/releases/latest",
 ];
+const projectHomeUrl = "https://github.com/$_repoOwner/$_repoName";
 const releasePageUrl = "https://github.com/$_repoOwner/$_repoName/releases/";
 const _defaultDownloadUrl = releasePageUrl;
 
