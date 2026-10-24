@@ -73,15 +73,15 @@ Future<T?> _showChoiceDialog<T>(
       key: const ValueKey('app-choice-dialog'),
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: 460,
-          maxHeight: MediaQuery.sizeOf(dialogContext).height * .78,
+          maxWidth: 360,
+          maxHeight: MediaQuery.sizeOf(dialogContext).height * .64,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              padding: const EdgeInsets.fromLTRB(16, 15, 9, 14),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
@@ -92,46 +92,18 @@ Future<T?> _showChoiceDialog<T>(
                   ],
                 ),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: scheme.surface.withValues(alpha: .62),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.tune_rounded,
-                      color: scheme.primary,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: scheme.onPrimaryContainer,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: dialogContext.l10n.tr('关闭', en: 'Close'),
-                    onPressed: () => Navigator.of(dialogContext).pop(),
-                    icon: Icon(
-                      Icons.close_rounded,
-                      color: scheme.onPrimaryContainer,
-                    ),
-                  ),
-                ],
+              child: Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: scheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
             if (tips != null && tips.trim().isNotEmpty)
               Container(
-                margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-                padding: const EdgeInsets.all(11),
+                margin: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: scheme.surfaceContainerHighest.withValues(alpha: .5),
                   borderRadius: BorderRadius.circular(13),
@@ -160,23 +132,23 @@ Future<T?> _showChoiceDialog<T>(
             Flexible(
               child: ListView.separated(
                 shrinkWrap: true,
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
                 itemCount: entries.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                separatorBuilder: (_, __) => const SizedBox(height: 4),
                 itemBuilder: (context, index) {
                   final entry = entries[index];
                   return Material(
                     color: scheme.surfaceContainerHighest.withValues(
                       alpha: .42,
                     ),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
                       onTap: () => Navigator.of(dialogContext).pop(entry.value),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 13,
+                          horizontal: 12,
+                          vertical: 11,
                         ),
                         child: Row(
                           children: [
@@ -202,7 +174,7 @@ Future<T?> _showChoiceDialog<T>(
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+              padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
               child: TextButton(
                 onPressed: () => Navigator.of(dialogContext).pop(),
                 child: Text(context.l10n.tr('取消', en: 'Cancel')),
@@ -373,25 +345,13 @@ Future<String?> displayTextInputDialog(BuildContext context,
 
         return AlertDialog(
           key: const ValueKey('app-text-input-dialog'),
-          icon: Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: scheme.primaryContainer,
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Icon(
-              isPasswd ? Icons.lock_outline_rounded : Icons.edit_note_rounded,
-              color: scheme.primary,
-            ),
-          ),
           title: Text(
             title == null ? l10n.tr('输入内容', en: 'Enter value') : l10n.tr(title),
             textAlign: TextAlign.center,
           ),
           content: SingleChildScrollView(
             child: SizedBox(
-              width: 380,
+              width: 280,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -466,11 +426,10 @@ Future<String?> displayTextInputDialog(BuildContext context,
               onPressed: () => Navigator.of(dialogContext).pop(),
               child: Text(l10n.tr('取消', en: 'Cancel')),
             ),
-            FilledButton.icon(
+            FilledButton(
               key: const ValueKey('app-text-input-confirm'),
               onPressed: submit,
-              icon: const Icon(Icons.check_rounded, size: 18),
-              label: Text(l10n.confirm),
+              child: Text(l10n.confirm),
             ),
           ],
         );
@@ -496,18 +455,6 @@ Future<bool> confirmDialog(
           context: context,
           builder: (context) => AlertDialog(
                 key: const ValueKey('app-confirm-dialog'),
-                icon: Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Icon(
-                    Icons.help_outline_rounded,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
                 title: Text(l10n.tr(title)),
                 content: SingleChildScrollView(
                   child: Text(
@@ -524,9 +471,8 @@ Future<bool> confirmDialog(
                       Navigator.of(context).pop(false);
                     },
                   ),
-                  FilledButton.icon(
-                    icon: const Icon(Icons.check_rounded, size: 18),
-                    label: Text(l10n.confirm),
+                  FilledButton(
+                    child: Text(l10n.confirm),
                     onPressed: () {
                       Navigator.of(context).pop(true);
                     },
