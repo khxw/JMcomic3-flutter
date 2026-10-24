@@ -73,7 +73,7 @@ Future<T?> _showChoiceDialog<T>(
       key: const ValueKey('app-choice-dialog'),
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: 360,
+          maxWidth: 280,
           maxHeight: MediaQuery.sizeOf(dialogContext).height * .64,
         ),
         child: Column(
