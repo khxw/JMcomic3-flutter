@@ -121,7 +121,31 @@ notices. Upstream names, code, and content remain the property of their authors.
 
 ## Usage policy
 
-Follow applicable laws, service terms, and content rights. The inherited project
-policy prohibits commercial use and redistribution of content assets. This
-repository provides application modifications and build instructions only, not
-comic content.
+By using this project, you agree to the following rules:
+
+- **Lawful use:** Use this project only for purposes permitted by applicable
+  laws. Do not access, download, store, or distribute unlawful material, or
+  bypass access controls, payment mechanisms, regional restrictions, or
+  platform protections.
+- **Content rights:** This repository provides application modifications and
+  build instructions only. It does not provide, host, or license comics,
+  images, comments, or other content. Content rights remain with their
+  respective authors, platforms, or rights holders; obtain any required
+  authorization before downloading or using content.
+- **No unauthorized commercial use:** In line with the inherited project
+  policy, do not use this project or content assets for unauthorized
+  commercial distribution, sale, rental, paid downloading, or bundled
+  redistribution.
+- **Software distribution:** Prefer APKs from this repository's Releases page
+  and verify their SHA-256 checksums. Before modifying, building, or
+  redistributing program code, confirm upstream copyright terms and all
+  third-party component licenses. The absence of a root license file does not
+  grant additional rights to the project.
+- **Account and service safety:** Protect login credentials, devices, download
+  paths, and WebDAV settings. Do not use or share another person's account, or
+  scrape or abuse third-party services in abnormal ways.
+- **No warranty and responsibility:** The software is provided as is, without
+  any guarantee that third-party services will remain available, content will
+  be accurate, or the application will work on every device. Users are
+  responsible for the risks and consequences of their use, downloads, and
+  distribution, and must comply with the relevant service terms.
