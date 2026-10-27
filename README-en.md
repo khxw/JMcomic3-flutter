@@ -124,9 +124,7 @@ notices. Upstream names, code, and content remain the property of their authors.
 By using this project, you agree to the following rules:
 
 - **Lawful use:** Use this project only for purposes permitted by applicable
-  laws. Do not access, download, store, or distribute unlawful material, or
-  bypass access controls, payment mechanisms, regional restrictions, or
-  platform protections.
+  laws. Do not access, download, store, or distribute unlawful material.
 - **Content rights:** This repository provides application modifications and
   build instructions only. It does not provide, host, or license comics,
   images, comments, or other content. Content rights remain with their
