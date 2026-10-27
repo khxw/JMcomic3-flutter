@@ -139,13 +139,6 @@ By using this project, you agree to the following rules:
   redistributing program code, confirm upstream copyright terms and all
   third-party component licenses. The absence of a root license file does not
   grant additional rights to the project.
-- **Account and service safety:** Safeguard accounts, passwords, verification
-  codes, login tokens, devices, and WebDAV credentials. Do not share them or
-  expose them to untrusted applications, and sign out after using shared
-  devices. Limit request and download rates reasonably; do not scrape in bulk,
-  probe, disrupt, or otherwise abuse third-party services through automation.
-  Users are responsible for risks caused by credential exposure, device loss,
-  or third-party service restrictions.
 - **No warranty and responsibility:** The software is provided as is, without
   any guarantee that third-party services will remain available, content will
   be accurate, or the application will work on every device. Users are
