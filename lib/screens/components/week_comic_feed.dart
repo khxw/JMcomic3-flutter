@@ -7,6 +7,36 @@ import 'package:jmcomic3/screens/comic_info_screen.dart';
 
 import 'images.dart';
 
+bool weekComicMatchesType(ComicSimple comic, String typeId) {
+  final normalizedTypeId = typeId.trim().toLowerCase();
+  final labels = [
+    comic.category.title?.trim() ?? '',
+    comic.categorySub.title?.trim() ?? '',
+  ].join('|').toLowerCase();
+  final korean = labels.contains('韩漫') ||
+      labels.contains('韩国') ||
+      labels.contains('韓國') ||
+      labels.contains('korea') ||
+      labels.contains('korean');
+  final japanese = labels.contains('日漫') ||
+      labels.contains('日本') ||
+      labels.contains('japan');
+  if (normalizedTypeId.contains('hanman') ||
+      normalizedTypeId == 'han' ||
+      normalizedTypeId == 'kr') {
+    return korean;
+  }
+  if (normalizedTypeId.contains('japanese') ||
+      normalizedTypeId == 'jp' ||
+      normalizedTypeId.contains('riben')) {
+    return japanese;
+  }
+  if (normalizedTypeId.contains('other')) {
+    return !korean && !japanese;
+  }
+  return true;
+}
+
 class WeekComicFeed extends StatefulWidget {
   final String categoryId;
   final String typeId;
@@ -100,9 +130,9 @@ class _WeekComicFeedState extends State<WeekComicFeed> {
       final response =
           await methods.weekFilter(widget.categoryId, widget.typeId, page);
       if (!mounted || token != _requestToken) return;
+      final visible = response.list.where(_matchesType).toList();
       final seen = _items.map((comic) => comic.id).toSet();
-      final incoming =
-          response.list.where((comic) => seen.add(comic.id)).toList();
+      final incoming = visible.where((comic) => seen.add(comic.id)).toList();
       setState(() {
         _items.addAll(incoming);
         _total = response.total;
@@ -110,7 +140,7 @@ class _WeekComicFeedState extends State<WeekComicFeed> {
         _initialLoading = false;
         _loadingMore = false;
         _reachedEnd = incoming.isEmpty ||
-            response.list.isEmpty ||
+            visible.isEmpty ||
             (_total > 0 && _items.length >= _total);
         _initialError = null;
         _moreError = null;
@@ -137,6 +167,10 @@ class _WeekComicFeedState extends State<WeekComicFeed> {
         unawaited(_loadMore());
       }
     });
+  }
+
+  bool _matchesType(ComicSimple comic) {
+    return weekComicMatchesType(comic, widget.typeId);
   }
 
   @override
@@ -216,8 +250,8 @@ class _WeekComicFeedState extends State<WeekComicFeed> {
                       const Spacer(),
                       Text(
                         context.l10n.tr(
-                          '$_total 部',
-                          en: '$_total comics',
+                          '${_items.length} 部',
+                          en: '${_items.length} comics',
                         ),
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                               color: scheme.onSurfaceVariant,

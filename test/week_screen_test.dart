@@ -5,10 +5,33 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
+import 'package:jmcomic3/screens/components/week_comic_feed.dart';
 import 'package:jmcomic3/screens/week_screen.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('weekly type filter separates Korean and Japanese comics', () {
+    ComicSimple comic(String category) => ComicSimple(
+          id: 1,
+          author: '',
+          description: '',
+          name: 'Comic',
+          image: '',
+          category: ComicSimpleCategory(title: category),
+          categorySub: ComicSimpleCategory(title: category),
+        );
+
+    final korean = comic('韩漫');
+    final japanese = comic('日漫');
+    final other = comic('同人');
+    expect(weekComicMatchesType(korean, 'hanman'), isTrue);
+    expect(weekComicMatchesType(japanese, 'hanman'), isFalse);
+    expect(weekComicMatchesType(japanese, 'japanese'), isTrue);
+    expect(weekComicMatchesType(korean, 'japanese'), isFalse);
+    expect(weekComicMatchesType(other, 'other'), isTrue);
+    expect(weekComicMatchesType(korean, 'other'), isFalse);
+  });
 
   testWidgets('weekly type and category changes send current API parameters',
       (tester) async {
