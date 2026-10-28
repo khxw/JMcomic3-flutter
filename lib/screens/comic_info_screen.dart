@@ -293,32 +293,6 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
                   Icons.chevron_left,
                   () => Navigator.maybePop(context),
                   context.l10n.tr('返回', en: 'Back')),
-              actions: [
-                if (album != null) ...[
-                  _navButton(
-                      Icons.file_download_outlined,
-                      () => _download(album),
-                      context.l10n.tr('下载', en: 'Download')),
-                  _navButton(
-                      _inBookshelf
-                          ? Icons.bookmark_added_rounded
-                          : Icons.bookmark_add_outlined,
-                      _bookshelfLoading ? null : () => _changeBookshelf(album),
-                      _inBookshelf
-                          ? context.l10n.tr(
-                              '已在书架 · 长按选择分组',
-                              en: 'In bookshelf · Long-press to choose a group',
-                            )
-                          : context.l10n.tr(
-                              '加入书架 · 长按选择分组',
-                              en: 'Add to bookshelf · Long-press to choose a group',
-                            ),
-                      onLongPress: _bookshelfLoading
-                          ? null
-                          : () => _changeBookshelfGroup(album)),
-                  const SizedBox(width: 8),
-                ],
-              ],
             ),
             body: album != null
                 ? _body(album)

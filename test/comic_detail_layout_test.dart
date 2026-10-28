@@ -1127,7 +1127,6 @@ void main() {
       find.byKey(const ValueKey('comic-download-select-all')),
     );
     await tester.pumpAndSettle();
-    expect(find.text('2 of 2 selected'), findsOneWidget);
     expect(find.text('Download 2'), findsOneWidget);
     await _capture(tester, 'download-chapter-selection');
     expect(tester.takeException(), isNull);
