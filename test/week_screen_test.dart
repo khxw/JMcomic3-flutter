@@ -50,7 +50,7 @@ void main() {
               {'id': 'issue-2', 'time': '2026-09-30', 'title': 'Issue 2'},
             ],
             'type': [
-              {'id': 'hot', 'title': 'Hot'},
+              {'id': 'hanman', 'title': ''},
             ],
           }),
           initialCategoryId: 'issue-1',
@@ -64,20 +64,20 @@ void main() {
     expect(typeSelector, findsOneWidget);
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('week-type-hot')),
-        matching: find.text('Hot'),
+        of: find.byKey(const ValueKey('week-type-hanman')),
+        matching: find.text('Korean comics'),
       ),
       findsOneWidget,
     );
     expect(requests, [
-      {'category_id': 'issue-1', 'type_id': 'hot', 'page': 1},
+      {'category_id': 'issue-1', 'type_id': 'hanman', 'page': 1},
     ]);
 
     categoryNotifier.value = 'issue-2';
     await tester.pumpAndSettle();
     expect(categoryNotifier.value, 'issue-2');
-    expect(
-        requests.last, {'category_id': 'issue-2', 'type_id': 'hot', 'page': 1});
+    expect(requests.last,
+        {'category_id': 'issue-2', 'type_id': 'hanman', 'page': 1});
     expect(requests, hasLength(2));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

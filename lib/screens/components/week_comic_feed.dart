@@ -255,7 +255,6 @@ class _WeekComicFeedState extends State<WeekComicFeed> {
   }
 
   Widget _footer(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     if (_loadingMore) {
       return const SizedBox(
         key: ValueKey('week-feed-loading-more'),
@@ -283,18 +282,7 @@ class _WeekComicFeedState extends State<WeekComicFeed> {
       );
     }
     if (_reachedEnd) {
-      return SizedBox(
-        key: const ValueKey('week-feed-end'),
-        height: 46,
-        child: Center(
-          child: Text(
-            context.l10n.tr('已经到底了', en: 'End of list'),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-          ),
-        ),
-      );
+      return const SizedBox(height: 24);
     }
     return const SizedBox(height: 46);
   }

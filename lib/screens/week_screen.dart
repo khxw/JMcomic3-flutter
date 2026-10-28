@@ -391,7 +391,10 @@ class _WeekContentState extends State<WeekContent> {
   String _typeLabel(WeekType type) {
     final title = type.title.trim();
     if (title.isNotEmpty) return title;
-    final id = type.id.trim();
+    final id = type.id.trim().toLowerCase();
+    if (id == 'hanman' || id == 'han' || id == 'kr') {
+      return context.l10n.tr('韩漫', en: 'Korean comics');
+    }
     if (id.isNotEmpty) return id.toUpperCase();
     return context.l10n.tr('榜单', en: 'Ranking');
   }
