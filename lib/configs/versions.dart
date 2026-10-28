@@ -33,6 +33,11 @@ const _releaseLatestPageUrl =
 const _releaseLatestPageMirrorUrls = [
   "https://r.jina.ai/http://github.com/$_repoOwner/$_repoName/releases/latest",
 ];
+const _apkDownloadMirrorPrefixes = [
+  "https://gh-proxy.org/",
+  "https://ghfast.top/",
+  "https://gh-proxy.com/",
+];
 const projectHomeUrl = "https://github.com/$_repoOwner/$_repoName";
 const releasePageUrl = "https://github.com/$_repoOwner/$_repoName/releases/";
 const _defaultDownloadUrl = releasePageUrl;
@@ -187,8 +192,9 @@ enum _UpdateDownloadPhase {
 class _UpdateDownloadState {
   final _UpdateDownloadPhase phase;
   final double? progress;
+  final String? source;
 
-  const _UpdateDownloadState(this.phase, [this.progress]);
+  const _UpdateDownloadState(this.phase, [this.progress, this.source]);
 }
 
 Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
@@ -259,34 +265,16 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
       _UpdateDownloadPhase.downloading,
       0,
     );
-    await AppHttpClient.downloadFile(
-      url,
-      destination,
-      headers: const {
-        'Accept': 'application/octet-stream',
-        'User-Agent': 'JMComic3Mod/Flutter',
-      },
-      onProgress: (value) {
-        progress.value = _UpdateDownloadState(
-          _UpdateDownloadPhase.downloading,
-          value,
-        );
-      },
+    await _downloadUpdatePackage(
+      officialUrl: url,
+      destination: destination,
+      progress: progress,
     );
-    final expectedSize = latestApkSize();
-    if (expectedSize != null && expectedSize > 0) {
-      final actualSize = await destination.length();
-      if (actualSize != expectedSize) {
-        await destination.delete();
-        throw StateError(
-          '下载文件大小不一致：$actualSize/$expectedSize',
-        );
-      }
-    }
+    final source = progress.value.source;
     progress.value = const _UpdateDownloadState(
       _UpdateDownloadPhase.verifying,
       1,
-    );
+    ).withSource(source);
     await Future<void>.delayed(const Duration(milliseconds: 180));
     await closeProgress();
 
@@ -311,6 +299,87 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
   } finally {
     progress.dispose();
   }
+}
+
+extension on _UpdateDownloadState {
+  _UpdateDownloadState withSource(String? source) {
+    return _UpdateDownloadState(phase, progress, source);
+  }
+}
+
+Future<void> _downloadUpdatePackage({
+  required String officialUrl,
+  required File destination,
+  required ValueNotifier<_UpdateDownloadState> progress,
+}) async {
+  Object? lastError;
+  final candidates = _updateDownloadCandidates(officialUrl);
+  for (final candidate in candidates) {
+    final source = _downloadSourceLabel(candidate, officialUrl);
+    progress.value = _UpdateDownloadState(
+      _UpdateDownloadPhase.downloading,
+      0,
+      source,
+    );
+    try {
+      await AppHttpClient.downloadFile(
+        candidate,
+        destination,
+        headers: const {
+          'Accept': 'application/octet-stream',
+          'User-Agent': 'JMComic3Mod/Flutter',
+        },
+        onProgress: (value) {
+          progress.value = _UpdateDownloadState(
+            _UpdateDownloadPhase.downloading,
+            value,
+            source,
+          );
+        },
+      );
+      final expectedSize = latestApkSize();
+      if (expectedSize != null && expectedSize > 0) {
+        final actualSize = await destination.length();
+        if (actualSize != expectedSize) {
+          if (await destination.exists()) {
+            await destination.delete();
+          }
+          throw StateError('下载文件大小不一致：$actualSize/$expectedSize');
+        }
+      }
+      return;
+    } catch (error) {
+      lastError = error;
+      if (await destination.exists()) {
+        try {
+          await destination.delete();
+        } catch (_) {}
+      }
+    }
+  }
+  if (lastError != null) {
+    // ignore: only_throw_errors
+    throw lastError;
+  }
+}
+
+List<String> _updateDownloadCandidates(String officialUrl) {
+  final candidates = <String>[];
+  // Mirrors run untrusted code transport only. Require GitHub's published
+  // SHA-256 before using them; native installation verifies that digest later.
+  if (latestApkSha256() != null) {
+    for (final prefix in _apkDownloadMirrorPrefixes) {
+      candidates.add(Uri.parse('$prefix$officialUrl').toString());
+    }
+  }
+  candidates.add(officialUrl);
+  return candidates;
+}
+
+String _downloadSourceLabel(String candidate, String officialUrl) {
+  if (candidate == officialUrl) return 'GitHub';
+  final host = Uri.tryParse(candidate)?.host ?? '';
+  return host.isEmpty ? 'Mirror' : 'Mirror · $host';
 }
 
 String _safeUpdateFileName(String raw) {
@@ -437,6 +506,18 @@ class _UpdateDownloadDialog extends StatelessWidget {
                   Text(
                     '${(size! / (1024 * 1024)).toStringAsFixed(1)} MB',
                     style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+                if (value.source != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    context.l10n.tr(
+                      '下载线路：${value.source}',
+                      en: 'Download route: ${value.source}',
+                    ),
+                    style: theme.textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
                   ),

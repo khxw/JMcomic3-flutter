@@ -285,8 +285,8 @@ class _UpdateStatusCard extends StatelessWidget {
                     Text(
                       hasUpdate
                           ? context.l10n.tr(
-                              '可直接在应用内下载并安装',
-                              en: 'Download and install inside the app',
+                              '优先使用镜像加速，失败时自动切换 GitHub',
+                              en: 'Mirrors are preferred, with automatic GitHub fallback',
                             )
                           : context.l10n.tr(
                               '更新来自当前 Fork 的 GitHub Releases',

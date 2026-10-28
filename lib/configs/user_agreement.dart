@@ -79,8 +79,8 @@ class UserAgreementContent extends StatelessWidget {
         Icons.system_update_alt_rounded,
         context.l10n.tr('更新与安全', en: 'Updates and security'),
         context.l10n.tr(
-          '应用内更新仅从本项目 GitHub Release 获取，并校验下载地址、文件大小、SHA-256 和应用包名。最终是否安装仍由 Android 系统安装器确认；请勿安装来源不明的 APK。',
-          en: 'In-app updates come only from this project’s GitHub Releases. The app verifies the URL, file size, SHA-256, and package name. Android’s system installer still confirms the final installation; do not install APKs from untrusted sources.',
+          '应用内更新来自本项目 GitHub Release 或其中转镜像，镜像仅在取得 SHA-256 后启用；应用会校验文件大小、SHA-256 和应用包名。最终是否安装仍由 Android 系统安装器确认；请勿安装来源不明的 APK。',
+          en: 'In-app updates come from this project’s GitHub Releases or relay mirrors, which are enabled only when a SHA-256 is available. The app verifies file size, SHA-256, and package name. Android’s system installer still confirms the final installation; do not install APKs from untrusted sources.',
         ),
       ),
     ];
