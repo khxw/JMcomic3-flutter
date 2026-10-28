@@ -415,6 +415,7 @@ class _HomeCarouselState extends State<_HomeCarousel> {
   @override
   Widget build(BuildContext context) {
     final height = MediaQuery.sizeOf(context).width >= 840 ? 250.0 : 188.0;
+    final scheme = Theme.of(context).colorScheme;
     final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
     final showSupportingText = textScale <= 1.6;
     final titleStyle = showSupportingText
@@ -443,7 +444,18 @@ class _HomeCarouselState extends State<_HomeCarousel> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        JM3x4Cover(comicId: comic.id),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                scheme.primaryContainer.withValues(alpha: .34),
+                                scheme.surfaceContainerHigh,
+                              ],
+                            ),
+                          ),
+                        ),
                         const DecoratedBox(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -473,7 +485,7 @@ class _HomeCarouselState extends State<_HomeCarousel> {
                           top: 0,
                           right: 0,
                           bottom: 0,
-                          width: height * .64,
+                          width: height * .75,
                           child: ClipRRect(
                             borderRadius: const BorderRadius.horizontal(
                               left: Radius.circular(24),
@@ -489,7 +501,7 @@ class _HomeCarouselState extends State<_HomeCarousel> {
                         ),
                         Positioned(
                           left: 20,
-                          right: height * .64 + 16,
+                          right: height * .75 + 16,
                           bottom: 23,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
