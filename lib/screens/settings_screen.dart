@@ -114,8 +114,6 @@ class _SettingsState extends State<SettingsScreen> {
                   children: [
                     downloadDirectorySetting(),
                     const Divider(height: 1),
-                    updateDownloadMirrorSetting(),
-                    const Divider(height: 1),
                     exportRenameSetting(),
                     const Divider(height: 1),
                     ListTile(
@@ -129,6 +127,19 @@ class _SettingsState extends State<SettingsScreen> {
                       },
                       title: Text(l10n.exportIncomplete),
                     ),
+                  ],
+                ),
+                _SettingsSection(
+                  sectionKey: const ValueKey('settings-update-download'),
+                  icon: Icons.alt_route_rounded,
+                  title: l10n.tr('更新下载', en: 'Update downloads'),
+                  subtitle: l10n.tr(
+                    '镜像加速与 GitHub 官方线路切换',
+                    en: 'Mirror acceleration and GitHub routing',
+                  ),
+                  panelKey: const ValueKey('settings-update-download-expanded'),
+                  children: [
+                    updateDownloadMirrorSetting(),
                   ],
                 ),
                 _SettingsSection(
