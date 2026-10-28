@@ -44,46 +44,63 @@ class _WeekScreenState extends State<WeekScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: const AppBackButton(),
-        title: Text(context.l10n.weekMustSee),
-        actions: [
-          if (_categories.isNotEmpty && _selectedCategoryId != null)
-            _issueMenu(context),
-        ],
+    final scheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            scheme.primary.withValues(alpha: .07),
+            scheme.surface,
+          ],
+          stops: const [0, .34],
+        ),
       ),
-      body: ContentBuilder<WeekData>(
-        future: _weekData,
-        onRefresh: _refresh,
-        successBuilder: (context, data) {
-          final weekData = data.requireData;
-          final selectedCategoryId =
-              _resolveCategoryId(weekData.categories, _selectedCategoryId);
-          if (!_sameCategories(_categories, weekData.categories) ||
-              _selectedCategoryId != selectedCategoryId) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              setState(() {
-                _categories =
-                    List<WeekCategory>.unmodifiable(weekData.categories);
-                _selectedCategoryId = selectedCategoryId;
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          leading: const AppBackButton(),
+          title: Text(context.l10n.weekMustSee),
+          actions: [
+            if (_categories.isNotEmpty && _selectedCategoryId != null)
+              _issueMenu(context),
+          ],
+        ),
+        body: ContentBuilder<WeekData>(
+          future: _weekData,
+          onRefresh: _refresh,
+          successBuilder: (context, data) {
+            final weekData = data.requireData;
+            final selectedCategoryId =
+                _resolveCategoryId(weekData.categories, _selectedCategoryId);
+            if (!_sameCategories(_categories, weekData.categories) ||
+                _selectedCategoryId != selectedCategoryId) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                setState(() {
+                  _categories =
+                      List<WeekCategory>.unmodifiable(weekData.categories);
+                  _selectedCategoryId = selectedCategoryId;
+                });
               });
-            });
-          }
-          return WeekContent(
-            key: ValueKey(
-              'week_content_${weekData.categories.length}_${weekData.types.length}',
-            ),
-            data: weekData,
-            initialCategoryId: selectedCategoryId,
-            categoryNotifier: _categoryNotifier,
-            onCategoryChanged: (value) {
-              if (!mounted || _selectedCategoryId == value) return;
-              setState(() => _selectedCategoryId = value);
-            },
-          );
-        },
+            }
+            return WeekContent(
+              key: ValueKey(
+                'week_content_${weekData.categories.length}_${weekData.types.length}',
+              ),
+              data: weekData,
+              initialCategoryId: selectedCategoryId,
+              categoryNotifier: _categoryNotifier,
+              onCategoryChanged: (value) {
+                if (!mounted || _selectedCategoryId == value) return;
+                setState(() => _selectedCategoryId = value);
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -268,94 +285,80 @@ class _WeekContentState extends State<WeekContent> {
       36.0,
       MediaQuery.textScalerOf(context).scale(12.5) + 18,
     );
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            scheme.primary.withValues(alpha: .07),
-            scheme.surface,
-          ],
-          stops: const [0, .34],
-        ),
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 5),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              key: const ValueKey('week-type-selector'),
-              height: typeChipHeight,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: _displayTypes.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final type = _displayTypes[index];
-                  final selected = type.id == _typeId;
-                  return Material(
-                    key: ValueKey('week-type-${type.id}'),
-                    color: selected
-                        ? scheme.primary
-                        : scheme.surfaceContainerLow.withValues(alpha: .9),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(13),
-                      side: BorderSide(
-                        color: selected
-                            ? scheme.primary
-                            : scheme.outlineVariant.withValues(alpha: .48),
-                      ),
+    return Column(
+      children: [
+        const SizedBox(height: 5),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: SizedBox(
+            key: const ValueKey('week-type-selector'),
+            height: typeChipHeight,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _displayTypes.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final type = _displayTypes[index];
+                final selected = type.id == _typeId;
+                return Material(
+                  key: ValueKey('week-type-${type.id}'),
+                  color: selected
+                      ? scheme.primary
+                      : scheme.surfaceContainerLow.withValues(alpha: .9),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(13),
+                    side: BorderSide(
+                      color: selected
+                          ? scheme.primary
+                          : scheme.outlineVariant.withValues(alpha: .48),
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: () {
-                        if (type.id == _typeId) return;
-                        setState(() {
-                          _typeId = type.id;
-                        });
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Center(
-                          child: Text(
-                            _typeLabel(type),
-                            maxLines: 1,
-                            style: TextStyle(
-                              color: selected
-                                  ? scheme.onPrimary
-                                  : scheme.onSurfaceVariant,
-                              fontSize: 12.5,
-                              fontWeight:
-                                  selected ? FontWeight.w700 : FontWeight.w500,
-                            ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () {
+                      if (type.id == _typeId) return;
+                      setState(() {
+                        _typeId = type.id;
+                      });
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Center(
+                        child: Text(
+                          _typeLabel(type),
+                          maxLines: 1,
+                          style: TextStyle(
+                            color: selected
+                                ? scheme.onPrimary
+                                : scheme.onSurfaceVariant,
+                            fontSize: 12.5,
+                            fontWeight:
+                                selected ? FontWeight.w700 : FontWeight.w500,
                           ),
                         ),
                       ),
                     ),
-                  );
-                },
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            child: ColoredBox(
+              color: scheme.surface.withValues(alpha: .82),
+              child: WeekComicFeed(
+                key: ValueKey('week_feed_${_categoryId}_$_typeId'),
+                categoryId: _categoryId,
+                typeId: _typeId,
               ),
             ),
           ),
-          const SizedBox(height: 10),
-          Expanded(
-            child: ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
-              child: ColoredBox(
-                color: scheme.surface.withValues(alpha: .82),
-                child: WeekComicFeed(
-                  key: ValueKey('week_feed_${_categoryId}_$_typeId'),
-                  categoryId: _categoryId,
-                  typeId: _typeId,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
