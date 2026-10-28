@@ -56,6 +56,7 @@ int? _latestApkSize;
 String _downloadUrl = _defaultDownloadUrl;
 
 const _propertyName = "checkVersionPeriod";
+const _updateDownloadMirrorPropertyName = "updateDownloadMirrorEnabled";
 const _latestNameCacheKey = "latestVersionNameCache";
 const _latestInfoCacheKey = "latestVersionInfoCache";
 const _latestRepoCacheKey = "latestVersionRepoCache";
@@ -65,6 +66,7 @@ final _repoTokenLower =
     "${_repoOwner.toLowerCase()}/${_repoName.toLowerCase()}";
 const _useBackendAppConfig = false;
 late int _period = -1;
+bool _updateDownloadMirrorEnabled = true;
 
 Future initVersion() async {
   try {
@@ -115,6 +117,15 @@ Future initVersion() async {
       await methods.saveProperty(_propertyName, "0");
       _period = 0;
     }
+  }
+  try {
+    final mirrorSetting =
+        (await methods.loadProperty(_updateDownloadMirrorPropertyName)).trim();
+    if (mirrorSetting.isNotEmpty) {
+      _updateDownloadMirrorEnabled = mirrorSetting != "false";
+    }
+  } catch (_) {
+    _updateDownloadMirrorEnabled = true;
   }
 }
 
@@ -367,7 +378,7 @@ List<String> _updateDownloadCandidates(String officialUrl) {
   final candidates = <String>[];
   // Mirrors run untrusted code transport only. Require GitHub's published
   // SHA-256 before using them; native installation verifies that digest later.
-  if (latestApkSha256() != null) {
+  if (_updateDownloadMirrorEnabled && latestApkSha256() != null) {
     for (final prefix in _apkDownloadMirrorPrefixes) {
       candidates.add(Uri.parse('$prefix$officialUrl').toString());
     }
@@ -380,6 +391,63 @@ String _downloadSourceLabel(String candidate, String officialUrl) {
   if (candidate == officialUrl) return 'GitHub';
   final host = Uri.tryParse(candidate)?.host ?? '';
   return host.isEmpty ? 'Mirror' : 'Mirror · $host';
+}
+
+Future<bool> setUpdateDownloadMirrorEnabled(bool enabled) async {
+  final previous = _updateDownloadMirrorEnabled;
+  _updateDownloadMirrorEnabled = enabled;
+  try {
+    await methods.saveProperty(
+      _updateDownloadMirrorPropertyName,
+      enabled ? "true" : "false",
+    );
+    return true;
+  } catch (_) {
+    _updateDownloadMirrorEnabled = previous;
+    return false;
+  }
+}
+
+Widget updateDownloadMirrorSetting() {
+  return StatefulBuilder(
+    builder: (context, setState) {
+      final enabled = _updateDownloadMirrorEnabled;
+      return SwitchListTile(
+        key: const ValueKey('settings-update-download-mirror'),
+        secondary: const Icon(Icons.alt_route_rounded),
+        title: Text(
+          context.l10n.tr('更新下载镜像', en: 'Update download mirrors'),
+        ),
+        subtitle: Text(
+          enabled
+              ? context.l10n.tr(
+                  '优先使用镜像，失败后自动回退 GitHub',
+                  en: 'Prefer mirrors and fall back to GitHub automatically',
+                )
+              : context.l10n.tr(
+                  '仅从 GitHub Releases 官方地址下载',
+                  en: 'Download only from GitHub Releases',
+                ),
+        ),
+        value: enabled,
+        onChanged: (value) async {
+          setState(() => _updateDownloadMirrorEnabled = value);
+          final saved = await setUpdateDownloadMirrorEnabled(value);
+          if (!context.mounted) return;
+          if (!saved) {
+            setState(() => _updateDownloadMirrorEnabled = !value);
+            defaultToast(
+              context,
+              context.l10n.tr(
+                '保存设置失败，请重试',
+                en: 'Could not save this setting. Try again.',
+              ),
+            );
+          }
+        },
+      );
+    },
+  );
 }
 
 String _safeUpdateFileName(String raw) {

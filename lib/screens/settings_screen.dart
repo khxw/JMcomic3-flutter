@@ -114,6 +114,8 @@ class _SettingsState extends State<SettingsScreen> {
                   children: [
                     downloadDirectorySetting(),
                     const Divider(height: 1),
+                    updateDownloadMirrorSetting(),
+                    const Divider(height: 1),
                     exportRenameSetting(),
                     const Divider(height: 1),
                     ListTile(
