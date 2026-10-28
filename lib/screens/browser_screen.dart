@@ -470,8 +470,26 @@ class _HomeCarouselState extends State<_HomeCarousel> {
                           ),
                         ),
                         Positioned(
+                          top: 0,
+                          right: 0,
+                          bottom: 0,
+                          width: height * .64,
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.horizontal(
+                              left: Radius.circular(24),
+                            ),
+                            child: JM3x4Cover(
+                              key: ValueKey(
+                                'home-carousel-cover-${comic.id}',
+                              ),
+                              comicId: comic.id,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        Positioned(
                           left: 20,
-                          right: height * .46,
+                          right: height * .64 + 16,
                           bottom: 23,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
