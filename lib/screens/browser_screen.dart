@@ -415,7 +415,6 @@ class _HomeCarouselState extends State<_HomeCarousel> {
   @override
   Widget build(BuildContext context) {
     final height = MediaQuery.sizeOf(context).width >= 840 ? 250.0 : 188.0;
-    final scheme = Theme.of(context).colorScheme;
     final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
     final showSupportingText = textScale <= 1.6;
     final titleStyle = showSupportingText
@@ -429,6 +428,7 @@ class _HomeCarouselState extends State<_HomeCarousel> {
           borderRadius: BorderRadius.circular(25),
           child: Stack(
             fit: StackFit.expand,
+            clipBehavior: Clip.hardEdge,
             children: [
               PageView.builder(
                 controller: _controller,
@@ -444,15 +444,11 @@ class _HomeCarouselState extends State<_HomeCarousel> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                scheme.primaryContainer.withValues(alpha: .34),
-                                scheme.surfaceContainerHigh,
-                              ],
+                        Positioned.fill(
+                          child: ClipRect(
+                            child: JM3x4Cover(
+                              comicId: comic.id,
+                              fit: BoxFit.cover,
                             ),
                           ),
                         ),
@@ -482,26 +478,8 @@ class _HomeCarouselState extends State<_HomeCarousel> {
                           ),
                         ),
                         Positioned(
-                          top: 0,
-                          right: 0,
-                          bottom: 0,
-                          width: height * .75,
-                          child: ClipRRect(
-                            borderRadius: const BorderRadius.horizontal(
-                              left: Radius.circular(24),
-                            ),
-                            child: JM3x4Cover(
-                              key: ValueKey(
-                                'home-carousel-cover-${comic.id}',
-                              ),
-                              comicId: comic.id,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                        Positioned(
                           left: 20,
-                          right: height * .75 + 16,
+                          right: height * .46,
                           bottom: 23,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
