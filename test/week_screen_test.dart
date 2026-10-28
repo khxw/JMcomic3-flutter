@@ -76,6 +76,13 @@ void main() {
     expect(typeSelector, findsOneWidget);
     expect(find.byKey(const ValueKey('week-issue-header')), findsNothing);
     expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('week-type-hot')),
+        matching: find.text('Hot'),
+      ),
+      findsOneWidget,
+    );
+    expect(
       tester.getRect(issueSelector).bottom,
       lessThan(tester.getRect(typeSelector).top),
     );
@@ -187,7 +194,7 @@ void main() {
     expect(selector.left, greaterThanOrEqualTo(0));
     expect(selector.right, lessThanOrEqualTo(320));
     expect(
-      tester.widget<Tab>(find.byKey(const ValueKey('week-type-hot'))).height,
+      tester.getSize(find.byKey(const ValueKey('week-type-hot'))).height,
       greaterThanOrEqualTo(40),
     );
     expect(tester.takeException(), isNull);

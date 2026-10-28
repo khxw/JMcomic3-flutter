@@ -98,9 +98,7 @@ class WeekContent extends StatefulWidget {
   State<WeekContent> createState() => _WeekContentState();
 }
 
-class _WeekContentState extends State<WeekContent>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _WeekContentState extends State<WeekContent> {
   late List<WeekType> _displayTypes;
   late String _categoryId;
   late String _typeId;
@@ -111,7 +109,6 @@ class _WeekContentState extends State<WeekContent>
     _displayTypes = _buildDisplayTypes(widget.data.types);
     _categoryId = _resolveInitialCategoryId();
     _typeId = _displayTypes.isNotEmpty ? _displayTypes.first.id : '';
-    _tabController = _createTabController(preferredTypeId: _typeId);
     widget.categoryNotifier.addListener(_onCategoryNotifierChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _categoryId.isEmpty) {
@@ -130,8 +127,6 @@ class _WeekContentState extends State<WeekContent>
     if (_needsRebuildTypes(oldWidget.data.types, widget.data.types)) {
       _displayTypes = _buildDisplayTypes(widget.data.types);
       final keepType = _typeId;
-      _tabController.dispose();
-      _tabController = _createTabController(preferredTypeId: keepType);
       _typeId = _displayTypes.isNotEmpty &&
               _displayTypes.any((element) => element.id == keepType)
           ? keepType
@@ -152,7 +147,6 @@ class _WeekContentState extends State<WeekContent>
   @override
   void dispose() {
     widget.categoryNotifier.removeListener(_onCategoryNotifierChanged);
-    _tabController.dispose();
     super.dispose();
   }
 
@@ -168,7 +162,7 @@ class _WeekContentState extends State<WeekContent>
       38.0,
       MediaQuery.textScalerOf(context).scale(12.5) + 18,
     );
-    final typeTabHeight = math.max(
+    final typeChipHeight = math.max(
       36.0,
       MediaQuery.textScalerOf(context).scale(12.5) + 18,
     );
@@ -262,58 +256,56 @@ class _WeekContentState extends State<WeekContent>
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Container(
+            child: SizedBox(
               key: const ValueKey('week-type-selector'),
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerLow.withValues(alpha: .86),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: scheme.outlineVariant.withValues(alpha: .42),
-                ),
-              ),
-              child: TabBar(
-                controller: _tabController,
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                dividerColor: Colors.transparent,
-                padding: const EdgeInsets.all(4),
-                labelPadding: const EdgeInsets.symmetric(horizontal: 13),
-                labelColor: scheme.onPrimary,
-                unselectedLabelColor: scheme.onSurfaceVariant,
-                labelStyle: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                ),
-                unselectedLabelStyle: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                indicator: BoxDecoration(
-                  color: scheme.primary,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                splashBorderRadius: BorderRadius.circular(12),
-                overlayColor: WidgetStatePropertyAll(
-                  scheme.primary.withValues(alpha: .08),
-                ),
-                tabs: _displayTypes
-                    .map(
-                      (type) => Tab(
-                        key: ValueKey('week-type-${type.id}'),
-                        height: typeTabHeight,
-                        text: type.title,
+              height: typeChipHeight,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _displayTypes.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final type = _displayTypes[index];
+                  final selected = type.id == _typeId;
+                  return Material(
+                    key: ValueKey('week-type-${type.id}'),
+                    color: selected
+                        ? scheme.primary
+                        : scheme.surfaceContainerLow.withValues(alpha: .9),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(13),
+                      side: BorderSide(
+                        color: selected
+                            ? scheme.primary
+                            : scheme.outlineVariant.withValues(alpha: .48),
                       ),
-                    )
-                    .toList(growable: false),
-                onTap: (index) {
-                  final nextTypeId = _displayTypes[index].id;
-                  if (nextTypeId == _typeId) {
-                    return;
-                  }
-                  setState(() {
-                    _typeId = nextTypeId;
-                  });
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () {
+                        if (type.id == _typeId) return;
+                        setState(() {
+                          _typeId = type.id;
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Center(
+                          child: Text(
+                            _typeLabel(type),
+                            maxLines: 1,
+                            style: TextStyle(
+                              color: selected
+                                  ? scheme.onPrimary
+                                  : scheme.onSurfaceVariant,
+                              fontSize: 12.5,
+                              fontWeight:
+                                  selected ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
                 },
               ),
             ),
@@ -442,15 +434,12 @@ class _WeekContentState extends State<WeekContent>
     return types.reversed.toList(growable: false);
   }
 
-  TabController _createTabController({required String preferredTypeId}) {
-    final preferredIndex =
-        _displayTypes.indexWhere((element) => element.id == preferredTypeId);
-    final initialIndex = preferredIndex >= 0 ? preferredIndex : 0;
-    return TabController(
-      length: _displayTypes.length,
-      vsync: this,
-      initialIndex: initialIndex,
-    );
+  String _typeLabel(WeekType type) {
+    final title = type.title.trim();
+    if (title.isNotEmpty) return title;
+    final id = type.id.trim();
+    if (id.isNotEmpty) return id.toUpperCase();
+    return context.l10n.tr('榜单', en: 'Ranking');
   }
 
   bool _needsRebuildTypes(List<WeekType> oldTypes, List<WeekType> newTypes) {
