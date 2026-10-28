@@ -9,6 +9,7 @@ import 'package:jmcomic3/configs/pager_controller_mode.dart';
 import 'package:jmcomic3/configs/pager_cover_rate.dart';
 import 'package:jmcomic3/configs/pager_view_mode.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
+import 'package:jmcomic3/screens/components/comic_pager.dart';
 import 'package:jmcomic3/screens/components/content_builder.dart';
 import 'package:jmcomic3/screens/week_screen.dart';
 
@@ -69,6 +70,18 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
+    final issueHeader = find.byKey(const ValueKey('week-issue-header'));
+    final typeSelector = find.byKey(const ValueKey('week-type-selector'));
+    expect(issueHeader, findsOneWidget);
+    expect(typeSelector, findsOneWidget);
+    expect(
+      tester.getRect(issueHeader).bottom,
+      lessThan(tester.getRect(typeSelector).top),
+    );
+    expect(
+      tester.getRect(typeSelector).bottom,
+      lessThan(tester.getRect(find.byType(ComicPager)).top),
+    );
     expect(requests, [
       {'category_id': 'issue-1', 'type_id': 'hot', 'page': 1},
     ]);
@@ -89,5 +102,90 @@ void main() {
     expect(requests, hasLength(3));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('weekly layout stays compact with large text', (tester) async {
+    const channel = MethodChannel('methods');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      final payload = jsonDecode(call.arguments as String);
+      if (payload['method'] == 'load_property') {
+        return jsonEncode({
+          'error_message': '',
+          'response_data': payload['params'] == 'pager_controller_mode'
+              ? 'PagerControllerMode.pager'
+              : '',
+        });
+      }
+      if (payload['method'] == 'week_filter') {
+        return jsonEncode({
+          'error_message': '',
+          'response_data': jsonEncode({'list': <Object>[], 'total': 0}),
+        });
+      }
+      throw StateError('Unexpected method: ${payload['method']}');
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 700);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await initPagerControllerMode();
+    await initPagerViewMode();
+    await initPagerCoverRate();
+    await initPagerColumnCount();
+    final categoryNotifier = ValueNotifier<String?>('issue-1');
+    addTearDown(categoryNotifier.dispose);
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: const [AppLocalizations.delegate],
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: const TextScaler.linear(2),
+        ),
+        child: child!,
+      ),
+      home: Scaffold(
+        body: WeekContent(
+          data: WeekData.fromJson({
+            'categories': [
+              {
+                'id': 'issue-1',
+                'time': '2026-10-07',
+                'title': '本周精选特别企划',
+              },
+              {
+                'id': 'issue-2',
+                'time': '2026-09-30',
+                'title': 'Issue 2',
+              },
+            ],
+            'type': [
+              {'id': 'hot', 'title': 'Hot'},
+              {'id': 'new', 'title': 'New'},
+            ],
+          }),
+          initialCategoryId: 'issue-1',
+          categoryNotifier: categoryNotifier,
+          onCategoryChanged: (_) {},
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final header =
+        tester.getRect(find.byKey(const ValueKey('week-issue-header')));
+    final selector =
+        tester.getRect(find.byKey(const ValueKey('week-type-selector')));
+    expect(header.left, greaterThanOrEqualTo(0));
+    expect(header.right, lessThanOrEqualTo(320));
+    expect(selector.left, greaterThanOrEqualTo(0));
+    expect(selector.right, lessThanOrEqualTo(320));
+    expect(
+      tester.widget<Tab>(find.byKey(const ValueKey('week-type-hot'))).height,
+      greaterThanOrEqualTo(40),
+    );
+    expect(tester.takeException(), isNull);
   });
 }

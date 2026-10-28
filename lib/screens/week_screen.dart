@@ -249,6 +249,111 @@ class _WeekScreenState extends State<WeekScreen> {
   }
 }
 
+class _IssueHeader extends StatelessWidget {
+  final WeekCategory category;
+  final int issueCount;
+
+  const _IssueHeader({
+    required this.category,
+    required this.issueCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final title = category.title.trim().isEmpty
+        ? context.l10n.weekMustSee
+        : category.title.trim();
+    return Container(
+      key: const ValueKey('week-issue-header'),
+      padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow.withValues(alpha: .9),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: scheme.primary.withValues(alpha: .16),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.shadow.withValues(alpha: .05),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  scheme.primary,
+                  scheme.tertiary,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              Icons.auto_awesome_rounded,
+              color: scheme.onPrimary,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .1,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  context.l10n.tr(
+                    '${category.time} · $issueCount 期',
+                    en: '${category.time} · $issueCount ${issueCount == 1 ? 'issue' : 'issues'}',
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+            decoration: BoxDecoration(
+              color: scheme.primary.withValues(alpha: .1),
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text(
+              context.l10n.tr('每周精选', en: 'Weekly'),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class WeekContent extends StatefulWidget {
   final WeekData data;
   final String? initialCategoryId;
@@ -326,42 +431,116 @@ class _WeekContentState extends State<WeekContent>
         child: Text(context.l10n.noContentAvailable),
       );
     }
-    return Column(
-      children: [
-        const SizedBox(height: 4),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: _displayTypes
-                .map((e) => Tab(text: e.title))
-                .toList(growable: false),
-            onTap: (index) {
-              final nextTypeId = _displayTypes[index].id;
-              if (nextTypeId == _typeId) {
-                return;
-              }
-              setState(() {
-                _typeId = nextTypeId;
-              });
-            },
-          ),
+    final scheme = Theme.of(context).colorScheme;
+    final selectedCategory = widget.data.categories.firstWhere(
+      (category) => category.id == _categoryId,
+      orElse: () => widget.data.categories.first,
+    );
+    final typeTabHeight = math.max(
+      36.0,
+      MediaQuery.textScalerOf(context).scale(12.5) + 18,
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            scheme.primary.withValues(alpha: .07),
+            scheme.surface,
+          ],
+          stops: const [0, .34],
         ),
-        const SizedBox(height: 10),
-        Expanded(
-          child: ComicPager(
-            key: ValueKey('week_filter_${_categoryId}_$_typeId'),
-            onPage: _onPage,
-            appendList: widget.data.categories.length > 1
-                ? [
-                    _buildNextCard(),
-                  ]
-                : null,
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: _IssueHeader(
+              category: selectedCategory,
+              issueCount: widget.data.categories.length,
+            ),
           ),
-        ),
-      ],
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              key: const ValueKey('week-type-selector'),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerLow.withValues(alpha: .86),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: scheme.outlineVariant.withValues(alpha: .42),
+                ),
+              ),
+              child: TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                dividerColor: Colors.transparent,
+                padding: const EdgeInsets.all(4),
+                labelPadding: const EdgeInsets.symmetric(horizontal: 13),
+                labelColor: scheme.onPrimary,
+                unselectedLabelColor: scheme.onSurfaceVariant,
+                labelStyle: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                indicator: BoxDecoration(
+                  color: scheme.primary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                splashBorderRadius: BorderRadius.circular(12),
+                overlayColor: WidgetStatePropertyAll(
+                  scheme.primary.withValues(alpha: .08),
+                ),
+                tabs: _displayTypes
+                    .map(
+                      (type) => Tab(
+                        key: ValueKey('week-type-${type.id}'),
+                        height: typeTabHeight,
+                        text: type.title,
+                      ),
+                    )
+                    .toList(growable: false),
+                onTap: (index) {
+                  final nextTypeId = _displayTypes[index].id;
+                  if (nextTypeId == _typeId) {
+                    return;
+                  }
+                  setState(() {
+                    _typeId = nextTypeId;
+                  });
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Expanded(
+            child: ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+              child: ColoredBox(
+                color: scheme.surface.withValues(alpha: .82),
+                child: ComicPager(
+                  key: ValueKey('week_filter_${_categoryId}_$_typeId'),
+                  onPage: _onPage,
+                  appendList: widget.data.categories.length > 1
+                      ? [
+                          _buildNextCard(),
+                        ]
+                      : null,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -375,16 +554,33 @@ class _WeekContentState extends State<WeekContent>
   }
 
   Widget _buildNextCard() {
-    return Card(
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.primaryContainer.withValues(alpha: .56),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: scheme.primary.withValues(alpha: .24)),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: _switchToNextCategory,
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 10, bottom: 10),
-              child: Icon(Icons.next_plan_rounded),
+            Icon(
+              Icons.arrow_forward_rounded,
+              color: scheme.primary,
             ),
-            Text(context.l10n.nextIssue),
+            const SizedBox(height: 7),
+            Text(
+              context.l10n.nextIssue,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: scheme.onPrimaryContainer,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
       ),

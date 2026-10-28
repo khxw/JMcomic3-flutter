@@ -11,6 +11,7 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'comic_download_screen.dart';
 import 'comic_reader_screen.dart';
 import 'comic_search_screen.dart';
+import 'components/bookshelf_group_picker.dart';
 import 'components/comic_comments_list.dart';
 import 'components/comic_detail_chapters.dart';
 import 'components/comic_detail_header.dart';
@@ -201,6 +202,71 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
     }
   }
 
+  Future<void> _changeBookshelfGroup(AlbumResponse album) async {
+    if (_bookshelfLoading) return;
+    setState(() => _bookshelfLoading = true);
+    try {
+      await loadLocalBookshelf();
+      if (!mounted) return;
+      String? currentGroup;
+      for (final item in localBookshelfItems) {
+        if (item.comic.id == album.id) {
+          currentGroup = item.group;
+          break;
+        }
+      }
+      final choice = await showBookshelfGroupPicker(
+        context,
+        groups: localBookshelfGroupNames,
+        selectedGroup: currentGroup,
+        comicName: album.name,
+      );
+      if (!mounted || choice == null) return;
+
+      var targetGroup = choice.group;
+      if (choice.createNew) {
+        final name = await showBookshelfGroupNameDialog(
+          context,
+          existingNames: localBookshelfGroupNames,
+        );
+        if (!mounted || name == null || name.trim().isEmpty) return;
+        targetGroup = name.trim();
+        await createLocalBookshelfGroup(targetGroup);
+      }
+      if (targetGroup == null) return;
+
+      final wasInBookshelf = localBookshelfContains(album.id);
+      if (wasInBookshelf) {
+        final moved =
+            await moveLocalBookshelfItem(album.id, targetGroup.trim());
+        if (!moved) {
+          throw StateError('Bookshelf comic not found');
+        }
+      } else {
+        final added = await toggleLocalBookshelf(
+          albumToSimple(album),
+          group: targetGroup.trim(),
+        );
+        if (!added) {
+          throw StateError('Could not add comic to bookshelf');
+        }
+      }
+      if (!mounted) return;
+      setState(() => _inBookshelf = true);
+      defaultToast(
+        context,
+        context.l10n.tr(
+          '已加入分组“$targetGroup”',
+          en: 'Added to “$targetGroup”',
+        ),
+      );
+    } catch (error) {
+      if (mounted) defaultToast(context, '$error');
+    } finally {
+      if (mounted) setState(() => _bookshelfLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -239,8 +305,17 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
                           : Icons.bookmark_add_outlined,
                       _bookshelfLoading ? null : () => _changeBookshelf(album),
                       _inBookshelf
-                          ? context.l10n.tr('已在书架', en: 'In bookshelf')
-                          : context.l10n.tr('加入书架', en: 'Add to bookshelf')),
+                          ? context.l10n.tr(
+                              '已在书架 · 长按选择分组',
+                              en: 'In bookshelf · Long-press to choose a group',
+                            )
+                          : context.l10n.tr(
+                              '加入书架 · 长按选择分组',
+                              en: 'Add to bookshelf · Long-press to choose a group',
+                            ),
+                      onLongPress: _bookshelfLoading
+                          ? null
+                          : () => _changeBookshelfGroup(album)),
                   const SizedBox(width: 8),
                 ],
               ],
@@ -256,9 +331,14 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
     );
   }
 
-  Widget _navButton(IconData icon, VoidCallback? onPressed, String tooltip) {
-    return IconButton(
-      tooltip: tooltip,
+  Widget _navButton(
+    IconData icon,
+    VoidCallback? onPressed,
+    String tooltip, {
+    GestureLongPressCallback? onLongPress,
+  }) {
+    final button = IconButton(
+      tooltip: onLongPress == null ? tooltip : null,
       onPressed: onPressed,
       icon: DecoratedBox(
         decoration: BoxDecoration(
@@ -267,6 +347,17 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
         ),
         child: Padding(
             padding: const EdgeInsets.all(8), child: Icon(icon, size: 20)),
+      ),
+    );
+    if (onLongPress == null) return button;
+    return Semantics(
+      label: tooltip,
+      button: true,
+      onLongPress: onLongPress,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onLongPress: onLongPress,
+        child: button,
       ),
     );
   }
@@ -360,7 +451,10 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
                     _inBookshelf
                         ? context.l10n.tr('已在书架', en: 'In bookshelf')
                         : context.l10n.tr('加入书架', en: 'Add to bookshelf'),
-                    _bookshelfLoading ? null : () => _changeBookshelf(album)),
+                    _bookshelfLoading ? null : () => _changeBookshelf(album),
+                    onLongPress: _bookshelfLoading
+                        ? null
+                        : () => _changeBookshelfGroup(album)),
                 const SizedBox(width: 12),
                 Expanded(
                     child: FutureBuilder<ViewLog?>(
@@ -425,26 +519,38 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
     );
   }
 
-  Widget _action(String key, IconData icon, String label, VoidCallback? onTap) {
+  Widget _action(
+    String key,
+    IconData icon,
+    String label,
+    VoidCallback? onTap, {
+    GestureLongPressCallback? onLongPress,
+  }) {
+    final button = TextButton(
+      key: ValueKey(key),
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+        minimumSize: const Size(48, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 20),
+        const SizedBox(height: 3),
+        Text(label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w400)),
+      ]),
+    );
     return SizedBox(
       width: 54,
-      child: TextButton(
-        key: ValueKey(key),
-        onPressed: onTap,
-        style: TextButton.styleFrom(
-          foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-          minimumSize: const Size(48, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 20),
-          const SizedBox(height: 3),
-          Text(label,
-              textAlign: TextAlign.center,
-              style:
-                  const TextStyle(fontSize: 10, fontWeight: FontWeight.w400)),
-        ]),
-      ),
+      child: onLongPress == null
+          ? button
+          : GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onLongPress: onLongPress,
+              child: button,
+            ),
     );
   }
 }

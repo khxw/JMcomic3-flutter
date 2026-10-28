@@ -1282,6 +1282,51 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('long-press bookshelf action assigns and creates groups',
+      (tester) async {
+    final fixture = await _prepare(tester);
+    expect(await createLocalBookshelfGroup('Reading'), isTrue);
+    await _mount(tester, fixture);
+
+    await tester.longPress(_key('favorite'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('bookshelf-group-picker')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('bookshelf-group-choice-Reading')),
+    );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+
+    expect(localBookshelfContains(_albumId), isTrue);
+    expect(localBookshelfItems.single.group, 'Reading');
+
+    await tester.longPress(_key('favorite'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('bookshelf-group-picker-create')),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('bookshelf-add-group-name-field')),
+      'Favorites',
+    );
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey('bookshelf-add-group-save')),
+    );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+
+    expect(localBookshelfGroupNames, contains('Favorites'));
+    expect(localBookshelfItems.single.group, 'Favorites');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('local bookshelf state restores when detail is reopened',
       (tester) async {
     final fixture = await _prepare(tester);
