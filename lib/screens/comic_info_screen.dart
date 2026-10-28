@@ -381,18 +381,11 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: scheme.surfaceContainerHigh.withValues(alpha: .97),
+              color: scheme.surfaceContainerHigh,
               borderRadius: BorderRadius.circular(21),
               border: Border.all(
-                color: scheme.outlineVariant.withValues(alpha: .5),
+                color: scheme.outlineVariant.withValues(alpha: .48),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: scheme.shadow.withValues(alpha: .28),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ],
             ),
             child: Row(children: [
               _action(
