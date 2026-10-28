@@ -305,9 +305,18 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
               ),
             ),
             body: album != null
-                ? _body(album)
+                ? Stack(
+                    children: [
+                      Positioned.fill(child: _body(album)),
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: _bottomBar(album),
+                      ),
+                    ],
+                  )
                 : _loadingOrError(snapshot.hasError),
-            bottomNavigationBar: album != null ? _bottomBar(album) : null,
           );
         },
       ),
@@ -565,7 +574,7 @@ class _ComicDetailDirectoryState extends State<_ComicDetailDirectory> {
               .withValues(alpha: .34),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 112),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

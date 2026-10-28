@@ -15,11 +15,11 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('only a semantically newer release is treated as an update', () {
-    const current = 'v1.7.67+96';
+    const current = 'v1.7.68+97';
     expect(isVersionNewerForTest('v1.7.64+93', current), isFalse);
-    expect(isVersionNewerForTest('v1.7.67+95', current), isFalse);
-    expect(isVersionNewerForTest('v1.7.67+96', current), isFalse);
-    expect(isVersionNewerForTest('v1.7.67+97', current), isTrue);
+    expect(isVersionNewerForTest('v1.7.68+96', current), isFalse);
+    expect(isVersionNewerForTest('v1.7.68+97', current), isFalse);
+    expect(isVersionNewerForTest('v1.7.68+98', current), isTrue);
     expect(isVersionNewerForTest('v1.7.66+0', current), isTrue);
     expect(isVersionNewerForTest('v1.8.0+0', current), isTrue);
     expect(isVersionNewerForTest('v2.0.0+0', current), isTrue);
