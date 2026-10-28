@@ -40,13 +40,13 @@ class _ComicDetailHeaderState extends State<ComicDetailHeader> {
     final album = widget.album;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final panel = theme.brightness == Brightness.dark
-        ? Colors.white.withValues(alpha: .05)
-        : scheme.onSurface.withValues(alpha: .045);
     final tags = _uniqueValues(album.tags);
     final authors = _uniqueValues(album.author);
     final works = _uniqueValues(album.works);
     final categories = _categories();
+    final allTags = _uniqueValues([...categories, ...tags]);
+    final collapsedTags = _uniqueValues([...categories, ...tags.take(7)]);
+    final visibleTags = _tagsExpanded ? allTags : collapsedTags;
     final title = album.name.trim().isNotEmpty
         ? album.name
         : widget.simple?.name ?? 'JM${album.id}';
@@ -112,37 +112,13 @@ class _ComicDetailHeaderState extends State<ComicDetailHeader> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (categories.isNotEmpty) ...[
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: [
-                                for (var index = 0;
-                                    index < categories.length;
-                                    index++)
-                                  _DetailChip(
-                                    label: categories[index],
-                                    background: index == 0
-                                        ? const Color(0xFFD63D88)
-                                        : panel,
-                                    foreground: index == 0
-                                        ? Colors.white
-                                        : scheme.onSurfaceVariant,
-                                    rounded: true,
-                                    onTap: () =>
-                                        widget.onSearch(categories[index]),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                          ],
                           _ExpandableDetailText(
                             textKey: const Key('comic-detail-title'),
                             text: title,
                             maxLines: 2,
                             style: TextStyle(
-                              fontSize: compact ? 15 : 17,
-                              fontWeight: FontWeight.w600,
+                              fontSize: compact ? 18 : 21,
+                              fontWeight: FontWeight.w800,
                               height: 1.35,
                               color: scheme.onSurface,
                             ),
@@ -154,37 +130,41 @@ class _ComicDetailHeaderState extends State<ComicDetailHeader> {
                           if (published != null ||
                               updated != null ||
                               displayJmcode) ...[
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 4,
-                              children: [
-                                if (published != null)
-                                  _DetailMeta(
-                                    icon: Icons.event_outlined,
-                                    text:
-                                        '${context.l10n.tr('发布', en: 'Published')} $published',
-                                    style: metaStyle,
-                                  ),
-                                if (updated != null)
-                                  _DetailMeta(
-                                    icon: Icons.schedule_outlined,
-                                    text:
-                                        '${context.l10n.tr('更新', en: 'Updated')} $updated',
-                                    style: metaStyle,
-                                  ),
-                                if (displayJmcode)
-                                  GestureDetector(
-                                    onLongPress: () =>
-                                        confirmCopy(context, 'JM${album.id}'),
-                                    child: _DetailMeta(
-                                      icon: Icons.description_outlined,
-                                      text: 'JM${album.id}',
-                                      style: metaStyle,
-                                    ),
-                                  ),
-                              ],
-                            ),
+                            const SizedBox(height: 8),
+                            if (published != null)
+                              Text(
+                                '${context.l10n.tr('发布', en: 'Published')} $published',
+                                style: metaStyle,
+                              ),
+                            if (updated != null || displayJmcode)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 3),
+                                child: Wrap(
+                                  spacing: 10,
+                                  runSpacing: 3,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    if (updated != null)
+                                      _DetailMeta(
+                                        icon: Icons.schedule_outlined,
+                                        text:
+                                            '${context.l10n.tr('更新', en: 'Updated')} $updated',
+                                        style: metaStyle,
+                                      ),
+                                    if (displayJmcode) ...[
+                                      GestureDetector(
+                                        onLongPress: () => confirmCopy(
+                                            context, 'JM${album.id}'),
+                                        child: _DetailMeta(
+                                          icon: Icons.description_outlined,
+                                          text: 'JM${album.id}',
+                                          style: metaStyle,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
                           ],
                         ],
                       ),
@@ -222,22 +202,78 @@ class _ComicDetailHeaderState extends State<ComicDetailHeader> {
                   ],
                 ),
               ],
-              if (tags.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(
-                  '${context.l10n.tr('标签', en: 'Tags')} ${tags.length}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: scheme.onSurfaceVariant,
+              if (description.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(15, 14, 15, 10),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(17),
+                    border: Border.all(
+                      color: scheme.outlineVariant.withValues(alpha: .45),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 3,
+                            height: 15,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  scheme.primary,
+                                  scheme.tertiary,
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                context.l10n.tr('内容简介', en: 'Description'),
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 9),
+                      _ExpandableDetailText(
+                        textKey: const Key('comic-detail-description'),
+                        text: description,
+                        maxLines: 3,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          height: 1.65,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                        expandKey: const Key('comic-detail-description-expand'),
+                        onLongPress: () => confirmCopy(context, description),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
+              ],
+              if (allTags.isNotEmpty) ...[
+                const SizedBox(height: 12),
                 Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
+                  spacing: 7,
+                  runSpacing: 7,
                   children: [
-                    for (final tag in _tagsExpanded ? tags : tags.take(7))
+                    for (final tag in visibleTags)
                       _DetailChip(
                         label: tag,
                         background: _tagColor(tag, dark)
@@ -250,60 +286,19 @@ class _ComicDetailHeaderState extends State<ComicDetailHeader> {
                       ),
                   ],
                 ),
-                if (tags.length > 7)
+                if (allTags.length > collapsedTags.length)
                   _DetailExpandButton(
                     key: const Key('comic-detail-tags-expand'),
                     expanded: _tagsExpanded,
                     text: _tagsExpanded
                         ? context.l10n.tr('收起标签', en: 'Collapse tags')
                         : context.l10n.tr(
-                            '展开全部 ${tags.length - 7} 个标签',
-                            en: 'Show ${tags.length - 7} more tags',
+                            '展开全部 ${allTags.length - collapsedTags.length} 个标签',
+                            en: 'Show ${allTags.length - collapsedTags.length} more tags',
                           ),
                     onPressed: () =>
                         setState(() => _tagsExpanded = !_tagsExpanded),
                   ),
-              ],
-              if (description.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: panel,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: scheme.outlineVariant.withValues(alpha: .35),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        context.l10n.tr('简介', en: 'Description'),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _ExpandableDetailText(
-                        textKey: const Key('comic-detail-description'),
-                        text: description,
-                        maxLines: 3,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                          height: 1.6,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                        expandKey: const Key('comic-detail-description-expand'),
-                        onLongPress: () => confirmCopy(context, description),
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ],
           ),
@@ -367,7 +362,6 @@ class _DetailChip extends StatelessWidget {
   final Color foreground;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
-  final bool rounded;
   final Color? borderColor;
 
   const _DetailChip({
@@ -376,13 +370,12 @@ class _DetailChip extends StatelessWidget {
     required this.foreground,
     required this.onTap,
     this.onLongPress,
-    this.rounded = false,
     this.borderColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(rounded ? 30 : 6);
+    final radius = BorderRadius.circular(6);
     return Material(
       color: background,
       shape: RoundedRectangleBorder(
@@ -396,15 +389,12 @@ class _DetailChip extends StatelessWidget {
         onLongPress: onLongPress,
         borderRadius: radius,
         child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: rounded ? 8 : 10,
-            vertical: rounded ? 3 : 5,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           child: Text(
             label,
             style: TextStyle(
               fontSize: 11,
-              fontWeight: rounded ? FontWeight.w500 : FontWeight.w400,
+              fontWeight: FontWeight.w400,
               height: 1.4,
               color: foreground,
             ),

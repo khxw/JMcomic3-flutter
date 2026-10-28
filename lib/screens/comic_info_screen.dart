@@ -289,49 +289,53 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
               surfaceTintColor: Colors.transparent,
               elevation: 0,
               scrolledUnderElevation: 0,
-              leading: _navButton(
-                  Icons.chevron_left,
-                  () => Navigator.maybePop(context),
-                  context.l10n.tr('返回', en: 'Back')),
+              leadingWidth: 60,
+              titleSpacing: 0,
+              leading: Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: _backButton(context),
+              ),
+              title: Text(
+                context.l10n.tr('漫画详情', en: 'Comic details'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
             ),
             body: album != null
                 ? _body(album)
                 : _loadingOrError(snapshot.hasError),
-            bottomNavigationBar:
-                album != null ? _bottomBar(album, background) : null,
+            bottomNavigationBar: album != null ? _bottomBar(album) : null,
           );
         },
       ),
     );
   }
 
-  Widget _navButton(
-    IconData icon,
-    VoidCallback? onPressed,
-    String tooltip, {
-    GestureLongPressCallback? onLongPress,
-  }) {
-    final button = IconButton(
-      tooltip: onLongPress == null ? tooltip : null,
-      onPressed: onPressed,
-      icon: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .05),
+  Widget _backButton(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: IconButton(
+        key: const ValueKey('comic-detail-back'),
+        tooltip: context.l10n.tr('返回', en: 'Back'),
+        onPressed: () => Navigator.maybePop(context),
+        style: IconButton.styleFrom(
+          fixedSize: const Size(38, 38),
+          minimumSize: const Size(38, 38),
+          maximumSize: const Size(38, 38),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          backgroundColor:
+              scheme.surfaceContainerHighest.withValues(alpha: .72),
+          foregroundColor: scheme.onSurface,
+          side: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: .35),
+          ),
+          shape: const CircleBorder(),
         ),
-        child: Padding(
-            padding: const EdgeInsets.all(8), child: Icon(icon, size: 20)),
-      ),
-    );
-    if (onLongPress == null) return button;
-    return Semantics(
-      label: tooltip,
-      button: true,
-      onLongPress: onLongPress,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onLongPress: onLongPress,
-        child: button,
+        icon: const Icon(Icons.arrow_back_rounded, size: 20),
       ),
     );
   }
@@ -391,102 +395,107 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
     );
   }
 
-  Widget _bottomBar(AlbumResponse album, Color background) {
-    return Container(
-      decoration: BoxDecoration(
-          gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [background.withValues(alpha: 0), background, background],
-        stops: const [0, .3, 1],
-      )),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-          child: Center(
-            heightFactor: 1,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _contentWidth - 32),
-              child: Row(children: [
-                _action(
-                    'comic-detail-download',
-                    Icons.file_download_outlined,
-                    context.l10n.tr('下载', en: 'Download'),
-                    () => _download(album)),
-                const SizedBox(width: 4),
-                _action(
-                    'comic-detail-favorite',
-                    _bookshelfLoading
-                        ? Icons.sync
-                        : _inBookshelf
-                            ? Icons.bookmark_added_rounded
-                            : Icons.bookmark_add_outlined,
-                    _inBookshelf
-                        ? context.l10n.tr('已在书架', en: 'In bookshelf')
-                        : context.l10n.tr('加入书架', en: 'Add to bookshelf'),
-                    _bookshelfLoading ? null : () => _changeBookshelf(album),
-                    onLongPress: _bookshelfLoading
-                        ? null
-                        : () => _changeBookshelfGroup(album)),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: FutureBuilder<ViewLog?>(
-                  future: _viewFuture,
-                  builder: (context, snapshot) {
-                    final ready =
-                        snapshot.connectionState == ConnectionState.done;
-                    final target =
-                        comicDetailReadingTarget(album, snapshot.data);
-                    return DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(28),
-                        gradient: ready
-                            ? const LinearGradient(
-                                colors: [Color(0xFF19CADE), Color(0xFF347FF5)])
-                            : null,
-                      ),
-                      child: FilledButton(
-                        key: const ValueKey('comic-detail-read'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          foregroundColor: Colors.white,
-                          shadowColor: Colors.transparent,
-                          minimumSize: const Size(0, 48),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 13),
-                          shape: const StadiumBorder(),
-                          textStyle: Theme.of(context)
-                              .textTheme
-                              .labelLarge
-                              ?.copyWith(
-                                  fontSize: 14, fontWeight: FontWeight.w500),
-                        ),
-                        onPressed: ready
-                            ? () => _read(album, target.chapterId, target.page)
-                            : null,
-                        child:
-                            Column(mainAxisSize: MainAxisSize.min, children: [
-                          Text(
-                              !ready
-                                  ? context.l10n.loading
-                                  : target.continuing
-                                      ? context.l10n
-                                          .tr('继续阅读', en: 'Continue reading')
-                                      : context.l10n
-                                          .tr('开始阅读', en: 'Start reading'),
-                              textAlign: TextAlign.center),
-                          if (ready && target.continuing)
-                            Text('P${target.page + 1}',
-                                style: const TextStyle(
-                                    fontSize: 10, fontWeight: FontWeight.w400)),
-                        ]),
-                      ),
-                    );
-                  },
-                )),
-              ]),
+  Widget _bottomBar(AlbumResponse album) {
+    final scheme = Theme.of(context).colorScheme;
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+      child: Center(
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _contentWidth - 24),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHigh.withValues(alpha: .97),
+              borderRadius: BorderRadius.circular(21),
+              border: Border.all(
+                color: scheme.outlineVariant.withValues(alpha: .5),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: scheme.shadow.withValues(alpha: .28),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
+            child: Row(children: [
+              _action(
+                  'comic-detail-download',
+                  Icons.file_download_outlined,
+                  context.l10n.tr('下载', en: 'Download'),
+                  () => _download(album)),
+              const SizedBox(width: 4),
+              _action(
+                  'comic-detail-favorite',
+                  _bookshelfLoading
+                      ? Icons.sync
+                      : _inBookshelf
+                          ? Icons.bookmark_added_rounded
+                          : Icons.bookmark_add_outlined,
+                  _inBookshelf
+                      ? context.l10n.tr('已在书架', en: 'In bookshelf')
+                      : context.l10n.tr('加入书架', en: 'Add to bookshelf'),
+                  _bookshelfLoading ? null : () => _changeBookshelf(album),
+                  onLongPress: _bookshelfLoading
+                      ? null
+                      : () => _changeBookshelfGroup(album)),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: FutureBuilder<ViewLog?>(
+                future: _viewFuture,
+                builder: (context, snapshot) {
+                  final ready =
+                      snapshot.connectionState == ConnectionState.done;
+                  final target = comicDetailReadingTarget(album, snapshot.data);
+                  return DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(28),
+                      gradient: ready
+                          ? const LinearGradient(
+                              colors: [Color(0xFF19CADE), Color(0xFF347FF5)])
+                          : null,
+                    ),
+                    child: FilledButton(
+                      key: const ValueKey('comic-detail-read'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        foregroundColor: Colors.white,
+                        shadowColor: Colors.transparent,
+                        minimumSize: const Size(0, 48),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 13),
+                        shape: const StadiumBorder(),
+                        textStyle: Theme.of(context)
+                            .textTheme
+                            .labelLarge
+                            ?.copyWith(
+                                fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                      onPressed: ready
+                          ? () => _read(album, target.chapterId, target.page)
+                          : null,
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Text(
+                            !ready
+                                ? context.l10n.loading
+                                : target.continuing
+                                    ? context.l10n
+                                        .tr('继续阅读', en: 'Continue reading')
+                                    : context.l10n
+                                        .tr('开始阅读', en: 'Start reading'),
+                            textAlign: TextAlign.center),
+                        if (ready && target.continuing)
+                          Text('P${target.page + 1}',
+                              style: const TextStyle(
+                                  fontSize: 10, fontWeight: FontWeight.w400)),
+                      ]),
+                    ),
+                  );
+                },
+              )),
+            ]),
           ),
         ),
       ),
@@ -505,15 +514,24 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
       onPressed: onTap,
       style: TextButton.styleFrom(
         foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-        minimumSize: const Size(48, 48),
+        minimumSize: const Size(54, 48),
+        maximumSize: const Size(54, 48),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 20),
         const SizedBox(height: 3),
-        Text(label,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w400)),
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w400),
+          ),
+        ),
       ]),
     );
     return SizedBox(
@@ -567,20 +585,36 @@ class _ComicDetailDirectoryState extends State<_ComicDetailDirectory> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
           child: _tabs(context),
         ),
         Divider(
           key: const ValueKey('comic-detail-directory-divider'),
-          height: 24,
-          thickness: .8,
-          color: Theme.of(context).colorScheme.outlineVariant,
+          height: 12,
+          thickness: .6,
+          color: Theme.of(context)
+              .colorScheme
+              .outlineVariant
+              .withValues(alpha: .34),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (_tabIndex == 0)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: FutureBuilder<ViewLog?>(
+                    future: widget.viewFuture,
+                    builder: (context, snapshot) => _ContinueReadingCard(
+                      album: album,
+                      viewLog: snapshot.data,
+                      ready: snapshot.connectionState == ConnectionState.done,
+                      onRead: widget.onRead,
+                    ),
+                  ),
+                ),
               TickerMode(
                 enabled: _tabIndex == 0,
                 child: Offstage(
@@ -643,100 +677,68 @@ class _ComicDetailDirectoryState extends State<_ComicDetailDirectory> {
     ];
     final textScaler = MediaQuery.textScalerOf(context);
     final tabHeight =
-        (textScaler.scale(13) * 1.35 + 24).clamp(48.0, 76.0).toDouble();
+        (textScaler.scale(13) * 1.3 + 20).clamp(42.0, 68.0).toDouble();
 
-    return Material(
-      color: scheme.onSurface.withValues(alpha: .05),
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final widths = labels.map((label) {
-            final painter = TextPainter(
-              text: TextSpan(
-                text: label,
-                style: theme.textTheme.bodyMedium?.copyWith(fontSize: 13),
-              ),
-              textScaler: textScaler,
-              textDirection: Directionality.of(context),
-            )..layout();
-            final width = painter.width + 24;
-            painter.dispose();
-            return width;
-          }).toList();
-          final scrollable =
-              widths.any((width) => width > constraints.maxWidth / 3);
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: .42),
+        ),
+      ),
+      child: SizedBox(
+        height: tabHeight,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var index = 0; index < labels.length; index++)
+              Expanded(child: _tab(context, index, labels[index])),
+          ],
+        ),
+      ),
+    );
+  }
 
-          Widget tab(int index) {
-            final selected = index == _tabIndex;
-            return Semantics(
-              selected: selected,
-              button: true,
-              child: InkWell(
-                key: ValueKey('comic-detail-tab-$index'),
-                onTap: () => setState(() {
-                  _tabIndex = index;
-                  _visitedTabs.add(index);
-                }),
-                child: SizedBox(
-                  height: tabHeight,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          labels[index],
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight:
-                                selected ? FontWeight.w500 : FontWeight.w400,
-                            color: selected
-                                ? scheme.onSurface
-                                : scheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          height: 2,
-                          width: selected ? 32 : 0,
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? const Color(0xFF22CDE0)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      ],
-                    ),
+  Widget _tab(
+    BuildContext context,
+    int index,
+    String label,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final selected = index == _tabIndex;
+    return Padding(
+      padding: EdgeInsets.only(left: index == 0 ? 0 : 3),
+      child: Material(
+        color: selected ? scheme.primary : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          key: ValueKey('comic-detail-tab-$index'),
+          onTap: () => setState(() {
+            _tabIndex = index;
+            _visitedTabs.add(index);
+          }),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color:
+                        selected ? scheme.onPrimary : scheme.onSurfaceVariant,
                   ),
                 ),
               ),
-            );
-          }
-
-          final row = SizedBox(
-            height: tabHeight,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var index = 0; index < labels.length; index++)
-                  scrollable
-                      ? SizedBox(width: widths[index], child: tab(index))
-                      : Expanded(child: tab(index)),
-              ],
             ),
-          );
-          return scrollable
-              ? SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: row,
-                )
-              : row;
-        },
+          ),
+        ),
       ),
     );
   }
@@ -756,6 +758,101 @@ class _ComicDetailDirectoryState extends State<_ComicDetailDirectory> {
         style: TextStyle(
           color: scheme.onSurfaceVariant,
           fontSize: 12,
+        ),
+      ),
+    );
+  }
+}
+
+class _ContinueReadingCard extends StatelessWidget {
+  final AlbumResponse album;
+  final ViewLog? viewLog;
+  final bool ready;
+  final void Function(int chapterId, int page) onRead;
+
+  const _ContinueReadingCard({
+    required this.album,
+    required this.viewLog,
+    required this.ready,
+    required this.onRead,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final target = comicDetailReadingTarget(album, viewLog);
+    final chapter = album.series.isEmpty
+        ? null
+        : album.series.firstWhere(
+            (item) => item.id == target.chapterId,
+            orElse: () => album.series.first,
+          );
+    final label = target.continuing
+        ? context.l10n.tr('继续阅读', en: 'Continue reading')
+        : context.l10n.tr('开始阅读', en: 'Start reading');
+    final detail = target.continuing
+        ? context.l10n.tr(
+            '第 ${chapter?.sort ?? 1} 话 · P${target.page + 1}',
+            en: 'Chapter ${chapter?.sort ?? 1} · P${target.page + 1}',
+          )
+        : context.l10n.tr('从章节列表开始阅读', en: 'Start from the chapter list');
+    return Material(
+      key: const ValueKey('comic-detail-continue-card'),
+      color: scheme.primary.withValues(alpha: .09),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: scheme.primary.withValues(alpha: .18)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: ready ? () => onRead(target.chapterId, target.page) : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: .13),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(
+                  Icons.menu_book_rounded,
+                  size: 21,
+                  color: scheme.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ready ? label : context.l10n.loading,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      ready ? detail : context.l10n.loading,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: scheme.primary,
+              ),
+            ],
+          ),
         ),
       ),
     );
