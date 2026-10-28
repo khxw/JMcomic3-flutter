@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/content_builder.dart';
+import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
 import 'downloads_exporting_screen.dart';
 import 'downloads_export_shared.dart';
@@ -33,6 +34,7 @@ class _DownloadsExportScreenState extends State<DownloadsExportScreen> {
       key: const ValueKey('batch-export-select-page'),
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,

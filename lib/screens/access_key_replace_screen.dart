@@ -4,6 +4,7 @@ import 'package:jmcomic3/basic/log.dart';
 import '../basic/commons.dart';
 import '../basic/methods.dart';
 import '../configs/is_pro.dart';
+import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
 
 class AccessKeyReplaceScreen extends StatefulWidget {
@@ -60,13 +61,19 @@ class _AccessKeyReplaceScreenState extends State<AccessKeyReplaceScreen> {
   Widget buildScreen(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        appBar: AppBar(title: const Text("验证PAT密钥")),
+        appBar: AppBar(
+          leading: const AppBackButton(),
+          title: const Text("验证PAT密钥"),
+        ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("验证PAT密钥")),
+      appBar: AppBar(
+        leading: const AppBackButton(),
+        title: const Text("验证PAT密钥"),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

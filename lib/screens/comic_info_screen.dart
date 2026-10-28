@@ -12,6 +12,7 @@ import 'comic_download_screen.dart';
 import 'comic_reader_screen.dart';
 import 'comic_search_screen.dart';
 import 'components/bookshelf_group_picker.dart';
+import 'components/app_back_button.dart';
 import 'components/comic_comments_list.dart';
 import 'components/comic_detail_chapters.dart';
 import 'components/comic_detail_header.dart';
@@ -289,11 +290,10 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
               surfaceTintColor: Colors.transparent,
               elevation: 0,
               scrolledUnderElevation: 0,
-              leadingWidth: 60,
-              titleSpacing: 0,
-              leading: Padding(
-                padding: const EdgeInsets.only(left: 12),
-                child: _backButton(context),
+              leadingWidth: 56,
+              titleSpacing: 8,
+              leading: const AppBackButton(
+                key: ValueKey('comic-detail-back'),
               ),
               title: Text(
                 context.l10n.tr('漫画详情', en: 'Comic details'),
@@ -310,32 +310,6 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
             bottomNavigationBar: album != null ? _bottomBar(album) : null,
           );
         },
-      ),
-    );
-  }
-
-  Widget _backButton(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: IconButton(
-        key: const ValueKey('comic-detail-back'),
-        tooltip: context.l10n.tr('返回', en: 'Back'),
-        onPressed: () => Navigator.maybePop(context),
-        style: IconButton.styleFrom(
-          fixedSize: const Size(38, 38),
-          minimumSize: const Size(38, 38),
-          maximumSize: const Size(38, 38),
-          padding: EdgeInsets.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          backgroundColor:
-              scheme.surfaceContainerHighest.withValues(alpha: .72),
-          foregroundColor: scheme.onSurface,
-          side: BorderSide(
-            color: scheme.outlineVariant.withValues(alpha: .35),
-          ),
-          shape: const CircleBorder(),
-        ),
-        icon: const Icon(Icons.arrow_back_rounded, size: 20),
       ),
     );
   }

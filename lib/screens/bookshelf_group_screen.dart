@@ -8,6 +8,8 @@ import 'package:jmcomic3/screens/components/comic_list.dart';
 import 'package:jmcomic3/screens/components/content_loading.dart';
 import 'package:jmcomic3/screens/components/types.dart';
 
+import 'components/app_back_button.dart';
+
 class BookshelfGroupScreen extends StatefulWidget {
   final String title;
   final String? group;
@@ -168,6 +170,7 @@ class _BookshelfGroupScreenState extends State<BookshelfGroupScreen> {
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.surface,
         surfaceTintColor: Colors.transparent,
+        leading: const AppBackButton(),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,

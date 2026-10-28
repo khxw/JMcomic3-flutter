@@ -5,6 +5,7 @@ import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
+import 'components/app_back_button.dart';
 import 'components/browser_bottom_sheet.dart';
 import 'components/comic_pager.dart';
 import 'components/right_click_pop.dart';
@@ -30,6 +31,7 @@ class _ViewLogScreenState extends State<ViewLogScreen> {
     final l10n = context.l10n;
     return Scaffold(
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Text(l10n.viewHistory),
         actions: [
           IconButton(

@@ -7,6 +7,7 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 import '../basic/commons.dart';
 import '../configs/export_path.dart';
 import '../configs/export_rename.dart';
+import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
 import 'downloads_export_ui.dart';
 
@@ -363,6 +364,7 @@ class _DownloadsExportingScreenState extends State<DownloadsExportingScreen> {
         key: const ValueKey('batch-export-format-page'),
         backgroundColor: Theme.of(context).colorScheme.surface,
         appBar: AppBar(
+          leading: const AppBackButton(),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,

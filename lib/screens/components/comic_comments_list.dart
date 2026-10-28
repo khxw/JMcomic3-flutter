@@ -9,6 +9,7 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/item_builder.dart';
 
 import '../comic_info_screen.dart';
+import 'app_back_button.dart';
 import 'avatar.dart';
 import 'text_preview_screen.dart';
 
@@ -549,7 +550,7 @@ class _CommentChildrenScreenState extends State<_CommentChildrenScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(leading: const AppBackButton()),
       body: Column(
         children: [
           _ComicCommentItem(

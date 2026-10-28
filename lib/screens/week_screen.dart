@@ -6,6 +6,7 @@ import 'package:jmcomic3/screens/components/content_builder.dart';
 import 'package:jmcomic3/screens/components/week_comic_feed.dart';
 
 import '../basic/methods.dart';
+import 'components/app_back_button.dart';
 
 class WeekScreen extends StatefulWidget {
   const WeekScreen({super.key});
@@ -45,6 +46,7 @@ class _WeekScreenState extends State<WeekScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Text(context.l10n.weekMustSee),
         actions: [
           if (_categories.isNotEmpty && _selectedCategoryId != null)

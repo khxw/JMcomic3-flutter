@@ -28,6 +28,7 @@ import '../configs/ignore_view_log.dart';
 import '../configs/no_animation.dart';
 import '../configs/volume_key_control.dart';
 import '../basic/reader_system_ui.dart';
+import 'components/app_back_button.dart';
 import 'components/images.dart';
 import 'components/right_click_pop.dart';
 import '../basic/reader_pages.dart';
@@ -167,7 +168,7 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
       builder: (BuildContext context, AsyncSnapshot<ChapterResponse> snapshot) {
         if (snapshot.hasError) {
           return Scaffold(
-            appBar: AppBar(),
+            appBar: AppBar(leading: const AppBackButton()),
             body: ContentError(
               onRefresh: () async {
                 if (!mounted) {
@@ -183,7 +184,7 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
         }
         if (snapshot.connectionState != ConnectionState.done) {
           return Scaffold(
-            appBar: AppBar(),
+            appBar: AppBar(leading: const AppBackButton()),
             body: const ContentLoading(),
           );
         }
@@ -194,7 +195,7 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
           // Gallery/PhotoView controllers may assert on an empty page list,
           // while list readers have no meaningful page to restore.
           return Scaffold(
-            appBar: AppBar(),
+            appBar: AppBar(leading: const AppBackButton()),
             body: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,

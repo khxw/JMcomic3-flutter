@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/local_bookshelf.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
+import 'components/app_back_button.dart';
+
 class BookshelfGroupManagementScreen extends StatefulWidget {
   const BookshelfGroupManagementScreen({super.key});
 
@@ -98,6 +100,7 @@ class _BookshelfGroupManagementScreenState
     return Scaffold(
       key: const ValueKey('bookshelf-group-management-page'),
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,

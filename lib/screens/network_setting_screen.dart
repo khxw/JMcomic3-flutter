@@ -5,6 +5,7 @@ import 'package:jmcomic3/configs/network_cdn_host.dart';
 import 'package:jmcomic3/configs/proxy.dart';
 import 'package:jmcomic3/screens/init_screen.dart';
 
+import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
 import 'downloads_screen.dart';
 
@@ -19,6 +20,7 @@ class NetworkSettingScreen extends StatelessWidget {
   Widget buildScreen(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Text(context.l10n.networkSettings),
         actions: [
           IconButton(

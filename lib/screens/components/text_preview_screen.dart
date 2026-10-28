@@ -3,6 +3,8 @@ import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/configs/app_font_size.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
+import 'app_back_button.dart';
+
 class TextPreviewScreen extends StatefulWidget {
   final String text;
 
@@ -24,6 +26,7 @@ class _TextPreviewScreenState extends State<TextPreviewScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Text(context.l10n.tr('评论全文', en: 'Full comment')),
         actions: [
           IconButton(

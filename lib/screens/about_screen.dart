@@ -5,6 +5,7 @@ import 'package:jmcomic3/configs/versions.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/badge.dart';
 
+import 'components/app_back_button.dart';
 import 'components/app_icon.dart';
 import 'components/right_click_pop.dart';
 
@@ -58,6 +59,7 @@ class _AboutState extends State<AboutScreen> {
       key: const ValueKey('about-update-page'),
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Text(context.l10n.about),
         surfaceTintColor: Colors.transparent,
       ),

@@ -3,6 +3,7 @@ import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/content_builder.dart';
 import 'package:jmcomic3/screens/downloads_exporting_screen2.dart';
+import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
 import 'downloads_export_shared.dart';
 import 'downloads_export_ui.dart';
@@ -33,6 +34,7 @@ class _DownloadsExportScreen2State extends State<DownloadsExportScreen2> {
       key: const ValueKey('batch-export-incomplete-select-page'),
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,

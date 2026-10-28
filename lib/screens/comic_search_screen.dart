@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/screens/components/floating_search_bar.dart';
 
+import 'components/app_back_button.dart';
+import 'components/actions.dart';
 import 'components/browser_bottom_sheet.dart';
 import 'components/comic_floating_search_bar.dart';
 import 'components/comic_pager.dart';
-import 'components/actions.dart';
 import 'components/right_click_pop.dart';
 
 class ComicSearchScreen extends StatefulWidget {
@@ -38,6 +39,7 @@ class _ComicSearchScreenState extends State<ComicSearchScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
+          leading: const AppBackButton(),
           title: Text(_keywords),
           actions: [
             IconButton(

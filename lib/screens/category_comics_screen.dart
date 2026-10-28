@@ -4,6 +4,7 @@ import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/comic_pager.dart';
 
+import 'components/app_back_button.dart';
 import 'components/browser_bottom_sheet.dart';
 
 class CategoryComicsScreen extends StatefulWidget {
@@ -46,6 +47,7 @@ class _CategoryComicsScreenState extends State<CategoryComicsScreen> {
       key: const ValueKey('category-comics-screen'),
       backgroundColor: scheme.surface,
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Text(widget.category.name),
         surfaceTintColor: Colors.transparent,
         actions: const [BrowserBottomSheetAction()],

@@ -7,6 +7,7 @@ import 'package:jmcomic3/screens/components/images.dart';
 import 'package:jmcomic3/screens/components/right_click_pop.dart';
 
 import 'comic_download_shared.dart';
+import 'components/app_back_button.dart';
 import 'downloads_screen.dart';
 
 class ComicDownloadScreen extends StatefulWidget {
@@ -140,7 +141,8 @@ class _ComicDownloadScreenState extends State<ComicDownloadScreen> {
       appBar: AppBar(
         backgroundColor: theme.colorScheme.surface,
         surfaceTintColor: Colors.transparent,
-        titleSpacing: 0,
+        leading: const AppBackButton(),
+        titleSpacing: 8,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:jmcomic3/configs/login.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
+import 'components/app_back_button.dart';
 import 'components/comic_comments_list.dart';
 import 'components/right_click_pop.dart';
 
@@ -37,6 +38,7 @@ class _CommentsScreenState extends State<CommentsScreen>
   Widget buildScreen(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Text(context.l10n.discussion),
       ),
       body: _body(),

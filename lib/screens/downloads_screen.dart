@@ -9,6 +9,7 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/content_loading.dart';
 import 'package:jmcomic3/screens/download_import_screen.dart';
 
+import 'components/app_back_button.dart';
 import 'components/comic_download_card.dart';
 import 'components/right_click_pop.dart';
 import 'download_album_screen.dart';
@@ -106,6 +107,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     final l10n = context.l10n;
     return Scaffold(
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Text(l10n.downloads),
         actions: [
           threadCountButton(),

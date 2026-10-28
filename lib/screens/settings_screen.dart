@@ -33,6 +33,7 @@ import '../basic/commons.dart';
 import '../basic/web_dav_sync.dart';
 import '../configs/Authentication.dart';
 import '../configs/disable_recommend_content.dart';
+import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
 import 'init_screen.dart';
 
@@ -54,6 +55,7 @@ class _SettingsState extends State<SettingsScreen> {
     return Scaffold(
       key: const ValueKey('settings-page'),
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Text(l10n.settings),
       ),
       body: SafeArea(

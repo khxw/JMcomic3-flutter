@@ -132,8 +132,10 @@ class _ComicDetailHeaderState extends State<ComicDetailHeader> {
                               displayJmcode) ...[
                             const SizedBox(height: 8),
                             if (published != null)
-                              Text(
-                                '${context.l10n.tr('发布', en: 'Published')} $published',
+                              _DetailMeta(
+                                icon: Icons.calendar_today_outlined,
+                                text:
+                                    '${context.l10n.tr('发布', en: 'Published')} $published',
                                 style: metaStyle,
                               ),
                             if (updated != null || displayJmcode)

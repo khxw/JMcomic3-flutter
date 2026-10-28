@@ -9,6 +9,7 @@ import 'package:jmcomic3/screens/components/images.dart';
 import 'comic_info_screen.dart';
 import 'comic_reader_screen.dart';
 import 'comic_search_screen.dart';
+import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
 
 class DownloadAlbumScreen extends StatefulWidget {
@@ -110,6 +111,7 @@ class _DownloadAlbumScreenState extends State<DownloadAlbumScreen> {
       appBar: AppBar(
         backgroundColor: theme.colorScheme.surface,
         surfaceTintColor: Colors.transparent,
+        leading: const AppBackButton(),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,

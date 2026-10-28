@@ -6,6 +6,7 @@ import 'package:jmcomic3/configs/login.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/comic_pager.dart';
 
+import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
 
 class FavoritesScreen extends StatefulWidget {
@@ -98,6 +99,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     final sortNameMap = _sortNameMap(context);
     return Scaffold(
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Text(context.l10n.favorites),
         actions: [
           IconButton(

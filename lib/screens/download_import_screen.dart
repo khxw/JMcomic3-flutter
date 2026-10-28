@@ -9,6 +9,7 @@ import '../basic/commons.dart';
 import '../basic/methods.dart';
 import '../configs/import_notice.dart';
 import '../configs/is_pro.dart';
+import 'components/app_back_button.dart';
 import 'components/content_loading.dart';
 import 'components/right_click_pop.dart';
 import 'download_import_shared.dart';
@@ -55,6 +56,7 @@ class _DownloadImportScreenState extends State<DownloadImportScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Text(context.l10n.tr('导入', en: 'Import')),
       ),
       body: ListView(

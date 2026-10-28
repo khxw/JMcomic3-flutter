@@ -5,6 +5,7 @@ import 'package:jmcomic3/basic/log.dart';
 import '../basic/methods.dart';
 import '../configs/is_pro.dart';
 import 'access_key_replace_screen.dart';
+import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
 
 class ProScreen extends StatefulWidget {
@@ -48,6 +49,7 @@ class _ProScreenState extends State<ProScreen> {
     var min = size.width < size.height ? size.width : size.height;
     return Scaffold(
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: const Text("发电中心"),
       ),
       body: ListView(
