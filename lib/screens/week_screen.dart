@@ -19,9 +19,6 @@ class _WeekScreenState extends State<WeekScreen> {
   late Future<WeekData> _weekData;
   final ValueNotifier<String?> _categoryNotifier = ValueNotifier<String?>(null);
 
-  List<WeekCategory> _categories = const [];
-  String? _categoryId;
-
   @override
   void initState() {
     super.initState();
@@ -37,8 +34,6 @@ class _WeekScreenState extends State<WeekScreen> {
   Future<void> _refresh() async {
     setState(() {
       _weekData = methods.week(0);
-      _categories = const [];
-      _categoryId = null;
       _categoryNotifier.value = null;
     });
   }
@@ -48,10 +43,6 @@ class _WeekScreenState extends State<WeekScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(context.l10n.weekMustSee),
-        actions: [
-          if (_categories.isNotEmpty && _categoryId != null)
-            _buildCategorySelector(context),
-        ],
       ),
       body: ContentBuilder<WeekData>(
         future: _weekData,
@@ -59,16 +50,7 @@ class _WeekScreenState extends State<WeekScreen> {
         successBuilder: (context, data) {
           final weekData = data.requireData;
           final selectedCategoryId =
-              _resolveCategoryId(weekData.categories, _categoryId);
-          if (!_sameCategories(_categories, weekData.categories) ||
-              _categoryId != selectedCategoryId) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) {
-                return;
-              }
-              _syncAppBarState(weekData.categories, selectedCategoryId);
-            });
-          }
+              _resolveCategoryId(weekData.categories, _categoryNotifier.value);
           return WeekContent(
             key: ValueKey(
               'week_content_${weekData.categories.length}_${weekData.types.length}',
@@ -76,147 +58,11 @@ class _WeekScreenState extends State<WeekScreen> {
             data: weekData,
             initialCategoryId: selectedCategoryId,
             categoryNotifier: _categoryNotifier,
-            onCategoryChanged: (value) {
-              _syncAppBarState(weekData.categories, value);
-            },
+            onCategoryChanged: (_) {},
           );
         },
       ),
     );
-  }
-
-  Widget _buildCategorySelector(BuildContext context) {
-    final selectedCategoryId = _resolveCategoryId(_categories, _categoryId);
-    if (selectedCategoryId == null) {
-      return const SizedBox.shrink();
-    }
-    final textStyle = _categorySelectorTextStyle(context);
-    final selectorWidth = _calcCategorySelectorWidth(context, textStyle);
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: Center(
-        child: SizedBox(
-          width: selectorWidth,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Theme.of(context)
-                  .colorScheme
-                  .surfaceContainerHighest
-                  .withValues(alpha: .7),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: selectedCategoryId,
-                  isDense: true,
-                  isExpanded: true,
-                  iconSize: 18,
-                  style: textStyle,
-                  borderRadius: BorderRadius.circular(12),
-                  menuMaxHeight: 420,
-                  selectedItemBuilder: (context) {
-                    return _categories
-                        .map(
-                          (e) => Align(
-                            alignment: Alignment.centerLeft,
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                e.time,
-                                maxLines: 1,
-                                style: textStyle,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(growable: false);
-                  },
-                  items: _categories
-                      .map(
-                        (e) => DropdownMenuItem(
-                          value: e.id,
-                          child: Text(
-                            e.time,
-                            style: textStyle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(growable: false),
-                  onChanged: (value) {
-                    if (value == null || value == _categoryId) {
-                      return;
-                    }
-                    setState(() {
-                      _categoryId = value;
-                      _categoryNotifier.value = value;
-                    });
-                  },
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  TextStyle _categorySelectorTextStyle(BuildContext context) {
-    final base = Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
-    return base.copyWith(
-      fontSize: 12.5,
-      fontWeight: FontWeight.w500,
-      height: 1.1,
-    );
-  }
-
-  double _calcCategorySelectorWidth(BuildContext context, TextStyle textStyle) {
-    final textDirection = Directionality.of(context);
-    var longestWidth = 0.0;
-    for (final category in _categories) {
-      final painter = TextPainter(
-        text: TextSpan(text: category.time, style: textStyle),
-        maxLines: 1,
-        textDirection: textDirection,
-      )..layout();
-      longestWidth = math.max(longestWidth, painter.width);
-    }
-    // 文字宽度 + 左右内边距 + 下拉图标空间。
-    final preferredWidth = longestWidth + 46;
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final maxWidth = screenWidth * .52;
-    return preferredWidth.clamp(126.0, maxWidth).toDouble();
-  }
-
-  void _syncAppBarState(List<WeekCategory> categories, String? selectedId) {
-    final nextId = _resolveCategoryId(categories, selectedId);
-    if (categories.isEmpty || nextId == null) {
-      if (_categories.isEmpty && _categoryId == null) {
-        return;
-      }
-      setState(() {
-        _categories = const [];
-        _categoryId = null;
-        _categoryNotifier.value = null;
-      });
-      return;
-    }
-
-    final changed =
-        !_sameCategories(_categories, categories) || _categoryId != nextId;
-    if (changed) {
-      setState(() {
-        _categories = List<WeekCategory>.unmodifiable(categories);
-        _categoryId = nextId;
-      });
-    }
-    if (_categoryNotifier.value != nextId) {
-      _categoryNotifier.value = nextId;
-    }
   }
 
   static String? _resolveCategoryId(
@@ -231,126 +77,6 @@ class _WeekScreenState extends State<WeekScreen> {
       return candidate;
     }
     return categories.first.id;
-  }
-
-  static bool _sameCategories(List<WeekCategory> a, List<WeekCategory> b) {
-    if (identical(a, b)) {
-      return true;
-    }
-    if (a.length != b.length) {
-      return false;
-    }
-    for (var i = 0; i < a.length; i++) {
-      if (a[i].id != b[i].id || a[i].time != b[i].time) {
-        return false;
-      }
-    }
-    return true;
-  }
-}
-
-class _IssueHeader extends StatelessWidget {
-  final WeekCategory category;
-  final int issueCount;
-
-  const _IssueHeader({
-    required this.category,
-    required this.issueCount,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final title = category.title.trim().isEmpty
-        ? context.l10n.weekMustSee
-        : category.title.trim();
-    return Container(
-      key: const ValueKey('week-issue-header'),
-      padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow.withValues(alpha: .9),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: scheme.primary.withValues(alpha: .16),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: scheme.shadow.withValues(alpha: .05),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  scheme.primary,
-                  scheme.tertiary,
-                ],
-              ),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              Icons.auto_awesome_rounded,
-              color: scheme.onPrimary,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: .1,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  context.l10n.tr(
-                    '${category.time} · $issueCount 期',
-                    en: '${category.time} · $issueCount ${issueCount == 1 ? 'issue' : 'issues'}',
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-            decoration: BoxDecoration(
-              color: scheme.primary.withValues(alpha: .1),
-              borderRadius: BorderRadius.circular(99),
-            ),
-            child: Text(
-              context.l10n.tr('每周精选', en: 'Weekly'),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.primary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -386,10 +112,13 @@ class _WeekContentState extends State<WeekContent>
     _categoryId = _resolveInitialCategoryId();
     _typeId = _displayTypes.isNotEmpty ? _displayTypes.first.id : '';
     _tabController = _createTabController(preferredTypeId: _typeId);
-    widget.categoryNotifier.addListener(_onCategoryChangedFromAppBar);
+    widget.categoryNotifier.addListener(_onCategoryNotifierChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _categoryId.isEmpty) {
         return;
+      }
+      if (widget.categoryNotifier.value != _categoryId) {
+        widget.categoryNotifier.value = _categoryId;
       }
       widget.onCategoryChanged(_categoryId);
     });
@@ -412,6 +141,9 @@ class _WeekContentState extends State<WeekContent>
     if (resolvedCategoryId != _categoryId) {
       _categoryId = resolvedCategoryId;
       if (_categoryId.isNotEmpty) {
+        if (widget.categoryNotifier.value != _categoryId) {
+          widget.categoryNotifier.value = _categoryId;
+        }
         widget.onCategoryChanged(_categoryId);
       }
     }
@@ -419,7 +151,7 @@ class _WeekContentState extends State<WeekContent>
 
   @override
   void dispose() {
-    widget.categoryNotifier.removeListener(_onCategoryChangedFromAppBar);
+    widget.categoryNotifier.removeListener(_onCategoryNotifierChanged);
     _tabController.dispose();
     super.dispose();
   }
@@ -432,9 +164,9 @@ class _WeekContentState extends State<WeekContent>
       );
     }
     final scheme = Theme.of(context).colorScheme;
-    final selectedCategory = widget.data.categories.firstWhere(
-      (category) => category.id == _categoryId,
-      orElse: () => widget.data.categories.first,
+    final issueChipHeight = math.max(
+      38.0,
+      MediaQuery.textScalerOf(context).scale(12.5) + 18,
     );
     final typeTabHeight = math.max(
       36.0,
@@ -455,13 +187,79 @@ class _WeekContentState extends State<WeekContent>
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: _IssueHeader(
-              category: selectedCategory,
-              issueCount: widget.data.categories.length,
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+            child: SizedBox(
+              key: const ValueKey('week-issue-selector'),
+              height: issueChipHeight,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                itemCount: widget.data.categories.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final category = widget.data.categories[index];
+                  final selected = category.id == _categoryId;
+                  final chip = Material(
+                    key: ValueKey('week-issue-choice-${category.id}'),
+                    color: selected
+                        ? scheme.primary
+                        : scheme.surfaceContainerLow.withValues(alpha: .92),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(99),
+                      side: BorderSide(
+                        color: selected
+                            ? scheme.primary
+                            : scheme.outlineVariant.withValues(alpha: .5),
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () => _selectCategory(category.id),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              selected
+                                  ? Icons.calendar_month_rounded
+                                  : Icons.calendar_today_outlined,
+                              size: 15,
+                              color: selected
+                                  ? scheme.onPrimary
+                                  : scheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              category.time,
+                              maxLines: 1,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(
+                                    color: selected
+                                        ? scheme.onPrimary
+                                        : scheme.onSurfaceVariant,
+                                    fontWeight: selected
+                                        ? FontWeight.w700
+                                        : FontWeight.w600,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                  if (category.title.trim().isEmpty) return chip;
+                  return Tooltip(
+                    message: category.title.trim(),
+                    child: chip,
+                  );
+                },
+              ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Container(
@@ -595,15 +393,25 @@ class _WeekContentState extends State<WeekContent>
       return;
     }
     final nextId = widget.data.categories[currentIndex + 1].id;
-    setState(() {
-      _categoryId = nextId;
-    });
-    widget.categoryNotifier.value = nextId;
-    widget.onCategoryChanged(nextId);
+    _selectCategory(nextId);
     defaultToast(context, context.l10n.switchedToNextIssue);
   }
 
-  void _onCategoryChangedFromAppBar() {
+  void _selectCategory(String nextId) {
+    if (nextId == _categoryId) return;
+    if (!widget.data.categories.any((category) => category.id == nextId)) {
+      return;
+    }
+    setState(() {
+      _categoryId = nextId;
+    });
+    if (widget.categoryNotifier.value != nextId) {
+      widget.categoryNotifier.value = nextId;
+    }
+    widget.onCategoryChanged(nextId);
+  }
+
+  void _onCategoryNotifierChanged() {
     final value = widget.categoryNotifier.value;
     if (value == null || value == _categoryId) {
       return;

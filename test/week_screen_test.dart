@@ -70,12 +70,13 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    final issueHeader = find.byKey(const ValueKey('week-issue-header'));
+    final issueSelector = find.byKey(const ValueKey('week-issue-selector'));
     final typeSelector = find.byKey(const ValueKey('week-type-selector'));
-    expect(issueHeader, findsOneWidget);
+    expect(issueSelector, findsOneWidget);
     expect(typeSelector, findsOneWidget);
+    expect(find.byKey(const ValueKey('week-issue-header')), findsNothing);
     expect(
-      tester.getRect(issueHeader).bottom,
+      tester.getRect(issueSelector).bottom,
       lessThan(tester.getRect(typeSelector).top),
     );
     expect(
@@ -95,8 +96,11 @@ void main() {
       {'category_id': 'issue-1', 'type_id': 'hot', 'page': 1},
       {'category_id': 'issue-1', 'type_id': 'hot', 'page': 1},
     ]);
-    categoryNotifier.value = 'issue-2';
+    await tester.tap(
+      find.byKey(const ValueKey('week-issue-choice-issue-2')),
+    );
     await tester.pumpAndSettle();
+    expect(categoryNotifier.value, 'issue-2');
     expect(
         requests.last, {'category_id': 'issue-2', 'type_id': 'hot', 'page': 1});
     expect(requests, hasLength(3));
@@ -174,12 +178,12 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    final header =
-        tester.getRect(find.byKey(const ValueKey('week-issue-header')));
+    final issues =
+        tester.getRect(find.byKey(const ValueKey('week-issue-selector')));
     final selector =
         tester.getRect(find.byKey(const ValueKey('week-type-selector')));
-    expect(header.left, greaterThanOrEqualTo(0));
-    expect(header.right, lessThanOrEqualTo(320));
+    expect(issues.left, greaterThanOrEqualTo(0));
+    expect(issues.right, lessThanOrEqualTo(320));
     expect(selector.left, greaterThanOrEqualTo(0));
     expect(selector.right, lessThanOrEqualTo(320));
     expect(
