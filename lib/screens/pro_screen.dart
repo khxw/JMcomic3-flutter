@@ -1,32 +1,33 @@
 import 'package:flutter/material.dart';
-
-import '../basic/commons.dart';
+import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/log.dart';
-import '../basic/methods.dart';
-import '../configs/is_pro.dart';
+import 'package:jmcomic3/basic/methods.dart';
+import 'package:jmcomic3/configs/is_pro.dart';
+import 'package:jmcomic3/l10n/app_localizations.dart';
+
 import 'access_key_replace_screen.dart';
 import 'components/app_back_button.dart';
+import 'components/pro_center_ui.dart';
 import 'components/right_click_pop.dart';
 
 class ProScreen extends StatefulWidget {
-  const ProScreen({Key? key}) : super(key: key);
+  const ProScreen({super.key});
 
   @override
-  State<StatefulWidget> createState() => _ProScreenState();
+  State<ProScreen> createState() => _ProScreenState();
 }
 
 class _ProScreenState extends State<ProScreen> {
-  String _username = "";
+  String _username = '';
 
   @override
   void initState() {
+    super.initState();
     methods.loadLastLoginUsername().then((value) {
-      setState(() {
-        _username = value;
-      });
+      if (!mounted) return;
+      setState(() => _username = value);
     });
     proEvent.subscribe(_setState);
-    super.initState();
   }
 
   @override
@@ -36,7 +37,7 @@ class _ProScreenState extends State<ProScreen> {
   }
 
   void _setState(_) {
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   @override
@@ -45,301 +46,383 @@ class _ProScreenState extends State<ProScreen> {
   }
 
   Widget buildScreen(BuildContext context) {
-    var size = MediaQuery.of(context).size;
-    var min = size.width < size.height ? size.width : size.height;
-    return Scaffold(
-      appBar: AppBar(
-        leading: const AppBackButton(),
-        title: const Text("发电中心"),
+    final l10n = context.l10n;
+    return ProCenterBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          leading: const AppBackButton(),
+          title: Text(l10n.tr('发电中心', en: 'Support center')),
+        ),
+        body: SafeArea(
+          top: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                children: [
+                  ProCenterHeroCard(
+                    username: _username,
+                    active: isPro,
+                    expiry: proCenterExpiryLabel(proInfoAf.expire),
+                  ),
+                  const SizedBox(height: 14),
+                  _statusCard(context),
+                  const SizedBox(height: 12),
+                  ProCenterSectionCard(
+                    icon: Icons.sync_rounded,
+                    title: l10n.tr('同步发电状态', en: 'Refresh support status'),
+                    subtitle: l10n.tr(
+                      '重新获取账号当前的发电与会员信息',
+                      en: 'Reload the current membership and support status',
+                    ),
+                    onTap: _refreshStatus,
+                  ),
+                  const SizedBox(height: 12),
+                  ProCenterSectionCard(
+                    icon: Icons.redeem_rounded,
+                    title: l10n.tr('兑换礼物卡', en: 'Redeem gift code'),
+                    subtitle: l10n.tr(
+                      '输入作者提供的兑换代码',
+                      en: 'Enter the gift code provided by the author',
+                    ),
+                    onTap: _redeemCode,
+                  ),
+                  const SizedBox(height: 12),
+                  const ProCenterServerCard(),
+                  const SizedBox(height: 12),
+                  _patCard(context),
+                  const SizedBox(height: 12),
+                  _guideCard(context),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
-      body: ListView(
+    );
+  }
+
+  Widget _statusCard(BuildContext context) {
+    final l10n = context.l10n;
+    return ProCenterSectionCard(
+      icon: Icons.verified_user_outlined,
+      title: l10n.tr('会员状态', en: 'Membership status'),
+      child: Column(
         children: [
-          SizedBox(
-            width: min / 2,
-            height: min / 2,
-            child: Center(
-              child: Icon(
-                isPro ? Icons.offline_bolt : Icons.offline_bolt_outlined,
-                size: min / 3,
-                color: Colors.grey.shade500,
-              ),
-            ),
+          ProCenterInfoRow(
+            icon: Icons.person_outline_rounded,
+            label: l10n.tr('登录兑换', en: 'Account'),
+            value: proInfoAf.isPro
+                ? l10n.tr('发电中', en: 'Active')
+                : l10n.tr('未发电', en: 'Inactive'),
+            valueColor:
+                proInfoAf.isPro ? Theme.of(context).colorScheme.primary : null,
           ),
-          Center(child: Text(_username)),
-          Container(height: 20),
-          const Divider(),
-          const Padding(
-            padding: EdgeInsets.all(20),
-            child: Text(
-              "登录账号才能确认发电状态\n"
-              "点击\"我曾经发过电\"进同步发电状态\n"
-              "点击\"我刚才发了电\"兑换作者给您的礼物卡\n"
-              "更换\"发电方式\"可能解决FAIL问题\n"
-              "去\"关于\"界面找到维护地址用爱发电",
-            ),
+          const Divider(height: 1),
+          ProCenterInfoRow(
+            icon: Icons.vpn_key_outlined,
+            label: l10n.tr('PAT会员', en: 'PAT'),
+            value: proInfoPat.isPro
+                ? l10n.tr('发电中', en: 'Active')
+                : l10n.tr('未发电', en: 'Inactive'),
+            valueColor: proInfoPat.isPro
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.error,
           ),
-          const Divider(),
-          Row(
-            children: [
-              Expanded(
-                child: ListTile(
-                  title: const Text("登录兑换"),
-                  subtitle: Text(
-                    proInfoAf.isPro
-                        ? "发电中 (${DateTime.fromMillisecondsSinceEpoch(1000 * proInfoAf.expire).toString()})"
-                        : "未发电",
-                  ),
-                ),
-              ),
-              Expanded(
-                child: ListTile(
-                  title: const Text("PAT会员"),
-                  subtitle: Text(
-                    proInfoPat.isPro ? "发电中" : "未发电",
-                  ),
-                  onTap: () {
-                    defaultToast(context, "点击下方PAT会员进行设置");
-                  },
-                ),
-              ),
-            ],
-          ),
-          const Divider(),
-          ListTile(
-            title: const Text("我曾经发过电"),
-            onTap: () async {
-              try {
-                await methods.reloadPro();
-                defaultToast(context, "SUCCESS");
-              } catch (e, s) {
-                debugPrient("$e\n$s");
-                defaultToast(context, "FAIL");
-              }
-              await reloadIsPro();
-              setState(() {});
-            },
-          ),
-          const Divider(),
-          ListTile(
-            title: const Text("我刚才发了电"),
-            onTap: () async {
-              final code = await displayTextInputDialog(context, title: "输入代码");
-              if (code != null && code.isNotEmpty) {
-                try {
-                  await methods.inputCdKey(code);
-                  defaultToast(context, "SUCCESS");
-                } catch (e, s) {
-                  debugPrient("$e\n$s");
-                  defaultToast(context, "FAIL");
-                }
-              }
-              await reloadIsPro();
-              setState(() {});
-            },
-          ),
-          const Divider(),
-          const ProServerNameWidget(),
-          const Divider(),
-          ...patProWidgets(),
-          const Divider(),
         ],
       ),
     );
   }
 
-  List<Widget> patProWidgets() {
-    List<Widget> widgets = [];
-    if (proInfoPat.accessKey.isNotEmpty) {
-      var text = "已记录密钥";
-      if (proInfoPat.patId.isNotEmpty) {
-        text += "\nPAT账号: ${proInfoPat.patId}";
-      }
-      if (proInfoPat.bindUid.isNotEmpty) {
-        text += "\n绑定账号: ${proInfoPat.bindUid}";
-      }
-      if (proInfoPat.requestDelete > 0) {
-        DateTime dateTime = DateTime.fromMillisecondsSinceEpoch(
-          proInfoPat.requestDelete * 1000,
-          isUtc: true,
-        );
-        text += "\n解绑时间: ${dateTime.toLocal()}";
-      }
-      if (proInfoPat.reBind > 0) {
-        DateTime dateTime = DateTime.fromMillisecondsSinceEpoch(
-          proInfoPat.reBind * 1000,
-          isUtc: true,
-        );
-        text += "\n可重绑时间: ${dateTime.toLocal()}";
-      }
+  Widget _patCard(BuildContext context) {
+    final l10n = context.l10n;
+    final configured = proInfoPat.accessKey.isNotEmpty;
+    final status = _patStatus(context);
+    return ProCenterSectionCard(
+      icon: Icons.key_rounded,
+      title: l10n.tr('PAT 会员', en: 'PAT membership'),
+      subtitle: configured
+          ? l10n.tr('已记录授权密钥', en: 'Authorization key saved')
+          : l10n.tr(
+              '绑定 PAT 授权码以同步会员状态',
+              en: 'Bind a PAT key to sync membership status',
+            ),
+      trailing: configured ? _statusBadge(context, status) : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (configured) ...[
+            if (proInfoPat.patId.isNotEmpty)
+              ProCenterInfoRow(
+                icon: Icons.badge_outlined,
+                label: l10n.tr('PAT账号', en: 'PAT account'),
+                value: proInfoPat.patId,
+              ),
+            if (proInfoPat.bindUid.isNotEmpty)
+              ProCenterInfoRow(
+                icon: Icons.link_rounded,
+                label: l10n.tr('绑定账号', en: 'Bound account'),
+                value: proInfoPat.bindUid,
+              ),
+            if (proInfoPat.reBind > 0)
+              ProCenterInfoRow(
+                icon: Icons.schedule_rounded,
+                label: l10n.tr('可重绑时间', en: 'Rebind available'),
+                value: _formatTimestamp(proInfoPat.reBind),
+              ),
+            if (proInfoPat.requestDelete > 0)
+              ProCenterInfoRow(
+                icon: Icons.event_busy_outlined,
+                label: l10n.tr('解绑时间', en: 'Unbind time'),
+                value: _formatTimestamp(proInfoPat.requestDelete),
+              ),
+          ] else
+            Text(
+              l10n.tr(
+                'PAT 密钥仅保存在本机与账号同步配置中，不会显示完整密钥内容。',
+                en: 'The PAT key is stored locally and in your account sync settings. The full key is never displayed.',
+              ),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.5,
+                  ),
+            ),
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            onPressed: configured ? _managePat : _addPatAccount,
+            icon: Icon(configured ? Icons.manage_accounts : Icons.add_rounded),
+            label: Text(
+              configured
+                  ? l10n.tr('管理 PAT', en: 'Manage PAT')
+                  : l10n.tr('绑定 PAT 授权码', en: 'Bind PAT key'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-      List<TextSpan> append = [];
-      if (proInfoPat.bindUid == "") {
-        append.add(const TextSpan(
-          text: "\n(点击绑定到当前账号)",
-          style: TextStyle(color: Colors.blue),
-        ));
-      } else if (proInfoPat.bindUid != _username) {
-        append.add(const TextSpan(
-          text: "\n(已绑定到其他账号，点击重新绑定)",
-          style: TextStyle(color: Colors.red),
-        ));
-      } else if (proInfoPat.isPro == false) {
-        append.add(const TextSpan(
-          text: "\n(未检测到发电状态)",
-          style: TextStyle(color: Colors.orange),
-        ));
-      } else {
-        append.add(const TextSpan(
-          text: "\n(正常)",
-          style: TextStyle(color: Colors.green),
-        ));
-      }
-
-      widgets.add(ListTile(
-        onTap: () async {
-          var choose = await chooseMapDialog<int>(
+  Widget _guideCard(BuildContext context) {
+    final l10n = context.l10n;
+    return ProCenterSectionCard(
+      icon: Icons.info_outline_rounded,
+      title: l10n.tr('使用说明', en: 'How it works'),
+      child: Column(
+        children: [
+          _guideRow(
             context,
-            title: "选择操作",
-            values: {
-              "更新PAT状态": 2,
-              "绑定到当前账号": 3,
-              "更换PAT密钥": 1,
-              "清除PAT信息": 4,
-            },
-          );
-          switch (choose) {
-            case 1:
-              addPatAccount();
-              break;
-            case 2:
-              reloadPatAccount();
-              break;
-            case 3:
-              bindThisAccount();
-              break;
-            case 4:
-              clearPatInfo();
-              break;
-          }
-        },
-        title: const Text("PAT会员"),
-        subtitle: Text.rich(TextSpan(children: [
-          TextSpan(text: text),
-          ...append,
-        ])),
-      ));
-    } else {
-      widgets.add(ListTile(
-        onTap: () {
-          addPatAccount();
-        },
-        title: const Text("PAT会员"),
-        subtitle: const Text("点击绑定PAT会员"),
-      ));
-    }
-    return widgets;
+            Icons.login_rounded,
+            l10n.tr('先登录账号，再同步发电状态', en: 'Sign in before syncing status'),
+          ),
+          _guideRow(
+            context,
+            Icons.card_giftcard_rounded,
+            l10n.tr('兑换作者提供的礼物卡', en: 'Redeem the author’s gift code'),
+          ),
+          _guideRow(
+            context,
+            Icons.route_rounded,
+            l10n.tr('连接异常时可切换发电方式',
+                en: 'Switch routes if the connection fails'),
+          ),
+          _guideRow(
+            context,
+            Icons.favorite_outline_rounded,
+            l10n.tr('可从关于页支持项目维护',
+                en: 'Support maintenance from the About page'),
+          ),
+        ],
+      ),
+    );
   }
 
-  void addPatAccount() async {
-    String? key = await displayTextInputDialog(context, title: "输入PAT授权码");
-    if (key != null && key.isNotEmpty) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (BuildContext context) {
-            return AccessKeyReplaceScreen(accessKey: key);
-          },
-        ),
+  Widget _guideRow(BuildContext context, IconData icon, String text) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: scheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    height: 1.45,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  ({String label, Color color}) _patStatus(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    if (proInfoPat.errorType > 0) {
+      return (
+        label: context.l10n.tr('状态异常', en: 'Error'),
+        color: scheme.error,
       );
+    }
+    if (proInfoPat.bindUid.isEmpty) {
+      return (
+        label: context.l10n.tr('待绑定', en: 'Unbound'),
+        color: scheme.tertiary,
+      );
+    }
+    if (proInfoPat.bindUid != _username) {
+      return (
+        label: context.l10n.tr('已绑定其他账号', en: 'Other account'),
+        color: scheme.error,
+      );
+    }
+    if (!proInfoPat.isPro) {
+      return (
+        label: context.l10n.tr('未发电', en: 'Inactive'),
+        color: scheme.tertiary,
+      );
+    }
+    return (
+      label: context.l10n.tr('状态正常', en: 'Active'),
+      color: scheme.primary,
+    );
+  }
+
+  Widget _statusBadge(
+      BuildContext context, ({String label, Color color}) status) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: status.color.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        status.label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: status.color,
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+    );
+  }
+
+  Future<void> _refreshStatus() async {
+    try {
+      await methods.reloadPro();
       await reloadIsPro();
-      setState(() {});
+      if (!mounted) return;
+      defaultToast(context, 'SUCCESS');
+    } catch (error, stackTrace) {
+      debugPrient('$error\n$stackTrace');
+      if (!mounted) return;
+      defaultToast(context, 'FAIL');
     }
   }
 
-  void reloadPatAccount() async {
-    defaultToast(context, "请稍候");
+  Future<void> _redeemCode() async {
+    final code = await displayTextInputDialog(
+      context,
+      title: context.l10n.tr('输入兑换代码', en: 'Enter gift code'),
+    );
+    if (code == null || code.trim().isEmpty) return;
+    try {
+      await methods.inputCdKey(code.trim());
+      await reloadIsPro();
+      if (!mounted) return;
+      defaultToast(context, 'SUCCESS');
+    } catch (error, stackTrace) {
+      debugPrient('$error\n$stackTrace');
+      if (!mounted) return;
+      defaultToast(context, 'FAIL');
+    }
+  }
+
+  Future<void> _managePat() async {
+    final choose = await chooseMapDialog<int>(
+      context,
+      title: context.l10n.tr('选择操作', en: 'Choose an action'),
+      values: {
+        context.l10n.tr('更新 PAT 状态', en: 'Refresh PAT status'): 2,
+        context.l10n.tr('绑定到当前账号', en: 'Bind to current account'): 3,
+        context.l10n.tr('更换 PAT 密钥', en: 'Replace PAT key'): 1,
+        context.l10n.tr('清除 PAT 信息', en: 'Clear PAT information'): 4,
+      },
+    );
+    switch (choose) {
+      case 1:
+        await _addPatAccount();
+      case 2:
+        await _reloadPatAccount();
+      case 3:
+        await _bindThisAccount();
+      case 4:
+        await _clearPatInfo();
+    }
+  }
+
+  Future<void> _addPatAccount() async {
+    final key = await displayTextInputDialog(
+      context,
+      title: context.l10n.tr('输入 PAT 授权码', en: 'Enter PAT key'),
+    );
+    if (key == null || key.trim().isEmpty || !mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AccessKeyReplaceScreen(accessKey: key.trim()),
+      ),
+    );
+    await reloadIsPro();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _reloadPatAccount() async {
+    defaultToast(context, context.l10n.tr('请稍候', en: 'Please wait'));
     try {
       await methods.reloadPatAccount();
       await reloadIsPro();
-      defaultToast(context, "SUCCESS");
-    } catch (e) {
-      defaultToast(context, "FAIL : $e");
+      if (!mounted) return;
+      defaultToast(context, 'SUCCESS');
+    } catch (error) {
+      if (!mounted) return;
+      defaultToast(context, 'FAIL: $error');
     }
-    setState(() {});
   }
 
-  void bindThisAccount() async {
-    defaultToast(context, "请稍候");
+  Future<void> _bindThisAccount() async {
+    defaultToast(context, context.l10n.tr('请稍候', en: 'Please wait'));
     try {
       await methods.bindPatAccount(proInfoPat.accessKey, _username);
       await methods.reloadPatAccount();
       await reloadIsPro();
-      defaultToast(context, "SUCCESS");
-    } catch (e) {
-      defaultToast(context, "FAIL : $e");
+      if (!mounted) return;
+      defaultToast(context, 'SUCCESS');
+    } catch (error) {
+      if (!mounted) return;
+      defaultToast(context, 'FAIL: $error');
     }
-    setState(() {});
   }
 
-  void clearPatInfo() async {
+  Future<void> _clearPatInfo() async {
     await methods.clearPat();
     await reloadIsPro();
-    defaultToast(context, "已清除");
-    setState(() {});
-  }
-}
-
-class ProServerNameWidget extends StatefulWidget {
-  const ProServerNameWidget({Key? key}) : super(key: key);
-
-  @override
-  State<StatefulWidget> createState() => _ProServerNameWidgetState();
-}
-
-class _ProServerNameWidgetState extends State<ProServerNameWidget> {
-  String _serverName = "";
-
-  @override
-  void initState() {
-    methods.getProServerName().then((value) {
-      setState(() {
-        _serverName = value;
-      });
-    });
-    super.initState();
+    if (!mounted) return;
+    defaultToast(context, context.l10n.tr('已清除', en: 'Cleared'));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      title: const Text("发电方式"),
-      subtitle: Text(_loadServerName()),
-      onTap: () async {
-        final serverName = await chooseMapDialog(
-          context,
-          title: "选择发电方式",
-          values: {
-            "风力发电": "HK",
-            "水力发电": "US",
-          },
-        );
-        if (serverName != null && serverName.isNotEmpty) {
-          await methods.setProServerName(serverName);
-          setState(() {
-            _serverName = serverName;
-          });
-        }
-      },
-    );
-  }
-
-  String _loadServerName() {
-    switch (_serverName) {
-      case "HK":
-        return "风力发电";
-      case "US":
-        return "水力发电";
-      default:
-        return "";
-    }
+  String _formatTimestamp(int seconds) {
+    final date = DateTime.fromMillisecondsSinceEpoch(
+      seconds * 1000,
+      isUtc: true,
+    ).toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${date.year}-${two(date.month)}-${two(date.day)} '
+        '${two(date.hour)}:${two(date.minute)}';
   }
 }
