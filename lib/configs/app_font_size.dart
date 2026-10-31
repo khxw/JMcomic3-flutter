@@ -53,6 +53,7 @@ Widget fontSizeAdjustSetting(FontSizeAdjustType type) {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.format_size_rounded),
         title: Text(
           context.l10n.tr("文字大小调整", en: "Text size adjustment") +
               " - ${_fontSizeAdjustTypeName(type, context)}",

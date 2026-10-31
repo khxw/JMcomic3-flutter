@@ -400,6 +400,7 @@ Widget themeSetting(BuildContext context) {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.palette_outlined),
         onTap: () async {
           await chooseTheme(context);
           setState(() => {});

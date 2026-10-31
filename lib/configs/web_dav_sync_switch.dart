@@ -37,6 +37,7 @@ Widget webDavSyncSwitchSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.cloud_sync_rounded),
         title: Text(
           context.l10n.tr("开启时自动同步历史记录到 WebDAV",
               en: "Auto-sync history to WebDAV on launch"),

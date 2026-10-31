@@ -42,6 +42,7 @@ Widget volumeKeyControlSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.keyboard_alt_outlined),
         title: Text(context.l10n.tr("音量键翻页", en: "Volume keys for page turn")),
         subtitle: Text(context.l10n.boolLabel(_volumeKeyControl)),
         onTap: () async {

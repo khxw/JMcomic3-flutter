@@ -43,6 +43,7 @@ Widget proxySetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.vpn_lock_rounded),
         title: Text(context.l10n.tr("代理服务器", en: "Proxy server")),
         subtitle: Text(currentProxyName(context)),
         onTap: () async {

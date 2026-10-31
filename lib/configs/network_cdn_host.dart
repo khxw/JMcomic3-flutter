@@ -64,6 +64,7 @@ Widget cdnHostSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.image_outlined),
         onTap: () async {
           await chooseCdnHost(context);
           setState(() {});

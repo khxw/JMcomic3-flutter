@@ -40,6 +40,7 @@ Widget noAnimationSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.animation_rounded),
         title: Text(
           context.l10n.tr(
             "取消键盘或音量翻页动画",

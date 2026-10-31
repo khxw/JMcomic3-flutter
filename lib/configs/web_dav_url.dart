@@ -48,6 +48,7 @@ Widget webDavUrlSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.link_rounded),
         title: Text(context.l10n.tr("WebDAV文件URL", en: "WebDAV file URL")),
         subtitle: Text(currentWebDavUrlName(context)),
         onTap: () async {

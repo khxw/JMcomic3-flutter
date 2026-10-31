@@ -1055,6 +1055,7 @@ Widget autoUpdateCheckSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.update_rounded),
         title: const Text("\u81ea\u52a8\u68c0\u67e5\u66f4\u65b0"),
         subtitle: Text(_periodText()),
         onTap: () async {

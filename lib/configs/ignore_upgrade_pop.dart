@@ -26,6 +26,7 @@ Widget ignoreUpgradePopSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return SwitchListTile(
+        secondary: const Icon(Icons.system_update_alt_rounded),
         title: Text(
           context.l10n.tr("是否忽略升级弹窗", en: "Ignore upgrade prompts"),
           style: TextStyle(

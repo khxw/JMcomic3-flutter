@@ -76,7 +76,6 @@ class _SettingsState extends State<SettingsScreen> {
                     en: 'Refresh rate, appearance, language and display',
                   ),
                   initiallyExpanded: true,
-                  plainFirstChild: true,
                   panelKey: const ValueKey('settings-common-expanded'),
                   children: [
                     androidDisplayModeSetting(),
@@ -118,6 +117,7 @@ class _SettingsState extends State<SettingsScreen> {
                     const Divider(height: 1),
                     ListTile(
                       key: const ValueKey('settings-export-incomplete'),
+                      leading: const Icon(Icons.ios_share_rounded),
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -162,6 +162,7 @@ class _SettingsState extends State<SettingsScreen> {
                     const Divider(height: 1),
                     ListTile(
                       key: const ValueKey('settings-clear-account'),
+                      leading: const Icon(Icons.logout_rounded),
                       onTap: () async {
                         if (await confirmDialog(
                           context,
@@ -246,7 +247,6 @@ class _SettingsSection extends StatelessWidget {
   final String subtitle;
   final List<Widget> children;
   final bool initiallyExpanded;
-  final bool plainFirstChild;
   final Key? panelKey;
 
   const _SettingsSection({
@@ -256,7 +256,6 @@ class _SettingsSection extends StatelessWidget {
     required this.subtitle,
     required this.children,
     this.initiallyExpanded = false,
-    this.plainFirstChild = false,
     this.panelKey,
   });
 
@@ -309,14 +308,10 @@ class _SettingsSection extends StatelessWidget {
             ),
           ),
           children: [
-            if (plainFirstChild && children.isNotEmpty) children.first,
-            if ((!plainFirstChild || children.length > 1))
-              _SettingsExpandedPanel(
-                panelKey: panelKey,
-                children: plainFirstChild
-                    ? children.skip(1).toList(growable: false)
-                    : children,
-              ),
+            _SettingsExpandedPanel(
+              panelKey: panelKey,
+              children: children,
+            ),
           ],
         ),
       ),
@@ -345,34 +340,42 @@ class _SettingsExpandedPanel extends StatelessWidget {
       color: scheme.onSurfaceVariant,
       height: 1.35,
     );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 2, 12, 10),
-      child: Material(
-        key: panelKey,
-        color: scheme.surfaceContainerHighest.withValues(alpha: .32),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: scheme.outlineVariant.withValues(alpha: .48),
-          ),
+    return Theme(
+      data: theme.copyWith(
+        dividerColor: Colors.transparent,
+        listTileTheme: theme.listTileTheme.copyWith(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+          minLeadingWidth: 32,
+          minVerticalPadding: 10,
+          titleTextStyle: titleStyle,
+          subtitleTextStyle: subtitleStyle,
+          iconColor: scheme.onSurfaceVariant,
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Theme(
-          data: theme.copyWith(
-            dividerColor: scheme.outlineVariant.withValues(alpha: .55),
-            listTileTheme: theme.listTileTheme.copyWith(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-              minLeadingWidth: 32,
-              minVerticalPadding: 10,
-              titleTextStyle: titleStyle,
-              subtitleTextStyle: subtitleStyle,
-              iconColor: scheme.onSurfaceVariant,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: children,
-          ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 2, 12, 10),
+        child: Column(
+          key: panelKey,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final child in children)
+              if (child is! Divider)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Material(
+                    color:
+                        scheme.surfaceContainerHighest.withValues(alpha: .32),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: scheme.outlineVariant.withValues(alpha: .48),
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: child,
+                  ),
+                ),
+          ],
         ),
       ),
     );

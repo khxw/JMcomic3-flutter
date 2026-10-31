@@ -49,6 +49,7 @@ Widget authenticationSetting() {
       builder: (BuildContext context, void Function(void Function()) setState) {
         final l10n = context.l10n;
         return ListTile(
+          leading: const Icon(Icons.fingerprint_rounded),
           title: Text(l10n.tr(
             "进入APP时验证身份？如果系统已经录入密码或指纹",
             en: "Verify identity when entering app? (if system credential exists)",
@@ -69,6 +70,7 @@ Widget authenticationSetting() {
     ) {
       final l10n = context.l10n;
       return ListTile(
+        leading: const Icon(Icons.password_rounded),
         title: Text(l10n.tr("设置应用程序密码", en: "Set application password")),
         onTap: () async {
           Navigator.of(context).push(

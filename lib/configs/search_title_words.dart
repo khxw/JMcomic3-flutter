@@ -37,6 +37,7 @@ Widget searchTitleWordsSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.manage_search_rounded),
         title: Text(
             context.l10n.tr("标题中的关键字点击搜索", en: "Tap title keywords to search")),
         subtitle: Text(context.l10n.boolLabel(_searchTitleWords)),

@@ -29,6 +29,7 @@ Widget disableRecommendContentSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return SwitchListTile(
+        secondary: const Icon(Icons.visibility_off_outlined),
         title: Text(
           context.l10n.tr("关闭推荐内容", en: "Disable recommended content") +
               (!hasProAccess

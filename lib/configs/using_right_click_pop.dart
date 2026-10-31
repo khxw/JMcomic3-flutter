@@ -29,6 +29,7 @@ Widget usingRightClickPopSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return SwitchListTile(
+        secondary: const Icon(Icons.mouse_rounded),
         value: _usingRightClickPop,
         onChanged: (value) async {
           await methods.saveProperty(_propertyName, "$value");

@@ -84,6 +84,7 @@ var syncing = false;
 
 Widget webDavSyncClick(BuildContext context) {
   return ListTile(
+    leading: const Icon(Icons.sync_rounded),
     title: Text(context.l10n.tr("立即同步", en: "Sync now")),
     onTap: () async {
       if (syncing) return;
@@ -99,6 +100,7 @@ Widget webDavSyncClick(BuildContext context) {
 
 Widget webDavSyncUploadClick(BuildContext context) {
   return ListTile(
+    leading: const Icon(Icons.cloud_upload_outlined),
     title: Text(context.l10n.tr("单向覆盖上传", en: "One-way overwrite upload")),
     onTap: () async {
       if (syncing) return;
@@ -114,6 +116,7 @@ Widget webDavSyncUploadClick(BuildContext context) {
 
 Widget webDavSyncDownloadClick(BuildContext context) {
   return ListTile(
+    leading: const Icon(Icons.cloud_download_outlined),
     title: Text(context.l10n.tr("单向覆盖下载", en: "One-way overwrite download")),
     onTap: () async {
       if (syncing) return;

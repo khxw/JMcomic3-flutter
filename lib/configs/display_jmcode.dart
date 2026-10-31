@@ -37,6 +37,7 @@ Widget displayJmcodeSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.tag_rounded),
         title: Text(context.l10n.tr("显示漫画代码", en: "Show comic code")),
         subtitle: Text(context.l10n.boolLabel(_displayJmcode)),
         onTap: () async {

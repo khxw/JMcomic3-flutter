@@ -55,6 +55,7 @@ Widget twoGalleryDirectionSetting(BuildContext context) {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.auto_stories_rounded),
         onTap: () async {
           await chooseTwoPageDirection(context);
           setState(() {});

@@ -67,6 +67,7 @@ Widget appOrientationWidget() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.screen_rotation_alt_rounded),
         title: Text(context.l10n.tr("APP方向", en: "App orientation")),
         subtitle: Text(appOrientationName(_appOrientation, context)),
         onTap: () async {

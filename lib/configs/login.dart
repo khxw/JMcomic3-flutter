@@ -73,6 +73,7 @@ List<FavoriteFolderItem> favData = [];
 
 Widget createFavoriteFolderItemTile(BuildContext context) {
   return ListTile(
+    leading: const Icon(Icons.create_new_folder_outlined),
     title: Text(context.l10n.tr("创建收藏文件夹", en: "Create favorites folder")),
     onTap: () async {
       if (!await ensureJwtAccess(
@@ -99,6 +100,7 @@ Widget createFavoriteFolderItemTile(BuildContext context) {
 
 Widget deleteFavoriteFolderItemTile(BuildContext context) {
   return ListTile(
+    leading: const Icon(Icons.folder_delete_outlined),
     title: Text(context.l10n.tr("删除收藏文件夹", en: "Delete favorites folder")),
     onTap: () async {
       if (!await ensureJwtAccess(
@@ -128,6 +130,7 @@ Widget deleteFavoriteFolderItemTile(BuildContext context) {
 
 Widget renameFavoriteFolderItemTile(BuildContext context) {
   return ListTile(
+    leading: const Icon(Icons.drive_file_rename_outline_rounded),
     title: Text(context.l10n.tr("重命名收藏文件夹", en: "Rename favorites folder")),
     onTap: () async {
       if (!await ensureJwtAccess(
@@ -286,6 +289,7 @@ Future showUserAgreementBottomSheet(BuildContext context) {
 
 Widget userAgreementSetting(BuildContext context) {
   return ListTile(
+    leading: const Icon(Icons.description_outlined),
     onTap: () => showUserAgreementBottomSheet(context),
     title: Text(context.l10n.tr("用户协议", en: "User agreement")),
     subtitle:

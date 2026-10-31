@@ -205,6 +205,7 @@ Widget apiHostSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.dns_rounded),
         onTap: () async {
           await chooseApiHost(context);
           setState(() {});

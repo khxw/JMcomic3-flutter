@@ -82,6 +82,7 @@ Widget appLocaleSetting(BuildContext context) {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.language_rounded),
         title: Text(context.l10n.language),
         subtitle: Text(_nameOfLocale(context, _localeCode)),
         onTap: () async {

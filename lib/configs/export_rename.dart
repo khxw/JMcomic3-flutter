@@ -38,6 +38,7 @@ Widget exportRenameSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return ListTile(
+        leading: const Icon(Icons.drive_file_rename_outline_rounded),
         title: Text(
           context.l10n.tr('导出时重命名', en: 'Rename on export'),
           style: TextStyle(

@@ -24,6 +24,7 @@ Widget ignoreVewLogSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
       return SwitchListTile(
+        secondary: const Icon(Icons.history_toggle_off_rounded),
         value: _ignoreVewLog,
         onChanged: (value) async {
           await methods.saveProperty(_propertyName, "$value");
