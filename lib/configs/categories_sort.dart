@@ -6,6 +6,7 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/content_error.dart';
 
 import '../basic/methods.dart';
+import '../screens/components/app_back_button.dart';
 import 'property_json.dart';
 
 List<int> _categoriesSort = const <int>[];
@@ -21,8 +22,15 @@ List<int> getCategoriesSort() {
 const _propertyName = "categoriesSort";
 
 Future initCategoriesSort() async {
-  final raw = await methods.loadProperty(_propertyName);
-  _categoriesSort = _decodeCategoriesSort(raw);
+  try {
+    final raw = await methods.loadProperty(_propertyName);
+    _categoriesSort = _decodeCategoriesSort(raw);
+  } catch (_) {
+    _categoriesSort = const <int>[];
+  }
+  // 首页可能先于配置初始化完成；这里主动通知一次，避免冷启动首屏使用
+  // 服务端默认顺序，直到用户进入设置页才看到保存的自定义顺序。
+  categoriesSortEvent.broadcast();
 }
 
 get categoriesSort => _categoriesSort;
@@ -138,6 +146,8 @@ void _sortCategoriesByOrder(List<Categories> categories, List<int> sort) {
 
 Widget categoriesSortSetting(BuildContext context) {
   return ListTile(
+    key: const ValueKey('settings-categories-sort'),
+    leading: const Icon(Icons.swap_vert_rounded),
     onTap: () {
       Navigator.of(context).push(MaterialPageRoute(
         builder: (BuildContext context) {
@@ -148,6 +158,13 @@ Widget categoriesSortSetting(BuildContext context) {
     title: Text(
       context.l10n.tr("首页分类排序", en: "Homepage category order"),
     ),
+    subtitle: Text(
+      context.l10n.tr(
+        '拖动调整首页分类顺序',
+        en: 'Drag to reorder homepage categories',
+      ),
+    ),
+    trailing: const Icon(Icons.chevron_right_rounded),
   );
 }
 
@@ -177,6 +194,7 @@ class _CategoriesSortScreenState extends State<CategoriesSortScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Scaffold(
               appBar: AppBar(
+                leading: const AppBackButton(),
                 title: Text(context.l10n.tr("分类排序", en: "Category order")),
               ),
               body: const Center(
@@ -187,6 +205,7 @@ class _CategoriesSortScreenState extends State<CategoriesSortScreen> {
           if (snapshot.hasError) {
             return Scaffold(
               appBar: AppBar(
+                leading: const AppBackButton(),
                 title: Text(context.l10n.tr("分类排序", en: "Category order")),
               ),
               body: ContentError(
@@ -217,179 +236,281 @@ class CategoriesSortPanel extends StatefulWidget {
 }
 
 class _CategoriesSortPanelState extends State<CategoriesSortPanel> {
-  late final List<int> _categoriesSort;
+  late final List<int> _defaultOrder;
+  late final Map<int, Categories> _categoriesById;
+  late List<int> _categoriesSort;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _categoriesSort =
-        restoreCategoriesSortSelection(getCategoriesSort(), widget.categories);
+    _categoriesById = {
+      for (final category in widget.categories) category.id: category,
+    };
+    _defaultOrder = _categoriesById.keys.toList(growable: false);
+    final saved = restoreCategoriesSortSelection(
+      getCategoriesSort(),
+      widget.categories,
+    );
+    _categoriesSort = [
+      ...saved,
+      ..._defaultOrder.where((id) => !saved.contains(id)),
+    ];
   }
 
-  _switch(int value) {
-    if (_categoriesSort.contains(value)) {
-      _categoriesSort.remove(value);
-    } else {
-      _categoriesSort.add(value);
+  void _reorder(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= _categoriesSort.length) return;
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
+    if (newIndex < 0 || newIndex >= _categoriesSort.length) return;
+    setState(() {
+      final id = _categoriesSort.removeAt(oldIndex);
+      _categoriesSort.insert(newIndex, id);
+    });
+  }
+
+  void _restoreDefaultOrder() {
+    setState(() {
+      _categoriesSort = List<int>.of(_defaultOrder);
+    });
+  }
+
+  bool get _isDefaultOrder {
+    if (_categoriesSort.length != _defaultOrder.length) return false;
+    for (var index = 0; index < _defaultOrder.length; index++) {
+      if (_categoriesSort[index] != _defaultOrder[index]) return false;
+    }
+    return true;
+  }
+
+  String? _categoryMetadata(BuildContext context, Categories category) {
+    final parts = <String>[];
+    final slug = category.slug.trim();
+    if (slug.isNotEmpty) parts.add(slug);
+    if (category.totalAlbums > 0) {
+      parts.add(
+        context.l10n.tr(
+          '${category.totalAlbums} 本',
+          en: '${category.totalAlbums} comics',
+        ),
+      );
+    }
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await saveCategoriesSort(_categoriesSort);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.tr(
+              '保存分类排序失败，请重试',
+              en: 'Could not save category order. Try again.',
+            ),
+          ),
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    //
-    late double blockSize;
-    late double imageSize;
-    late double imageRs;
-    var size = MediaQuery.of(context).size;
-    var min = size.width < size.height ? size.width : size.height;
-    blockSize = (min ~/ 3).floorToDouble();
-    imageSize = blockSize - 15;
-    imageRs = imageSize / 10;
-    _sortCategoriesByOrder(widget.categories, getCategoriesSort());
-    List<Widget> wrapItems = _wrapItems(blockSize, imageRs, imageSize);
-    //
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    if (_categoriesSort.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          leading: const AppBackButton(),
+          title: Text(context.l10n.tr('分类排序', en: 'Category order')),
+        ),
+        body: Center(
+          child: Text(
+            context.l10n.tr(
+              '暂无可排序的首页分类',
+              en: 'No homepage categories available',
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Text(context.l10n.tr('分类排序', en: 'Category order')),
         actions: [
-          _saveIcon(),
-        ],
-      ),
-      body: ListView(
-        children: [
-          Container(height: 20),
-          Wrap(
-            runSpacing: 20,
-            alignment: WrapAlignment.spaceAround,
-            children: wrapItems,
+          IconButton(
+            key: const ValueKey('category-sort-reset'),
+            tooltip: context.l10n.tr('恢复默认', en: 'Restore default'),
+            onPressed: _isDefaultOrder ? null : _restoreDefaultOrder,
+            icon: const Icon(Icons.restart_alt_rounded),
           ),
-          Container(height: 20),
         ],
       ),
-    );
-  }
-
-  List<Widget> _wrapItems(
-    double blockSize,
-    double imageRs,
-    double imageSize,
-  ) {
-    List<Widget> list = [];
-    final selectedIndexById = <int, int>{};
-    for (var index = 0; index < _categoriesSort.length; index++) {
-      selectedIndexById.putIfAbsent(_categoriesSort[index], () => index);
-    }
-
-    append(
-      Widget widget,
-      int id,
-      String title,
-      int? selectedIndex,
-      Function() onTap,
-    ) {
-      final selected = selectedIndex != null;
-      list.add(
-        GestureDetector(
-          onTap: onTap,
-          child: SizedBox(
-            width: blockSize,
-            child: Column(
+      body: ReorderableListView.builder(
+        key: const ValueKey('category-sort-list'),
+        buildDefaultDragHandles: false,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+        itemCount: _categoriesSort.length,
+        onReorder: _reorder,
+        proxyDecorator: (child, index, animation) {
+          return AnimatedBuilder(
+            animation: animation,
+            child: child,
+            builder: (context, child) {
+              return Material(
+                color: Colors.transparent,
+                elevation: 8 * animation.value,
+                borderRadius: BorderRadius.circular(17),
+                child: child,
+              );
+            },
+          );
+        },
+        header: Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(17),
+              border: Border.all(
+                color: scheme.outlineVariant.withValues(alpha: .45),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Stack(
-                  children: [
-                    Card(
-                      elevation: .5,
-                      child: ClipRRect(
-                        borderRadius:
-                            BorderRadius.all(Radius.circular(imageRs)),
-                        child: Container(
-                          color: Colors.black,
-                          child: widget,
-                        ),
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.all(Radius.circular(imageRs)),
-                      ),
-                    ),
-                    if (!selected)
-                      Container(
-                        width: imageSize,
-                        height: imageSize,
-                        color: Colors.black.withOpacity(.6),
-                        margin: const EdgeInsets.all(4.0),
-                      ),
-                    if (selected)
-                      Container(
-                        width: imageSize,
-                        height: imageSize,
-                        color: Colors.black.withOpacity(.2),
-                        margin: const EdgeInsets.all(4.0),
-                      ),
-                    if (selected)
-                      Container(
-                        color: Colors.black.withOpacity(.2),
-                        padding: const EdgeInsets.all(10),
-                        child: Text(
-                          "${selectedIndex + 1}",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                  ],
+                Icon(
+                  Icons.drag_indicator_rounded,
+                  color: scheme.primary,
                 ),
-                Container(height: 5),
-                Center(
-                  child: Text(title),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.l10n.tr(
+                          '共 ${_categoriesSort.length} 个分类',
+                          en: '${_categoriesSort.length} categories',
+                        ),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        context.l10n.tr(
+                          '按住右侧手柄拖动排序，保存后首页立即更新。',
+                          en: 'Hold the handle to reorder. Home updates after saving.',
+                        ),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
         ),
-      );
-    }
-
-    for (var value in widget.categories) {
-      var id = value.id;
-      append(
-        SizedBox(
-          width: imageSize,
-          height: imageSize,
-          child: Center(
-            child: Text(
-              value.name.substring(0, 1),
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 22,
+        itemBuilder: (context, index) {
+          final id = _categoriesSort[index];
+          final category = _categoriesById[id];
+          if (category == null) return const SizedBox.shrink(key: ValueKey(-1));
+          final metadata = _categoryMetadata(context, category);
+          return Padding(
+            key: ValueKey('category-sort-${category.id}'),
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Material(
+              color: scheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(17),
+              clipBehavior: Clip.antiAlias,
+              child: ListTile(
+                contentPadding: const EdgeInsets.fromLTRB(12, 4, 8, 4),
+                leading: Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Text(
+                    '${index + 1}',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: scheme.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                title: Text(
+                  category.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: metadata == null
+                    ? null
+                    : Text(
+                        metadata,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                trailing: ReorderableDragStartListener(
+                  index: index,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Icon(
+                      Icons.drag_handle_rounded,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
               ),
             ),
+          );
+        },
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: FilledButton.icon(
+          key: const ValueKey('category-sort-save'),
+          onPressed: _saving ? null : _save,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(50),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          icon: _saving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.check_rounded),
+          label: Text(
+            _saving
+                ? context.l10n.tr('正在保存...', en: 'Saving...')
+                : context.l10n.tr('保存排序', en: 'Save order'),
           ),
         ),
-        value.id,
-        value.name,
-        selectedIndexById[id],
-        () {
-          setState(() {
-            _switch(id);
-          });
-        },
-      );
-    }
-
-    return list;
-  }
-
-  Widget _saveIcon() {
-    return IconButton(
-      onPressed: () async {
-        await saveCategoriesSort(_categoriesSort);
-        Navigator.of(context).pop();
-      },
-      icon: const Icon(Icons.save),
+      ),
     );
   }
 }

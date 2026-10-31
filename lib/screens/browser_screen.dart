@@ -228,8 +228,8 @@ class _HomeFeed extends StatelessWidget {
             _HomeComicSection(
               key: ValueKey('home-section:${categories[index].slug}'),
               category: categories[index],
-              title: index == 0
-                  ? context.l10n.tr('最新 A 漫', en: 'Latest A Comics')
+              title: categories[index].name.trim().isEmpty
+                  ? categories[index].slug
                   : categories[index].name,
               revealDelay: Duration(milliseconds: 30 * math.min(index, 4)),
             ),
