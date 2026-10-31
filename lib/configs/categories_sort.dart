@@ -54,7 +54,7 @@ List<int> _decodeCategoriesSort(String raw) {
     final decoded = tryDecodeJsonPropertyValue(trimmed);
     if (decoded is Iterable) {
       // 旧版本或手工编辑的排序配置可能包含重复、空值、字符串数字或非法项；
-      // 初始化时只保留有效正整数 ID，避免首页分类排序因本地脏数据失败。
+      // 初始化时只保留有效非负整数 ID，避免首页分类排序因本地脏数据失败。
       return List<int>.unmodifiable(_normalizeCategoriesSortValues(decoded));
     }
     if (decoded is String && depth < 2) {
@@ -75,7 +75,7 @@ List<int> _normalizeCategoriesSortValues(
   final result = <int>[];
   final seen = <int>{};
   for (final item in values) {
-    final id = _parsePositiveCategoryId(item);
+    final id = _parseCategoryId(item);
     if (id == null || !seen.add(id)) {
       continue;
     }
@@ -97,7 +97,7 @@ List<int> restoreCategoriesSortSelection(
   return _normalizeCategoriesSortValues(savedSort, allowedIds: liveIds);
 }
 
-int? _parsePositiveCategoryId(dynamic raw) {
+int? _parseCategoryId(dynamic raw) {
   int? parsed;
   if (raw is int) {
     parsed = raw;
@@ -115,7 +115,8 @@ int? _parsePositiveCategoryId(dynamic raw) {
       }
     }
   }
-  return parsed != null && parsed > 0 ? parsed : null;
+  // “最新 A 漫”等内置入口使用 ID 0，不能像负数那样被过滤。
+  return parsed != null && parsed >= 0 ? parsed : null;
 }
 
 void _sortCategoriesByOrder(List<Categories> categories, List<int> sort) {
