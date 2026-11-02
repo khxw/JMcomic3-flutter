@@ -364,18 +364,14 @@ class ComposeSurface extends StatelessWidget {
   }
 }
 
-class ComposePageTransitionsBuilder extends ZoomPageTransitionsBuilder {
-  const ComposePageTransitionsBuilder({
-    super.allowSnapshotting = true,
-    super.allowEnterRouteSnapshotting = true,
-    super.backgroundColor,
-  });
+class ComposePageTransitionsBuilder extends PageTransitionsBuilder {
+  const ComposePageTransitionsBuilder();
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 160);
+  Duration get transitionDuration => const Duration(milliseconds: 220);
 
   @override
-  Duration get reverseTransitionDuration => const Duration(milliseconds: 120);
+  Duration get reverseTransitionDuration => const Duration(milliseconds: 180);
 
   @override
   Widget buildTransitions<T>(
@@ -386,12 +382,28 @@ class ComposePageTransitionsBuilder extends ZoomPageTransitionsBuilder {
     Widget child,
   ) {
     if (MediaQuery.disableAnimationsOf(context)) return child;
-    return super.buildTransitions<T>(
-      route,
-      context,
-      animation,
-      secondaryAnimation,
-      child,
+    final enter = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    final exit = CurvedAnimation(
+      parent: secondaryAnimation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: Offset.zero,
+        end: const Offset(-.025, 0),
+      ).animate(exit),
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(.055, 0),
+          end: Offset.zero,
+        ).animate(enter),
+        child: child,
+      ),
     );
   }
 }
