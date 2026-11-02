@@ -243,18 +243,12 @@ Future<bool> ensureJwtAccess(
 }
 
 Future loginDialog(BuildContext context) async {
-  await showDialog(
+  final scheme = Theme.of(context).colorScheme;
+  await showDialog<void>(
     context: context,
-    builder: (BuildContext context) {
-      return Container(
-        width: 30,
-        height: 30,
-        color: Colors.black.withOpacity(.1),
-        child: Center(
-          child: _LoginDialog(),
-        ),
-      );
-    },
+    useSafeArea: true,
+    barrierColor: scheme.scrim.withValues(alpha: .58),
+    builder: (_) => const _LoginDialog(),
   );
 }
 
@@ -495,130 +489,274 @@ class _LoginAgreementSheet extends StatelessWidget {
 }
 
 class _LoginDialog extends StatefulWidget {
+  const _LoginDialog();
+
   @override
   State<StatefulWidget> createState() => _LoginDialogState();
 }
 
 class _LoginDialogState extends State<_LoginDialog> {
-  var _username = "";
-  var _password = "";
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  var _obscurePassword = true;
+  var _busy = false;
+  String? _error;
 
   @override
   void initState() {
-    Future.delayed(Duration.zero, () async {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    try {
       final username = await methods.loadUsername();
       final password = await methods.loadPassword();
+      if (!mounted) return;
       setState(() {
-        _username = username;
-        _password = password;
+        _usernameController.text = username;
+        _passwordController.text = password;
       });
+    } catch (_) {
+      // The fields remain editable when saved credentials cannot be read.
+    }
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_busy) return;
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
+    if (username.isEmpty || password.isEmpty) {
+      setState(() => _error = context.l10n.tr(
+            '请输入账号和密码',
+            en: 'Enter your account and password',
+          ));
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _busy = true;
+      _error = null;
     });
-    super.initState();
+    await login(username, password, context);
+    await reloadIsPro();
+    if (!mounted) return;
+    if (loginStatus == LoginStatus.loginSuccess) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {
+      _busy = false;
+      _error = loginMessage.trim().isEmpty
+          ? context.l10n.tr('登录失败，请检查账号和密码', en: 'Login failed')
+          : loginMessage;
+    });
+  }
+
+  Future<void> _continueAsGuest() async {
+    if (_busy) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _busy = true);
+    await enterGuestMode();
+    await reloadIsPro();
+    if (mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 250,
-      width: MediaQuery.of(context).size.width - 90,
-      margin: const EdgeInsets.all(30),
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(Radius.circular(10)),
-        color: Theme.of(context).scaffoldBackgroundColor,
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Dialog(
+      key: const ValueKey('login-dialog'),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+      backgroundColor: scheme.surface,
+      surfaceTintColor: Colors.transparent,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(26),
+        side: BorderSide(
+          color: scheme.outlineVariant.withValues(alpha: .55),
+        ),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: ListView(
-          children: [
-            Row(
-              children: [
-                IconButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  icon: const Icon(Icons.arrow_back),
-                ),
-                Expanded(child: Container()),
-              ],
-            ),
-            ListTile(
-              title: Text(context.l10n.account),
-              subtitle: Text(
-                _username == ""
-                    ? context.l10n.tr("未设置", en: "Not set")
-                    : _username,
-              ),
-              onTap: () async {
-                String? input = await displayTextInputDialog(
-                  context,
-                  src: _username,
-                  title: context.l10n.account,
-                  hint: context.l10n.inputAccount,
-                );
-                if (input != null) {
-                  setState(() {
-                    _username = input;
-                  });
-                }
-              },
-            ),
-            ListTile(
-              title: Text(context.l10n.password),
-              subtitle: Text(
-                _password == ""
-                    ? context.l10n.tr("未设置", en: "Not set")
-                    : '\u2022' * 10,
-              ),
-              onTap: () async {
-                String? input = await displayTextInputDialog(
-                  context,
-                  src: _password,
-                  title: context.l10n.password,
-                  hint: context.l10n.inputPassword,
-                  isPasswd: true,
-                );
-                if (input != null) {
-                  setState(() {
-                    _password = input;
-                  });
-                }
-              },
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Container(
-                  margin: const EdgeInsets.all(10),
-                  child: TextButton(
-                    onPressed: () async {
-                      Navigator.of(context).pop();
-                      await enterGuestMode();
-                      await reloadIsPro();
-                    },
-                    child: Text(context.l10n.guestMode),
-                  ),
-                ),
-                Container(
-                  margin: const EdgeInsets.all(10),
-                  child: MaterialButton(
-                    color: Colors.orange.shade700,
-                    onPressed: () async {
-                      Navigator.of(context).pop();
-                      await login(_username, _password, context);
-                      await reloadIsPro();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      child: Text(
-                        context.l10n.tr("保存", en: "Save"),
-                        style: TextStyle(color: Colors.white),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          scheme.primaryContainer,
+                          scheme.tertiaryContainer.withValues(alpha: .72),
+                        ],
                       ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      Icons.person_rounded,
+                      color: scheme.onPrimaryContainer,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          context.l10n.tr(
+                            '登录 JMComic3',
+                            en: 'Sign in to JMComic3',
+                          ),
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          context.l10n.tr(
+                            '登录后可同步收藏、评论与阅读记录',
+                            en: 'Sync favorites, comments, and reading history',
+                          ),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: context.l10n.tr('关闭', en: 'Close'),
+                    onPressed: _busy ? null : () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded, size: 21),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              TextField(
+                key: const ValueKey('login-username'),
+                controller: _usernameController,
+                enabled: !_busy,
+                autofillHints: const [AutofillHints.username],
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(
+                  labelText: context.l10n.account,
+                  hintText: context.l10n.inputAccount,
+                  prefixIcon: const Icon(Icons.alternate_email_rounded),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const ValueKey('login-password'),
+                controller: _passwordController,
+                enabled: !_busy,
+                autofillHints: const [AutofillHints.password],
+                obscureText: _obscurePassword,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
+                decoration: InputDecoration(
+                  labelText: context.l10n.password,
+                  hintText: context.l10n.inputPassword,
+                  prefixIcon: const Icon(Icons.lock_outline_rounded),
+                  suffixIcon: IconButton(
+                    tooltip: context.l10n.tr(
+                      _obscurePassword ? '显示密码' : '隐藏密码',
+                      en: _obscurePassword ? 'Show password' : 'Hide password',
+                    ),
+                    onPressed: _busy
+                        ? null
+                        : () {
+                            setState(() {
+                              _obscurePassword = !_obscurePassword;
+                            });
+                          },
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
                     ),
                   ),
                 ),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  key: const ValueKey('login-error'),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: scheme.errorContainer.withValues(alpha: .55),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.error_outline_rounded,
+                        size: 17,
+                        color: scheme.error,
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onErrorContainer,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
-            ),
-          ],
+              const SizedBox(height: 14),
+              const LoginAgreementHint(padding: EdgeInsets.zero),
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                key: const ValueKey('login-submit'),
+                onPressed: _busy ? null : _submit,
+                icon: _busy
+                    ? const SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.login_rounded, size: 19),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  child: Text(
+                    _busy
+                        ? context.l10n.loggingIn
+                        : context.l10n.tr('登录', en: 'Sign in'),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              TextButton(
+                key: const ValueKey('login-guest'),
+                onPressed: _busy ? null : _continueAsGuest,
+                child: Text(context.l10n.guestMode),
+              ),
+            ],
+          ),
         ),
       ),
     );

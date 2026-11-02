@@ -90,8 +90,6 @@ class _AboutState extends State<AboutScreen> {
                       onCheck: _manualCheck,
                     ),
                   ],
-                  const SizedBox(height: 12),
-                  const _ProjectCard(),
                 ],
               ),
             ),
@@ -281,28 +279,21 @@ class _UpdateStatusCard extends StatelessWidget {
                       child: ScaleTransition(scale: scale, child: child),
                     );
                   },
-                  child: checking
-                      ? Padding(
-                          key: const ValueKey(
-                            'about-update-checking-indicator',
-                          ),
-                          padding: const EdgeInsets.all(10),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.4,
-                            color: scheme.primary,
-                            backgroundColor:
-                                scheme.primary.withValues(alpha: .18),
-                          ),
-                        )
-                      : Icon(
-                          key: ValueKey(
-                            hasUpdate ? 'update-available' : 'up-to-date',
-                          ),
-                          hasUpdate
-                              ? Icons.system_update_alt_rounded
-                              : Icons.verified_rounded,
-                          color: statusColor,
-                        ),
+                  child: Icon(
+                    key: ValueKey(
+                      checking
+                          ? 'update-checking'
+                          : hasUpdate
+                              ? 'update-available'
+                              : 'up-to-date',
+                    ),
+                    checking
+                        ? Icons.sync_rounded
+                        : hasUpdate
+                            ? Icons.system_update_alt_rounded
+                            : Icons.verified_rounded,
+                    color: statusColor,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -607,61 +598,6 @@ class _ReleaseNotesCard extends StatelessWidget {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _ProjectCard extends StatelessWidget {
-  const _ProjectCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return Material(
-      color: scheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(
-          color: scheme.outlineVariant.withValues(alpha: .4),
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: ListTile(
-        key: const ValueKey('about-project-link'),
-        onTap: () async {
-          final opened = await openUrl(projectHomeUrl);
-          if (!context.mounted || opened) return;
-          defaultToast(
-            context,
-            context.l10n.tr(
-              '无法打开浏览器，请检查系统默认应用设置。',
-              en: 'Could not open a browser. Check the system default apps.',
-            ),
-          );
-        },
-        leading: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: scheme.primary.withValues(alpha: .1),
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: Icon(
-            Icons.code_rounded,
-            size: 20,
-            color: scheme.primary,
-          ),
-        ),
-        title: Text(
-          context.l10n.tr('项目主页', en: 'Project page'),
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        subtitle: const Text('khxw/JMcomic3-flutter'),
-        trailing: const Icon(Icons.open_in_new_rounded, size: 18),
       ),
     );
   }

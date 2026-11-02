@@ -131,6 +131,7 @@ void main() {
     );
     expect(find.byKey(const ValueKey('about-release-notes')), findsOneWidget);
     expect(find.textContaining('新的下载管理界面'), findsOneWidget);
+    expect(find.byKey(const ValueKey('about-project-link')), findsNothing);
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.byKey(const ValueKey('about-check-update')));

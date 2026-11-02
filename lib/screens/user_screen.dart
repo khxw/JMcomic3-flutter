@@ -146,7 +146,7 @@ class _UserScreenState extends State<UserScreen>
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: Text(
-            context.l10n.navLibrary,
+            context.l10n.tr('常用功能', en: 'Quick access'),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w500,
                 ),
@@ -183,44 +183,76 @@ class _UserScreenState extends State<UserScreen>
   Widget _buildMobileLibrary() {
     final theme = Theme.of(context);
     return Column(
+      key: const ValueKey('profile-library-card'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Material(
-          key: const ValueKey('profile-library-card'),
-          color: _cardColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: _cardBorderColor),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(2, 0, 2, 10),
+          child: Text(
+            context.l10n.tr('常用功能', en: 'Quick access'),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
+        ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+            final twoColumns = constraints.maxWidth >= 300 && textScale <= 1.2;
+            final tileWidth = twoColumns
+                ? (constraints.maxWidth - 10) / 2
+                : constraints.maxWidth;
+            final actions = [
               _buildMobileLibraryAction(
-                icon: Icons.favorite,
-                iconColor: theme.brightness == Brightness.dark
-                    ? const Color(0xFFF4A4B9)
-                    : Colors.pink.shade400,
+                key: const ValueKey('profile-library-favorites'),
+                icon: Icons.favorite_rounded,
                 title: context.l10n.favorites,
+                subtitle: context.l10n.tr(
+                  '收藏与整理作品',
+                  en: 'Saved comics',
+                ),
                 onTap: _openFavorites,
               ),
               _buildMobileLibraryAction(
-                icon: Icons.history,
+                key: const ValueKey('profile-library-history'),
+                icon: Icons.history_rounded,
                 title: context.l10n.viewHistory,
+                subtitle: context.l10n.tr(
+                  '继续上次阅读',
+                  en: 'Continue reading',
+                ),
                 onTap: _openViewLog,
               ),
               _buildMobileLibraryAction(
-                icon: Icons.download_outlined,
+                key: const ValueKey('profile-library-downloads'),
+                icon: Icons.download_rounded,
                 title: context.l10n.downloadList,
+                subtitle: context.l10n.tr(
+                  '离线内容与任务',
+                  en: 'Offline and tasks',
+                ),
                 onTap: _openDownloads,
               ),
               _buildMobileLibraryAction(
-                icon: Icons.chat_bubble_outline,
+                key: const ValueKey('profile-library-comments'),
+                icon: Icons.forum_rounded,
                 title: context.l10n.comments,
+                subtitle: context.l10n.tr(
+                  '我的留言与讨论',
+                  en: 'My comments',
+                ),
                 onTap: _openComments,
-                last: true,
               ),
-            ],
-          ),
+            ];
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final action in actions)
+                  SizedBox(width: tileWidth, child: action),
+              ],
+            );
+          },
         ),
         const Padding(
           padding: EdgeInsets.only(top: 12),
@@ -233,39 +265,78 @@ class _UserScreenState extends State<UserScreen>
   }
 
   Widget _buildMobileLibraryAction({
+    required Key key,
     required String title,
+    required String subtitle,
     required IconData icon,
     required VoidCallback onTap,
-    Color? iconColor,
-    bool last = false,
   }) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final dividerColor = colors.outlineVariant.withValues(alpha: .2);
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 60),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: last ? BorderSide.none : BorderSide(color: dividerColor),
-          ),
+    return Material(
+      key: key,
+      color: colors.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(
+          color: colors.outlineVariant.withValues(alpha: .48),
         ),
-        child: Row(
-          children: [
-            Icon(icon, color: iconColor ?? colors.onSurfaceVariant, size: 23),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 108),
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color:
+                          colors.surfaceContainerHighest.withValues(alpha: .7),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      icon,
+                      color: colors.onSurfaceVariant,
+                      size: 20,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: colors.onSurfaceVariant,
+                    size: 20,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
                 title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w400,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-            ),
-            Icon(Icons.chevron_right, color: colors.onSurfaceVariant, size: 22),
-          ],
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  height: 1.35,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -293,8 +364,16 @@ class _UserScreenState extends State<UserScreen>
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 36, color: theme.colorScheme.primary),
-            const SizedBox(width: 12),
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: .1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 20, color: theme.colorScheme.primary),
+            ),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -319,8 +398,8 @@ class _UserScreenState extends State<UserScreen>
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        action,
+        const SizedBox(height: 8),
+        Align(alignment: Alignment.centerLeft, child: action),
       ],
     );
   }
@@ -361,11 +440,36 @@ class _UserScreenState extends State<UserScreen>
     }
     return Container(
       key: const ValueKey('profile-account-card'),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: _cardColor,
-        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF183640)
+                : Theme.of(context)
+                    .colorScheme
+                    .primaryContainer
+                    .withValues(alpha: .42),
+            _cardColor,
+            Theme.of(context)
+                .colorScheme
+                .tertiaryContainer
+                .withValues(alpha: .16),
+          ],
+          stops: const [0, .58, 1],
+        ),
+        borderRadius: BorderRadius.circular(21),
         border: Border.all(color: _cardBorderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .12),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: child,
     );
@@ -373,6 +477,10 @@ class _UserScreenState extends State<UserScreen>
 
   Widget _buildLoginButton(String title) {
     return FilledButton.icon(
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      ),
       onPressed: () async {
         await loginDialog(context);
       },
@@ -430,8 +538,6 @@ class _UserScreenState extends State<UserScreen>
     final dark = theme.brightness == Brightness.dark;
     final accent = dark ? const Color(0xFF28D1DC) : colors.primary;
     final message = selfInfo.message.trim();
-    final nickname = selfInfo.fname.trim();
-    final email = selfInfo.email.trim();
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -492,7 +598,7 @@ class _UserScreenState extends State<UserScreen>
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Avatar(selfInfo.photo, size: 50),
+                      Avatar(selfInfo.photo, size: 42),
                       const SizedBox(height: 8),
                       accountName,
                     ],
@@ -500,7 +606,7 @@ class _UserScreenState extends State<UserScreen>
                 : Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Avatar(selfInfo.photo, size: 50),
+                      Avatar(selfInfo.photo, size: 42),
                       const SizedBox(width: 10),
                       Expanded(child: accountName),
                     ],
@@ -582,47 +688,10 @@ class _UserScreenState extends State<UserScreen>
             );
           },
         ),
-        _buildProfileDivider(),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
-            final inline = constraints.maxWidth / textScale >= 315;
-            final emailDetail = _buildProfileDetail(context.l10n.email, email);
-            final genderDetail = _buildProfileDetail(
-                context.l10n.gender, _formatGender(selfInfo.gender));
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (inline)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (email.isNotEmpty) ...[
-                        Expanded(flex: 3, child: emailDetail),
-                        const SizedBox(width: 14),
-                      ],
-                      Expanded(flex: 2, child: genderDetail),
-                    ],
-                  )
-                else ...[
-                  if (email.isNotEmpty) ...[
-                    emailDetail,
-                    const SizedBox(height: 8),
-                  ],
-                  genderDetail,
-                ],
-                if (nickname.isNotEmpty && nickname != selfInfo.username) ...[
-                  const SizedBox(height: 8),
-                  _buildProfileDetail(context.l10n.nickname, nickname),
-                ],
-                if (message.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  _buildProfileDetail(context.l10n.signature, message),
-                ],
-              ],
-            );
-          },
-        ),
+        if (message.isNotEmpty) ...[
+          _buildProfileDivider(),
+          _buildProfileDetail(context.l10n.signature, message),
+        ],
       ],
     );
   }
@@ -716,7 +785,7 @@ class _UserScreenState extends State<UserScreen>
 
   Widget _buildProfileDivider() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      padding: const EdgeInsets.symmetric(vertical: 7),
       child: Divider(
         height: 1,
         color:
@@ -744,18 +813,23 @@ class _UserScreenState extends State<UserScreen>
         Text(label,
             textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
         const SizedBox(height: 5),
-        Text(
-          value,
-          textAlign: TextAlign.center,
-          style:
-              theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w500),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
         if (progress != null) ...[
           const SizedBox(height: 8),
           LinearProgressIndicator(
             value: progress,
-            minHeight: 3,
-            borderRadius: BorderRadius.circular(2),
+            minHeight: 2,
+            borderRadius: BorderRadius.circular(1),
             color: accent,
             backgroundColor: theme.colorScheme.onSurface.withValues(alpha: .12),
           ),
@@ -809,20 +883,6 @@ class _UserScreenState extends State<UserScreen>
         );
       },
     );
-  }
-
-  String _formatGender(String raw) {
-    final value = raw.trim();
-    if (value.isEmpty) {
-      return "-";
-    }
-    if (value == "m" || value == "male" || value == "1") {
-      return context.l10n.male;
-    }
-    if (value == "f" || value == "female" || value == "2") {
-      return context.l10n.female;
-    }
-    return value;
   }
 
   String _formatExpPercent(double value) {

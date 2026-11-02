@@ -172,11 +172,8 @@ void main() {
     await tester.pumpWidget(_profile(textScale: 2));
     await _loadProfile(tester);
     expect(find.text(_username), findsOneWidget);
-    expect(find.text('reader.with.long.email@example.invalid'), findsOneWidget);
     expect(find.text('Lv.22'), findsOneWidget);
     expect(find.text('A very long membership level'), findsOneWidget);
-    expect(find.text('A long nickname that should wrap at narrow widths'),
-        findsOneWidget);
     expect(find.text('A long signature keeps all profile details readable.'),
         findsOneWidget);
     expect(find.byKey(const ValueKey('profile-statistics-row')), findsNothing);
@@ -217,7 +214,7 @@ void main() {
 
   testWidgets('mobile profile groups identity, statistics and library actions',
       (tester) async {
-    const size = Size(393, 852);
+    const size = Size(360, 800);
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -246,6 +243,13 @@ void main() {
         find.descendant(of: stats, matching: find.text('2')), findsOneWidget);
     final library = find.byKey(const ValueKey('profile-library-card'));
     expect(library, findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('profile-project-links')),
+      findsOneWidget,
+    );
+    expect(find.text('Project links'), findsOneWidget);
+    expect(find.text('Project page'), findsOneWidget);
+    expect(find.text('Feedback'), findsOneWidget);
 
     for (final label in [
       'Favorites',
@@ -261,14 +265,30 @@ void main() {
       final row = find.ancestor(of: target, matching: find.byType(InkWell));
       expect(row, findsOneWidget, reason: label);
       final rect = tester.getRect(row);
-      expect(rect.width, greaterThanOrEqualTo(350), reason: label);
-      expect(rect.height, greaterThanOrEqualTo(60), reason: label);
+      expect(rect.width, greaterThanOrEqualTo(150), reason: label);
+      expect(rect.height, greaterThanOrEqualTo(105), reason: label);
       expect(find.ancestor(of: target, matching: library), findsOneWidget);
       expect(rect.left, greaterThanOrEqualTo(0), reason: label);
       expect(rect.right, lessThanOrEqualTo(size.width), reason: label);
       expect(target.hitTestable(), findsOneWidget, reason: label);
       expect(tester.takeException(), isNull, reason: label);
     }
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('profile-library-favorites')))
+          .dy,
+      tester
+          .getTopLeft(find.byKey(const ValueKey('profile-library-history')))
+          .dy,
+    );
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('profile-library-downloads')))
+          .dy,
+      tester
+          .getTopLeft(find.byKey(const ValueKey('profile-library-comments')))
+          .dy,
+    );
   });
 
   testWidgets('wide signed-in profile and library share a bounded row',
@@ -281,7 +301,7 @@ void main() {
     await tester.pumpWidget(_profile(textScale: 1.5));
     await _loadProfile(tester);
     final profilePosition = tester.getTopLeft(find.text(_username));
-    final libraryPosition = tester.getTopLeft(find.text('Library'));
+    final libraryPosition = tester.getTopLeft(find.text('Quick access'));
     expect(libraryPosition.dx, greaterThan(profilePosition.dx));
     expect((profilePosition.dy - libraryPosition.dy).abs(), lessThan(40));
 
@@ -362,6 +382,7 @@ void main() {
     await _loadProfile(tester);
     await tester.tap(find.byKey(const ValueKey('profile-daily-sign')));
     await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('daily-sign-toast')), findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
     expect(_requests.where((method) => method == 'daily'), hasLength(1));

@@ -8,7 +8,7 @@ import 'bool_property.dart';
 import 'is_pro.dart';
 
 const _propertyName = "disableRecommendContent";
-late bool _disableRecommendContent;
+bool _disableRecommendContent = false;
 final disableRecommendContentEvent = Event();
 
 Future<void> initDisableRecommendContent() async {
