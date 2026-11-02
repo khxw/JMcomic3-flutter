@@ -223,14 +223,25 @@ class _UpdateStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final hasUpdate = latestVersion != null;
-    final statusColor = hasUpdate ? scheme.primary : Colors.green;
+    final statusColor = checking
+        ? scheme.primary
+        : hasUpdate
+            ? scheme.primary
+            : theme.brightness == Brightness.dark
+                ? const Color(0xFF63D6A0)
+                : const Color(0xFF147A52);
+    final colorDuration =
+        reduceMotion ? Duration.zero : const Duration(milliseconds: 220);
     // The repository can lag behind a local build. Never label an older
     // online release as the latest version.
     final latest = hasUpdate ? latestVersion! : currentVersion();
 
-    return Container(
+    return AnimatedContainer(
       key: const ValueKey('about-update-status'),
+      duration: colorDuration,
+      curve: Curves.easeOutCubic,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
@@ -245,18 +256,53 @@ class _UpdateStatusCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
+              AnimatedContainer(
+                duration: colorDuration,
+                curve: Curves.easeOutCubic,
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: .1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  hasUpdate
-                      ? Icons.system_update_alt_rounded
-                      : Icons.verified_rounded,
-                  color: statusColor,
+                child: AnimatedSwitcher(
+                  duration: colorDuration,
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) {
+                    final scale = Tween<double>(begin: .82, end: 1).animate(
+                      CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                      ),
+                    );
+                    return FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(scale: scale, child: child),
+                    );
+                  },
+                  child: checking
+                      ? Padding(
+                          key: const ValueKey(
+                            'about-update-checking-indicator',
+                          ),
+                          padding: const EdgeInsets.all(10),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            color: scheme.primary,
+                            backgroundColor:
+                                scheme.primary.withValues(alpha: .18),
+                          ),
+                        )
+                      : Icon(
+                          key: ValueKey(
+                            hasUpdate ? 'update-available' : 'up-to-date',
+                          ),
+                          hasUpdate
+                              ? Icons.system_update_alt_rounded
+                              : Icons.verified_rounded,
+                          color: statusColor,
+                        ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -309,11 +355,21 @@ class _UpdateStatusCard extends StatelessWidget {
               FilledButton.icon(
                 key: const ValueKey('about-check-update'),
                 onPressed: checking ? null : onCheck,
+                style: FilledButton.styleFrom(
+                  disabledBackgroundColor: scheme.secondaryContainer,
+                  disabledForegroundColor: scheme.onSecondaryContainer,
+                ),
                 icon: checking
-                    ? const SizedBox(
+                    ? SizedBox(
+                        key: const ValueKey('about-update-button-indicator'),
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: scheme.onSecondaryContainer,
+                          backgroundColor: scheme.onSecondaryContainer
+                              .withValues(alpha: .18),
+                        ),
                       )
                     : const Icon(Icons.refresh_rounded, size: 18),
                 label: Text(
