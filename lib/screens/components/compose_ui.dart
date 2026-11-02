@@ -368,10 +368,10 @@ class ComposePageTransitionsBuilder extends PageTransitionsBuilder {
   const ComposePageTransitionsBuilder();
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 160);
+  Duration get transitionDuration => const Duration(milliseconds: 190);
 
   @override
-  Duration get reverseTransitionDuration => Duration.zero;
+  Duration get reverseTransitionDuration => const Duration(milliseconds: 240);
 
   @override
   Widget buildTransitions<T>(
@@ -387,12 +387,46 @@ class ComposePageTransitionsBuilder extends PageTransitionsBuilder {
       curve: Curves.easeOutCubic,
       reverseCurve: Curves.easeInCubic,
     );
-    return SlideTransition(
+    final covered = CurvedAnimation(
+      parent: secondaryAnimation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    final coveredChild = SlideTransition(
       position: Tween<Offset>(
-        begin: const Offset(.025, 0),
-        end: Offset.zero,
-      ).animate(enter),
+        begin: Offset.zero,
+        end: const Offset(-.018, 0),
+      ).animate(covered),
       child: child,
+    );
+    return DualTransitionBuilder(
+      animation: animation,
+      child: coveredChild,
+      forwardBuilder: (context, animation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(.04, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          )),
+          child: child,
+        );
+      },
+      reverseBuilder: (context, animation, child) {
+        final exit = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: Offset.zero,
+            end: const Offset(1, 0),
+          ).animate(exit),
+          child: child,
+        );
+      },
     );
   }
 }
