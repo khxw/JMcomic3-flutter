@@ -133,6 +133,14 @@ void main() {
     expect(find.textContaining('新的下载管理界面'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
+    await tester.tap(find.byKey(const ValueKey('about-check-update')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byKey(const ValueKey('update-check-toast')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1600));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('update-check-toast')), findsNothing);
+
     if (_saveScreenshots) {
       await tester.runAsync(() async {
         final boundary =
