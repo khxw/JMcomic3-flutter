@@ -207,7 +207,7 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.skip_next_outlined));
+    await tester.tap(find.byIcon(Icons.skip_next_rounded));
     await tester.pumpAndSettle();
     expect(loaded, [10, 20]);
     expect(tester.takeException(), isNull);

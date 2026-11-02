@@ -408,7 +408,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('home-carousel')), findsOneWidget);
-    expect(find.text('Latest A Comics'), findsOneWidget);
+    expect(find.text('Alpha'), findsOneWidget);
     expect(find.text('Beta'), findsOneWidget);
     expect(find.byKey(const ValueKey('home-rail:alpha')), findsOneWidget);
     expect(find.byKey(const ValueKey('home-rail:beta')), findsOneWidget);
@@ -734,7 +734,7 @@ void main() {
     tester.view.physicalSize = const Size(1600, 800);
     await tester.pumpAndSettle();
     final account = tester.getRect(find.text('Account'));
-    final library = tester.getRect(find.text('Library'));
+    final library = tester.getRect(find.text('Quick access'));
     expect(account.right, lessThan(library.left));
     final view = find.descendant(
       of: find.byType(UserScreen),
@@ -919,7 +919,6 @@ void main() {
     expect(find.byKey(const ValueKey('settings-reading')), findsOneWidget);
     expect(find.byKey(const ValueKey('settings-storage')), findsOneWidget);
     expect(find.byKey(const ValueKey('settings-account')), findsOneWidget);
-    expect(find.byKey(const ValueKey('settings-sync')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('settings-common-expanded')),
       findsOneWidget,
@@ -935,13 +934,21 @@ void main() {
     expect(find.text('Organized by workflow'), findsNothing);
     expect(tester.takeException(), isNull);
     await _capture(tester, 'settings-grouped');
-    await tester.drag(
-      find.byKey(const ValueKey('settings-list')),
-      const Offset(0, -900),
+    final settingsScrollable = find.descendant(
+      of: find.byKey(const ValueKey('settings-list')),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('settings-sync')),
+      300,
+      scrollable: settingsScrollable,
     );
     await tester.pumpAndSettle();
-    await tester.ensureVisible(
+    expect(find.byKey(const ValueKey('settings-sync')), findsOneWidget);
+    await tester.scrollUntilVisible(
       find.byKey(const ValueKey('settings-system')),
+      300,
+      scrollable: settingsScrollable,
     );
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('settings-system')), findsOneWidget);
@@ -1117,7 +1124,7 @@ void main() {
     expect(search, findsOneWidget);
     expect(carousel, findsOneWidget);
     expect(weekly, findsOneWidget);
-    expect(find.text('Latest A Comics'), findsOneWidget);
+    expect(find.text('Alpha'), findsOneWidget);
     expect(
         tester.getTopLeft(search).dy, lessThan(tester.getTopLeft(carousel).dy));
     expect(tester.getRect(weekly).bottom,

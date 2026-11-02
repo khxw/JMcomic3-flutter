@@ -382,11 +382,6 @@ class ComposePageTransitionsBuilder extends PageTransitionsBuilder {
     Widget child,
   ) {
     if (MediaQuery.disableAnimationsOf(context)) return child;
-    final enter = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
     final covered = CurvedAnimation(
       parent: secondaryAnimation,
       curve: Curves.easeOutCubic,

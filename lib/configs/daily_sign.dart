@@ -1,7 +1,6 @@
 import 'package:event/event.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_styled_toast/flutter_styled_toast.dart';
-import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/log.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/configs/login.dart';

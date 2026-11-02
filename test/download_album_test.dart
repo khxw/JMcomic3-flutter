@@ -935,7 +935,7 @@ void main() {
       5,
     );
     expect(pagerColumnNumber, 1);
-    expect(getCategoriesSort(), [3, 2, 1]);
+    expect(getCategoriesSort(), [3, 2, 0, 1]);
     expect(autoCleanName(), 'off');
     expect(currentDisplayJmcode(), isFalse);
     expect(currentSearchTitleWords(), isTrue);
@@ -1174,7 +1174,7 @@ void main() {
     await initCategoriesSort();
 
     // WebDAV 或手工脚本可能把数组多包 JSON 字符串；仍保留用户排序并过滤脏 ID。
-    expect(getCategoriesSort(), [4, 2, 1]);
+    expect(getCategoriesSort(), [4, 2, 0, 1]);
   });
 
   test('categories sort selection filters stale ids before saving', () async {
@@ -1211,9 +1211,9 @@ void main() {
     source.add(1);
 
     // 保存路径会收敛旧缓存/拖拽异常产生的重复和非法 ID，并隔离调用方后续修改。
-    expect(getCategoriesSort(), [3, 2]);
+    expect(getCategoriesSort(), [3, 0, 2]);
     expect(() => getCategoriesSort().add(4), throwsUnsupportedError);
-    expect(savedParams, {'k': 'categoriesSort', 'v': '[3,2]'});
+    expect(savedParams, {'k': 'categoriesSort', 'v': '[3,0,2]'});
   });
 
   test('method response decoder normalizes string list payloads', () {

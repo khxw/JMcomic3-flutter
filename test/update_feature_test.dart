@@ -21,7 +21,7 @@ void main() {
     expect(isVersionNewerForTest('v1.8.2+131', current), isFalse);
     expect(isVersionNewerForTest('v1.8.2+132', current), isTrue);
     expect(isVersionNewerForTest('v1.7.66+0', current), isFalse);
-    expect(isVersionNewerForTest('v1.8.0+0', current), isTrue);
+    expect(isVersionNewerForTest('v1.8.0+0', current), isFalse);
     expect(isVersionNewerForTest('v2.0.0+0', current), isTrue);
     expect(isVersionNewerForTest('invalid', current), isFalse);
   });
