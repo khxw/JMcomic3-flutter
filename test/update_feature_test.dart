@@ -15,11 +15,11 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('only a semantically newer release is treated as an update', () {
-    const current = 'v1.7.94+123';
+    const current = 'v1.7.95+124';
     expect(isVersionNewerForTest('v1.7.64+93', current), isFalse);
-    expect(isVersionNewerForTest('v1.7.94+122', current), isFalse);
-    expect(isVersionNewerForTest('v1.7.94+123', current), isFalse);
-    expect(isVersionNewerForTest('v1.7.94+124', current), isTrue);
+    expect(isVersionNewerForTest('v1.7.95+123', current), isFalse);
+    expect(isVersionNewerForTest('v1.7.95+124', current), isFalse);
+    expect(isVersionNewerForTest('v1.7.95+125', current), isTrue);
     expect(isVersionNewerForTest('v1.7.66+0', current), isFalse);
     expect(isVersionNewerForTest('v1.8.0+0', current), isTrue);
     expect(isVersionNewerForTest('v2.0.0+0', current), isTrue);
@@ -119,7 +119,10 @@ void main() {
     addTearDown(() => messenger.setMockMethodCallHandler(_channel, null));
 
     await initVersion();
-    await silentCheckNewVersion();
+    final firstCheck = silentCheckNewVersion();
+    final repeatedCheck = silentCheckNewVersion();
+    expect(identical(firstCheck, repeatedCheck), isTrue);
+    await firstCheck;
 
     expect(latestVersion, 'v9.9.9');
     expect(

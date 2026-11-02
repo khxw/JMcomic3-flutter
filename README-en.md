@@ -20,7 +20,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 ## Current release
 
-**v1.7.94+123** · Android ARM64 · API 24+
+**v1.7.95+124** · Android ARM64 · API 24+
 
 - [Latest GitHub Release](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - [Changelog](CHANGELOG.md)
@@ -30,7 +30,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 | File | Purpose |
 | --- | --- |
-| `JMComic3-Mod-v1.7.94-arm64-v8a-release.apk` | Android ARM64 devices |
+| `JMComic3-Mod-v1.7.95-arm64-v8a-release.apk` | Android ARM64 devices |
 | `SHA256SUMS.txt` | APK integrity verification |
 
 This fork currently publishes only an **Android ARM64 APK**. ARM32, Windows,
@@ -67,13 +67,13 @@ Back up bookshelf, history, and download settings before upgrading.
 PowerShell verification:
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.7.94-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.7.95-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 Current APK SHA-256:
 
 ```text
-363B4C85FD084D7261A82D2DF2F8A527DC1FDCF0AFF5A5A10108191A4F8F7C6A
+A981C8BBC9FE03D2D63C2471CD69A1127F3FBADC8AF9BD3C3BC87DC57D5E6A47
 ```
 
 ## Build

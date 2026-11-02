@@ -1,4 +1,4 @@
-import 'dart:async' show Future, unawaited;
+import 'dart:async' show Completer, Future, TimeoutException, unawaited;
 import 'dart:convert';
 import 'dart:io';
 
@@ -39,6 +39,9 @@ const _apkDownloadMirrorPrefixes = [
   "https://ghfast.top/",
   "https://gh-proxy.com/",
 ];
+const _releaseRequestTimeout = Duration(seconds: 6);
+const _releaseLookupTimeout = Duration(seconds: 9);
+const _versionCheckTimeout = Duration(seconds: 12);
 const projectHomeUrl = "https://github.com/$_repoOwner/$_repoName";
 const releasePageUrl = "https://github.com/$_repoOwner/$_repoName/releases/";
 const _defaultDownloadUrl = releasePageUrl;
@@ -47,6 +50,7 @@ const _versionAssets = 'lib/assets/version.txt';
 final RegExp _versionExp = RegExp(r"^v\d+\.\d+\.\d+(\+\d+)?$");
 
 late String _version;
+Future<void>? _versionCheckInFlight;
 String? _latestVersion;
 String? _latestVersionName;
 String? _latestVersionInfo;
@@ -163,7 +167,7 @@ Future autoCheckNewVersion() {
   if (_period != 0) {
     return Future.value();
   }
-  return _versionCheck();
+  return _runVersionCheckOnce();
 }
 
 Future manualCheckNewVersion(BuildContext context) async {
@@ -187,7 +191,7 @@ Future manualCheckNewVersion(BuildContext context) async {
       accent: Theme.of(context).colorScheme.primary,
       message: context.l10n.tr('检查更新中', en: 'Checking for updates'),
     );
-    await _versionCheck();
+    await _runVersionCheckOnce();
     if (!context.mounted) return;
     _showUpdateCheckToast(
       context,
@@ -290,9 +294,31 @@ void _showUpdateCheckToast(
   );
 }
 
-Future silentCheckNewVersion() async {
-  if (updatesTemporarilyDisabled) return;
-  await _versionCheck();
+Future silentCheckNewVersion() {
+  if (updatesTemporarilyDisabled) return Future.value();
+  return _runVersionCheckOnce();
+}
+
+Future<void> _runVersionCheckOnce() {
+  final active = _versionCheckInFlight;
+  if (active != null) return active;
+
+  late final Future<void> operation;
+  operation = _versionCheck()
+      .timeout(
+    _versionCheckTimeout,
+    onTimeout: () => throw TimeoutException(
+      'Update check timed out',
+      _versionCheckTimeout,
+    ),
+  )
+      .whenComplete(() {
+    if (identical(_versionCheckInFlight, operation)) {
+      _versionCheckInFlight = null;
+    }
+  });
+  _versionCheckInFlight = operation;
+  return operation;
 }
 
 bool dirtyVersion() {
@@ -972,33 +998,26 @@ bool isVersionNewerForTest(String candidate, String current) {
 
 Future<Map<String, dynamic>> _fetchLatestReleaseJson() async {
   final urls = [_releaseLatestUrl, ..._releaseLatestMirrorUrls];
-  Object? lastError;
-  for (final url in urls) {
-    try {
-      try {
-        final text = await methods.httpGet(url);
-        final decoded = jsonDecode(text);
-        if (decoded is Map && _isRateLimitError(decoded)) {
-          throw StateError("rate_limit");
-        }
-        return decoded;
-      } catch (_) {
-        final text = await _httpGetViaDart(url);
-        final decoded = jsonDecode(text);
-        if (decoded is Map && _isRateLimitError(decoded)) {
-          throw StateError("rate_limit");
-        }
-        return decoded;
-      }
-    } catch (e) {
-      lastError = e;
-    }
+  return _firstSuccessful(
+    urls.map(_fetchLatestReleaseJsonFromUrl),
+  ).timeout(_releaseLookupTimeout);
+}
+
+Future<Map<String, dynamic>> _fetchLatestReleaseJsonFromUrl(String url) async {
+  final text = await _firstSuccessful<String>([
+    methods.httpGet(url).then((value) => value as String).timeout(
+          _releaseRequestTimeout,
+        ),
+    _httpGetViaDart(url),
+  ]);
+  final decoded = jsonDecode(text);
+  if (decoded is Map && _isRateLimitError(decoded)) {
+    throw StateError("rate_limit");
   }
-  if (lastError != null) {
-    // ignore: only_throw_errors
-    throw lastError;
+  if (decoded is! Map) {
+    throw const FormatException('Invalid release response');
   }
-  return <String, dynamic>{};
+  return Map<String, dynamic>.from(decoded);
 }
 
 Future<String> _httpGetViaDart(String url) async {
@@ -1009,23 +1028,55 @@ Future<String> _httpGetViaDart(String url) async {
       "Accept": "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
     },
-    requestTimeout: const Duration(seconds: 12),
-    retries: 1,
+    connectTimeout: const Duration(seconds: 5),
+    requestTimeout: _releaseRequestTimeout,
+    retries: 0,
   );
 }
 
 Future<String?> _fetchLatestReleaseInfoFromPage() async {
   final urls = [_releaseLatestPageUrl, ..._releaseLatestPageMirrorUrls];
-  for (final url in urls) {
-    try {
-      final text = await _httpGetViaDart(url);
-      final parsed = _extractReleaseBodyFromPage(text);
-      if (parsed != null && parsed.trim().isNotEmpty) {
-        return parsed.trim();
-      }
-    } catch (_) {}
+  try {
+    return await _firstSuccessful<String>(
+      urls.map((url) async {
+        final text = await _httpGetViaDart(url);
+        final parsed = _extractReleaseBodyFromPage(text);
+        if (parsed != null && parsed.trim().isNotEmpty) {
+          return parsed.trim();
+        }
+        throw const FormatException('Release notes unavailable');
+      }),
+    ).timeout(_releaseLookupTimeout);
+  } catch (_) {
+    return null;
   }
-  return null;
+}
+
+Future<T> _firstSuccessful<T>(Iterable<Future<T>> attempts) {
+  final completer = Completer<T>();
+  var remaining = 0;
+
+  for (final attempt in attempts) {
+    remaining++;
+    attempt.then(
+      (value) {
+        if (!completer.isCompleted) {
+          completer.complete(value);
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        remaining--;
+        if (remaining == 0 && !completer.isCompleted) {
+          completer.completeError(error, stackTrace);
+        }
+      },
+    );
+  }
+
+  if (remaining == 0) {
+    return Future<T>.error(StateError('No update source available'));
+  }
+  return completer.future;
 }
 
 String? _extractReleaseBodyFromPage(String text) {
