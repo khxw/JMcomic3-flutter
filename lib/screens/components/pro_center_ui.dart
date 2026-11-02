@@ -7,7 +7,7 @@ Route<void> buildProCenterRoute(Widget page) {
   return PageRouteBuilder<void>(
     settings: const RouteSettings(name: '/pro-center'),
     transitionDuration: const Duration(milliseconds: 180),
-    reverseTransitionDuration: const Duration(milliseconds: 150),
+    reverseTransitionDuration: Duration.zero,
     pageBuilder: (context, animation, secondaryAnimation) {
       final curved = CurvedAnimation(
         parent: animation,
