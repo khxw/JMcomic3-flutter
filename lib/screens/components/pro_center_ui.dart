@@ -3,6 +3,38 @@ import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
+Route<void> buildProCenterRoute(Widget page) {
+  return PageRouteBuilder<void>(
+    settings: const RouteSettings(name: '/pro-center'),
+    transitionDuration: const Duration(milliseconds: 180),
+    reverseTransitionDuration: const Duration(milliseconds: 150),
+    pageBuilder: (context, animation, secondaryAnimation) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return ColoredBox(
+        color: Theme.of(context).colorScheme.surface,
+        child: RepaintBoundary(
+          child: FadeTransition(
+            opacity: Tween<double>(begin: .92, end: 1).animate(curved),
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, .012),
+                end: Offset.zero,
+              ).animate(curved),
+              child: page,
+            ),
+          ),
+        ),
+      );
+    },
+    transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+        child,
+  );
+}
+
 String proCenterExpiryLabel(int unixSeconds) {
   if (unixSeconds <= 0) return '有效期未提供';
   final date = DateTime.fromMillisecondsSinceEpoch(

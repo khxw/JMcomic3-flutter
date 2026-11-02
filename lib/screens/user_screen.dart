@@ -4,6 +4,7 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/about_screen.dart';
 import 'package:jmcomic3/screens/comments_screen.dart';
 import 'package:jmcomic3/screens/components/avatar.dart';
+import 'package:jmcomic3/screens/components/pro_center_ui.dart';
 import 'package:jmcomic3/screens/pro_oh_screen.dart';
 import 'package:jmcomic3/screens/pro_screen.dart';
 import 'package:jmcomic3/screens/components/recommend_links_panel.dart';
@@ -69,10 +70,9 @@ class _UserScreenState extends State<UserScreen>
               IconButton(
                 tooltip: 'Pro',
                 onPressed: () {
-                  Navigator.of(context)
-                      .push(MaterialPageRoute(builder: (BuildContext context) {
-                    return const ProOhScreen();
-                  }));
+                  Navigator.of(context).push(
+                    buildProCenterRoute(const ProOhScreen()),
+                  );
                 },
                 icon: Icon(
                   hasProAccess
@@ -84,10 +84,9 @@ class _UserScreenState extends State<UserScreen>
               IconButton(
                 tooltip: 'Pro',
                 onPressed: () {
-                  Navigator.of(context)
-                      .push(MaterialPageRoute(builder: (BuildContext context) {
-                    return const ProScreen();
-                  }));
+                  Navigator.of(context).push(
+                    buildProCenterRoute(const ProScreen()),
+                  );
                 },
                 icon: Icon(
                   hasProAccess
