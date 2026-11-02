@@ -371,7 +371,7 @@ class ComposePageTransitionsBuilder extends PageTransitionsBuilder {
   Duration get transitionDuration => const Duration(milliseconds: 160);
 
   @override
-  Duration get reverseTransitionDuration => const Duration(milliseconds: 130);
+  Duration get reverseTransitionDuration => Duration.zero;
 
   @override
   Widget buildTransitions<T>(
