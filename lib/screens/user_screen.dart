@@ -10,6 +10,7 @@ import 'package:jmcomic3/screens/components/recommend_links_panel.dart';
 import 'package:jmcomic3/screens/settings_screen.dart';
 import 'package:jmcomic3/screens/view_log_screen.dart';
 
+import '../basic/commons.dart';
 import '../basic/platform.dart';
 import '../configs/daily_sign.dart';
 import '../configs/is_pro.dart';
@@ -26,6 +27,8 @@ class UserScreen extends StatefulWidget {
 
 class _UserScreenState extends State<UserScreen>
     with AutomaticKeepAliveClientMixin {
+  bool _loggingOut = false;
+
   @override
   bool get wantKeepAlive => true;
 
@@ -47,7 +50,43 @@ class _UserScreenState extends State<UserScreen>
 
   void _setState(_) {
     if (mounted) {
-      setState(() {});
+      setState(() {
+        if (loginStatus != LoginStatus.loginSuccess) {
+          _loggingOut = false;
+        }
+      });
+    }
+  }
+
+  Future<void> _logoutAccount() async {
+    if (_loggingOut) return;
+    final confirmed = await confirmDialog(
+      context,
+      context.l10n.tr('退出账号', en: 'Log out'),
+      context.l10n.tr(
+        '退出后将切换到游客模式，收藏、评论等账号功能会被隐藏。',
+        en: 'You will switch to guest mode and account features will be hidden.',
+      ),
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => _loggingOut = true);
+    try {
+      await logoutAccount();
+      await reloadIsPro();
+      if (!mounted) return;
+      defaultToast(
+        context,
+        context.l10n.tr('已退出账号', en: 'Logged out'),
+      );
+    } catch (_) {
+      if (mounted) {
+        defaultToast(
+          context,
+          context.l10n.tr('退出账号失败', en: 'Could not log out'),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loggingOut = false);
     }
   }
 
@@ -686,6 +725,31 @@ class _UserScreenState extends State<UserScreen>
               ],
             );
           },
+        ),
+        _buildProfileDivider(),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            key: const ValueKey('profile-logout-account'),
+            onPressed: _loggingOut ? null : _logoutAccount,
+            style: TextButton.styleFrom(
+              foregroundColor: colors.error,
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            ),
+            icon: _loggingOut
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.logout_rounded, size: 18),
+            label: Text(
+              _loggingOut
+                  ? context.l10n.tr('正在退出', en: 'Logging out')
+                  : context.l10n.tr('退出账号', en: 'Log out'),
+            ),
+          ),
         ),
       ],
     );

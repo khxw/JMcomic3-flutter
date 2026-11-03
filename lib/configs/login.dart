@@ -198,6 +198,20 @@ Future<void> enterGuestMode() async {
   _loginState = LoginStatus.guest;
 }
 
+Future<void> logoutAccount() async {
+  await methods.logout();
+  favData = [];
+  _guestMode = true;
+  _loginMessage = "";
+  _loginState = LoginStatus.guest;
+  try {
+    await methods.saveProperty(_guestModePropertyName, "true");
+  } catch (error, stackTrace) {
+    debugPrient(
+        "guest mode persistence failed: ${error.runtimeType}/${stackTrace.runtimeType}");
+  }
+}
+
 Future<bool> ensureJwtAccess(
   BuildContext context, {
   String? feature,

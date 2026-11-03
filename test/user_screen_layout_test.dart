@@ -396,4 +396,31 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('signed-in profile logs out to guest mode', (tester) async {
+    tester.view.physicalSize = const Size(393, 852);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(_profile());
+    await _loadProfile(tester);
+
+    final logout = find.byKey(const ValueKey('profile-logout-account'));
+    await tester.ensureVisible(logout);
+    await tester.tap(logout);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('app-confirm-dialog')), findsOneWidget);
+    expect(find.text('Log out'), findsWidgets);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+    await tester.pumpAndSettle();
+    expect(_requests.where((method) => method == 'logout'), hasLength(1));
+    expect(loginStatus, LoginStatus.guest);
+    expect(find.byKey(const ValueKey('profile-logout-account')), findsNothing);
+    expect(find.text(_username), findsNothing);
+    expect(find.text('Guest Mode'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
 }
