@@ -19,7 +19,25 @@ void main() {
 
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final properties = <String, String>{
+      'remember_login_credentials': 'true',
+      'remember_login_username': 'reader@example.com',
+      'remember_login_password': 'secret',
+    };
     messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request = jsonDecode(call.arguments as String) as Map;
+      switch (request['method']) {
+        case 'load_property':
+          final key = request['params']?.toString() ?? '';
+          return jsonEncode({
+            'error_message': '',
+            'response_data': properties[key] ?? '',
+          });
+        case 'save_property':
+          final values = jsonDecode(request['params'] as String) as Map;
+          properties[values['k'] as String] = values['v'] as String;
+          break;
+      }
       return jsonEncode({
         'error_message': '',
         'response_data': jsonEncode(''),
@@ -40,6 +58,11 @@ void main() {
     final password = find.byKey(const ValueKey('first-login-password'));
     expect(username, findsOneWidget);
     expect(password, findsOneWidget);
+    final remember =
+        find.byKey(const ValueKey('first-login-remember-credentials'));
+    expect(remember, findsOneWidget);
+    expect(tester.widget<CheckboxListTile>(remember).value, isTrue);
+    expect(find.text('reader@example.com'), findsOneWidget);
     expect(find.byKey(const ValueKey('first-login-guest')), findsOneWidget);
     expect(find.byKey(const ValueKey('profile-project-links')), findsNothing);
     expect(find.text('Project links'), findsNothing);

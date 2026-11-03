@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:event/event.dart';
 import 'package:flutter/material.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
@@ -6,6 +8,7 @@ import 'package:jmcomic3/basic/log.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/configs/bool_property.dart';
 import 'package:jmcomic3/configs/is_pro.dart';
+import 'package:jmcomic3/configs/remember_login.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/configs/user_agreement.dart';
 
@@ -175,7 +178,12 @@ Future fav(BuildContext buildContext) async {
   }
 }
 
-Future login(String username, String password, BuildContext context) async {
+Future login(
+  String username,
+  String password,
+  BuildContext context, {
+  bool rememberCredentials = true,
+}) async {
   try {
     _loginState = LoginStatus.logging;
     final selfInfo = await methods.login(username, password);
@@ -183,6 +191,16 @@ Future login(String username, String password, BuildContext context) async {
     await methods.saveProperty(_guestModePropertyName, "false");
     _selfInfo = selfInfo;
     _loginState = LoginStatus.loginSuccess;
+    try {
+      await saveRememberedLogin(
+        username,
+        password,
+        remember: rememberCredentials,
+      );
+    } catch (error, stackTrace) {
+      debugPrient(
+          "remember login failed: ${error.runtimeType}/${stackTrace.runtimeType}");
+    }
     fav(context);
   } catch (e, st) {
     debugPrient("$e\n$st");
@@ -512,6 +530,7 @@ class _LoginDialog extends StatefulWidget {
 class _LoginDialogState extends State<_LoginDialog> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  var _rememberCredentials = true;
   var _obscurePassword = true;
   var _busy = false;
   String? _error;
@@ -524,12 +543,12 @@ class _LoginDialogState extends State<_LoginDialog> {
 
   Future<void> _loadSavedCredentials() async {
     try {
-      final username = await methods.loadUsername();
-      final password = await methods.loadPassword();
+      final saved = await loadRememberedLogin();
       if (!mounted) return;
       setState(() {
-        _usernameController.text = username;
-        _passwordController.text = password;
+        _usernameController.text = saved.username;
+        _passwordController.text = saved.password;
+        _rememberCredentials = saved.remember;
       });
     } catch (_) {
       // The fields remain editable when saved credentials cannot be read.
@@ -559,7 +578,12 @@ class _LoginDialogState extends State<_LoginDialog> {
       _busy = true;
       _error = null;
     });
-    await login(username, password, context);
+    await login(
+      username,
+      password,
+      context,
+      rememberCredentials: _rememberCredentials,
+    );
     await reloadIsPro();
     if (!mounted) return;
     if (loginStatus == LoginStatus.loginSuccess) {
@@ -709,6 +733,33 @@ class _LoginDialogState extends State<_LoginDialog> {
                     ),
                   ),
                 ),
+              ),
+              CheckboxListTile(
+                key: const ValueKey('login-remember-credentials'),
+                value: _rememberCredentials,
+                enabled: !_busy,
+                dense: true,
+                visualDensity: VisualDensity.compact,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(
+                  context.l10n.tr(
+                    '记住账号密码',
+                    en: 'Remember account and password',
+                  ),
+                  style: theme.textTheme.bodyMedium,
+                ),
+                onChanged: _busy
+                    ? null
+                    : (value) {
+                        final remember = value ?? false;
+                        setState(() => _rememberCredentials = remember);
+                        if (!remember) {
+                          unawaited(
+                            clearRememberedLogin().catchError((_) {}),
+                          );
+                        }
+                      },
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),

@@ -77,6 +77,9 @@ void main() {
     expect(find.byKey(const ValueKey('login-dialog')), findsOneWidget);
     expect(find.byKey(const ValueKey('login-username')), findsOneWidget);
     expect(find.byKey(const ValueKey('login-password')), findsOneWidget);
+    final remember = find.byKey(const ValueKey('login-remember-credentials'));
+    expect(remember, findsOneWidget);
+    expect(tester.widget<CheckboxListTile>(remember).value, isTrue);
     expect(find.byKey(const ValueKey('login-submit')), findsOneWidget);
     expect(find.byKey(const ValueKey('login-guest')), findsOneWidget);
     expect(find.text('reader@example.com'), findsOneWidget);
@@ -86,7 +89,10 @@ void main() {
       find.byKey(const ValueKey('login-username')),
       '',
     );
-    await tester.tap(find.byKey(const ValueKey('login-submit')));
+    final submit = find.byKey(const ValueKey('login-submit'));
+    await tester.ensureVisible(submit);
+    await tester.pumpAndSettle();
+    await tester.tap(submit);
     await tester.pump();
     expect(find.byKey(const ValueKey('login-error')), findsOneWidget);
     expect(tester.takeException(), isNull);

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import '../configs/is_pro.dart';
 import '../configs/login.dart';
 import '../configs/network_api_host.dart';
 import '../configs/network_cdn_host.dart';
+import '../configs/remember_login.dart';
 import 'app_screen.dart';
 
 const firstLoginScreen = FirstLoginScreen();
@@ -26,7 +28,22 @@ class _FirstLoginScreenState extends State<FirstLoginScreen> {
   final _passwordController = TextEditingController();
   bool _logging = false;
   bool _obscurePassword = true;
+  bool _rememberCredentials = true;
   int _onClickVersion = 0;
+
+  Future<void> _loadRememberedCredentials() async {
+    try {
+      final saved = await loadRememberedLogin();
+      if (!mounted) return;
+      setState(() {
+        _usernameController.text = saved.username;
+        _passwordController.text = saved.password;
+        _rememberCredentials = saved.remember;
+      });
+    } catch (_) {
+      // The fields remain editable when remembered credentials cannot be read.
+    }
+  }
 
   Future<void> _continueAsGuest() async {
     setState(() {
@@ -62,7 +79,12 @@ class _FirstLoginScreenState extends State<FirstLoginScreen> {
     setState(() {
       _logging = true;
     });
-    await login(username, password, context);
+    await login(
+      username,
+      password,
+      context,
+      rememberCredentials: _rememberCredentials,
+    );
     await reloadIsPro();
     if (!mounted) return;
     if (loginStatus != LoginStatus.loginSuccess) {
@@ -84,6 +106,12 @@ class _FirstLoginScreenState extends State<FirstLoginScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadRememberedCredentials());
   }
 
   @override
@@ -209,8 +237,34 @@ class _FirstLoginScreenState extends State<FirstLoginScreen> {
                   ),
                 ),
               ),
+              CheckboxListTile(
+                key: const ValueKey('first-login-remember-credentials'),
+                value: _rememberCredentials,
+                enabled: !_logging,
+                dense: true,
+                visualDensity: VisualDensity.compact,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(
+                  l10n.tr(
+                    '记住账号密码',
+                    en: 'Remember account and password',
+                  ),
+                ),
+                onChanged: _logging
+                    ? null
+                    : (value) {
+                        final remember = value ?? false;
+                        setState(() => _rememberCredentials = remember);
+                        if (!remember) {
+                          unawaited(
+                            clearRememberedLogin().catchError((_) {}),
+                          );
+                        }
+                      },
+              ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
                 child: SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
