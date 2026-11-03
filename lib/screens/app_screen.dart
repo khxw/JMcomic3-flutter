@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:jmcomic3/basic/web_dav_sync.dart';
 import 'package:jmcomic3/configs/android_display_mode.dart';
 import 'package:jmcomic3/configs/daily_sign.dart';
 import 'package:jmcomic3/configs/versions.dart';
@@ -38,6 +41,7 @@ class _AppScreenState extends State<AppScreen>
     );
     Future<void>.delayed(Duration.zero, () async {
       if (!mounted) return;
+      unawaited(webDavSyncAuto(context));
       versionPop(context);
       await checkDailySignStatus(context);
       if (!mounted) return;

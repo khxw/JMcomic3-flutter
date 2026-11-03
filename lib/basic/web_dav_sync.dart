@@ -75,8 +75,16 @@ Future webDavSyncDownload(BuildContext context) async {
 }
 
 Future webDavSyncAuto(BuildContext context) async {
-  if (currentWebDavSyncSwitch() && hasProAccess) {
-    await webDavSync(context);
+  try {
+    final configured = webDavSyncSwitchInitialized &&
+        webDavUrlConfigured &&
+        webDavUserNameConfigured &&
+        webDavPasswordConfigured;
+    if (configured && currentWebDavSyncSwitch() && hasProAccess) {
+      await webDavSync(context);
+    }
+  } catch (error) {
+    debugPrient("WebDav auto sync unavailable: ${error.runtimeType}");
   }
 }
 

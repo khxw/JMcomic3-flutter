@@ -8,12 +8,14 @@ import 'is_pro.dart';
 
 const _propertyName = "webDavSyncSwitch";
 late bool _webDavSyncSwitch;
+bool webDavSyncSwitchInitialized = false;
 
 Future<void> initWebDavSyncSwitch() async {
   _webDavSyncSwitch = parseBoolPropertyValue(
     await methods.loadProperty(_propertyName),
     fallback: false,
   );
+  webDavSyncSwitchInitialized = true;
 }
 
 bool currentWebDavSyncSwitch() {

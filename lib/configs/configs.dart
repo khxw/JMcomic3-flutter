@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/basic/platform.dart';
 import 'package:jmcomic3/configs/Authentication.dart';
 import 'package:jmcomic3/configs/android_display_mode.dart';
@@ -47,49 +48,72 @@ import 'pager_controller_mode.dart';
 import 'pager_view_mode.dart';
 
 Future initConfigs(BuildContext context) async {
-  await initPassed();
-  await initAndroidVersion();
-  await initAndroidDisplayMode();
-  await initVersion();
-  await initApiHost();
-  await initCdnHost();
-  await initPagerControllerMode();
-  await initPagerViewMode();
-  await initReaderType();
-  await initTwoPageDirection();
-  await initReaderDirection();
-  await initReaderControllerType();
-  await initReaderSliderPosition();
-  await initPagerColumnCount();
-  await initPagerCoverRate();
-  await initAutoClean();
-  // Run periodic cache cleanup in background to avoid slowing startup.
+  final androidVersionFuture = initAndroidVersion();
+  final hostFuture = Future.wait<void>([
+    initApiHost(),
+    initCdnHost(),
+    initProxy(),
+  ]);
+  final settingsFuture = Future.wait<void>([
+    initPassed(),
+    initAndroidDisplayMode(),
+    initVersion(),
+    initPagerControllerMode(),
+    initPagerViewMode(),
+    initReaderType(),
+    initTwoPageDirection(),
+    initReaderDirection(),
+    initReaderControllerType(),
+    initReaderSliderPosition(),
+    initPagerColumnCount(),
+    initPagerCoverRate(),
+    initAutoClean(),
+    initTheme(),
+    initAppLocale(),
+    initDisableRecommendContent(),
+    initExportPath(),
+    initDownloadThreadCount(),
+    initUsingRightClickPop(),
+    initWebDavSyncSwitch(),
+    initWebDavUrl(),
+    initWebDavUserName(),
+    initWebDavPassword(),
+    initVolumeKeyControl(),
+    initNoAnimation(),
+    initDownloadAndExportTo(),
+    initExportRename(),
+    initDisplayJmcode(),
+    initSearchTitleWords(),
+    initCategoriesSort(),
+    initFontSizeAdjust(),
+    initAppOrientation(),
+    initIgnoreVewLog(),
+    initIgnoreUpgradePop(),
+  ]);
+  final loginFuture = hostFuture.then<void>((_) async {
+    unawaited(_prefetchCategories());
+    await initLogin(context);
+  });
+  final authenticationFuture =
+      androidVersionFuture.then<void>((_) => initAuthentication());
+
+  await Future.wait<void>([
+    androidVersionFuture,
+    hostFuture,
+    settingsFuture,
+    loginFuture,
+    authenticationFuture,
+  ]);
   unawaited(runAutoCleanIfNeeded());
-  await initTheme();
-  await initAppLocale();
-  await reloadIsPro();
-  await initDisableRecommendContent();
-  await initRecommendLinks();
-  await initExportPath();
-  await initDownloadThreadCount();
-  await initProxy();
-  await initUsingRightClickPop();
-  await initWebDavSyncSwitch();
-  await initWebDavUrl();
-  await initWebDavUserName();
-  await initWebDavPassword();
-  await initVolumeKeyControl();
-  await initNoAnimation();
-  await initDownloadAndExportTo();
-  await initExportRename();
-  await initLogin(context);
-  await initDisplayJmcode();
-  await initSearchTitleWords();
-  await initCategoriesSort();
-  await initAuthentication();
-  await initFontSizeAdjust();
-  await initAppOrientation();
-  await initIgnoreVewLog();
-  await initIgnoreUpgradePop();
+  unawaited(reloadIsPro());
+  unawaited(initRecommendLinks());
   if (normalPlatform) autoCheckNewVersion();
+}
+
+Future<void> _prefetchCategories() async {
+  try {
+    await methods.categories();
+  } catch (_) {
+    // The browser page owns the visible retry/error state.
+  }
 }

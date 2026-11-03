@@ -36,7 +36,13 @@ class Methods {
   static const Duration _comicsCacheTtl = Duration(minutes: 5);
   static const Duration _albumCacheTtl = Duration(minutes: 10);
   static const Duration _coverCacheTtl = Duration(minutes: 30);
+  static const Duration _categoriesPersistentCacheTtl = Duration(hours: 12);
+  static const Duration _comicsPersistentCacheTtl = Duration(minutes: 30);
   static const String _defaultCategoriesCacheKey = "__default__";
+  static const String _categoriesPersistentCacheKey =
+      "startup_cache_categories_v1";
+  static const String _comicsPersistentCacheKeyPrefix =
+      "startup_cache_comics_v1_";
   static const int _downloadThreadMin = 1;
 
   static final Map<String, _CacheEntry<String>> _categoriesCache = {};
@@ -71,11 +77,13 @@ class Methods {
     required Map<String, Future<String>> inflight,
     required Future<String> Function() loader,
     bool allowStaleOnError = false,
+    bool forceRefresh = false,
     String? debugName,
   }) async {
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final current = cache[cacheKey];
-    if (current != null &&
+    if (!forceRefresh &&
+        current != null &&
         (nowMs - current.createdAtMs) <= ttl.inMilliseconds) {
       if (debugName != null) {
         debugPrient("[api-cache-hit] method=$debugName key=$cacheKey");
@@ -124,6 +132,49 @@ class Methods {
           cache.remove(key);
         }
       }
+    }
+  }
+
+  String _comicsPersistentPropertyKey(String cacheKey) {
+    final encoded = base64Url.encode(utf8.encode(cacheKey)).replaceAll('=', '');
+    return "$_comicsPersistentCacheKeyPrefix$encoded";
+  }
+
+  Future<String?> _loadPersistentCache(
+    String propertyKey,
+    Duration ttl,
+  ) async {
+    try {
+      final raw = await loadProperty(propertyKey);
+      if (raw.trim().isEmpty) return null;
+      final payload = jsonDecode(raw);
+      if (payload is! Map) return null;
+      final savedAt = payload["saved_at"];
+      final value = payload["value"];
+      if (savedAt is! num || value is! String || value.isEmpty) return null;
+      final age = DateTime.now().millisecondsSinceEpoch - savedAt.toInt();
+      if (age < 0 || age > ttl.inMilliseconds) return null;
+      return value;
+    } catch (error) {
+      debugPrient("startup cache read failed: ${error.runtimeType}");
+      return null;
+    }
+  }
+
+  Future<void> _savePersistentCache(
+    String propertyKey,
+    String value,
+  ) async {
+    try {
+      await saveProperty(
+        propertyKey,
+        jsonEncode({
+          "saved_at": DateTime.now().millisecondsSinceEpoch,
+          "value": value,
+        }),
+      );
+    } catch (error) {
+      debugPrient("startup cache write failed: ${error.runtimeType}");
     }
   }
 
@@ -395,20 +446,65 @@ class Methods {
     return _invoke("load_property", propertyKey);
   }
 
-  Future<ComicsResponse> comics(String slug, SortBy sortBy, int page) async {
+  Future<ComicsResponse> comics(
+    String slug,
+    SortBy sortBy,
+    int page, {
+    bool forceRefresh = false,
+  }) async {
     final normalizedSlug = slug.trim();
     final cacheKey = "$normalizedSlug|${sortBy.value}|$page";
+    final persistentKey =
+        page == 1 ? _comicsPersistentPropertyKey(cacheKey) : null;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final current = _comicsCache[cacheKey];
+    if (!forceRefresh &&
+        current != null &&
+        (nowMs - current.createdAtMs) <= _comicsCacheTtl.inMilliseconds) {
+      return _decodeEntityResponse(
+        current.value,
+        "comics",
+        ComicsResponse.fromJson,
+      );
+    }
+    if (!forceRefresh && persistentKey != null) {
+      final persisted = await _loadPersistentCache(
+        persistentKey,
+        _comicsPersistentCacheTtl,
+      );
+      if (persisted != null) {
+        try {
+          final decoded = _decodeEntityResponse(
+            persisted,
+            "comics",
+            ComicsResponse.fromJson,
+          );
+          _comicsCache[cacheKey] = _CacheEntry(persisted, nowMs);
+          debugPrient("[api-cache-disk-hit] method=comics key=$cacheKey");
+          return decoded;
+        } catch (_) {
+          // Ignore an incompatible cache and fetch a fresh response.
+        }
+      }
+    }
     final rsp = await _loadCachedString(
       cacheKey: cacheKey,
       ttl: _comicsCacheTtl,
       cache: _comicsCache,
       inflight: _comicsInflight,
-      loader: () => _invoke("comics", {
-        "categories_slug": normalizedSlug,
-        "sort_by": sortBy.value,
-        "page": page,
-      }),
+      loader: () async {
+        final value = await _invoke("comics", {
+          "categories_slug": normalizedSlug,
+          "sort_by": sortBy.value,
+          "page": page,
+        });
+        if (persistentKey != null) {
+          await _savePersistentCache(persistentKey, value);
+        }
+        return value;
+      },
       allowStaleOnError: true,
+      forceRefresh: forceRefresh,
       debugName: "comics",
     );
     return _decodeEntityResponse(rsp, "comics", ComicsResponse.fromJson);
@@ -437,14 +533,51 @@ class Methods {
     return rsp;
   }
 
-  Future<CategoriesResponse> categories() async {
+  Future<CategoriesResponse> categories({bool forceRefresh = false}) async {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final current = _categoriesCache[_defaultCategoriesCacheKey];
+    if (!forceRefresh &&
+        current != null &&
+        (nowMs - current.createdAtMs) <= _categoriesCacheTtl.inMilliseconds) {
+      return _decodeEntityResponse(
+        current.value,
+        "categories",
+        CategoriesResponse.fromJson,
+      );
+    }
+    if (!forceRefresh) {
+      final persisted = await _loadPersistentCache(
+        _categoriesPersistentCacheKey,
+        _categoriesPersistentCacheTtl,
+      );
+      if (persisted != null) {
+        try {
+          final decoded = _decodeEntityResponse(
+            persisted,
+            "categories",
+            CategoriesResponse.fromJson,
+          );
+          _categoriesCache[_defaultCategoriesCacheKey] =
+              _CacheEntry(persisted, nowMs);
+          debugPrient("[api-cache-disk-hit] method=categories");
+          return decoded;
+        } catch (_) {
+          // Ignore an incompatible cache and fetch a fresh response.
+        }
+      }
+    }
     final rsp = await _loadCachedString(
       cacheKey: _defaultCategoriesCacheKey,
       ttl: _categoriesCacheTtl,
       cache: _categoriesCache,
       inflight: _categoriesInflight,
-      loader: () => _invoke("categories", ""),
+      loader: () async {
+        final value = await _invoke("categories", "");
+        await _savePersistentCache(_categoriesPersistentCacheKey, value);
+        return value;
+      },
       allowStaleOnError: true,
+      forceRefresh: forceRefresh,
       debugName: "categories",
     );
     return _decodeEntityResponse(

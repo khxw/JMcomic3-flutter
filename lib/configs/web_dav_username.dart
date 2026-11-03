@@ -10,6 +10,8 @@ const _propertyName = "WebDavUserName";
 
 String get currentWebUserName => _currentWebDavUserName;
 
+bool get webDavUserNameConfigured => _currentWebDavUserName.trim().isNotEmpty;
+
 Future<String?> initWebDavUserName() async {
   _currentWebDavUserName = parseStringPropertyValue(
     await methods.loadProperty(_propertyName),

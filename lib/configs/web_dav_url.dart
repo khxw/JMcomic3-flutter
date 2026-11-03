@@ -26,6 +26,11 @@ String currentWebDavUrlName(BuildContext context) {
 
 String get currentWebDavUrl => _currentWebDavUrl;
 
+bool get webDavUrlConfigured {
+  final value = _currentWebDavUrl.trim();
+  return value.isNotEmpty && value != _defaultWebDavUrl;
+}
+
 Future<dynamic> inputWebDavUrl(BuildContext context) async {
   String? input = await displayTextInputDialog(
     context,

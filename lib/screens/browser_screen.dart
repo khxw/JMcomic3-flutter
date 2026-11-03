@@ -100,8 +100,9 @@ class _BrowserScreenState extends State<BrowserScreen>
     super.dispose();
   }
 
-  Future<CategoriesResponse> _loadCategories() async {
-    final response = await methods.categories();
+  Future<CategoriesResponse> _loadCategories(
+      {bool forceRefresh = false}) async {
+    final response = await methods.categories(forceRefresh: forceRefresh);
     blockStore = response.blocks;
     sortCategories(response.categories);
     return response;
@@ -117,7 +118,7 @@ class _BrowserScreenState extends State<BrowserScreen>
 
   Future<void> _refresh() async {
     setState(() {
-      _future = _loadCategories();
+      _future = _loadCategories(forceRefresh: true);
       _feedKey = UniqueKey();
     });
     await _future;

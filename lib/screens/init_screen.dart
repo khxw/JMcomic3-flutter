@@ -11,7 +11,6 @@ import 'package:jmcomic3/configs/user_agreement.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/app_icon.dart';
 
-import '../basic/web_dav_sync.dart';
 import '../configs/passed.dart';
 import 'app_screen.dart';
 import 'first_login_screen.dart';
@@ -153,7 +152,6 @@ class _InitScreenState extends State<InitScreen> {
 
   Future<void> _continueStartup() async {
     if (currentAuthentication()) {
-      await webDavSyncAuto(context);
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const AuthScreen()),
@@ -161,14 +159,12 @@ class _InitScreenState extends State<InitScreen> {
       return;
     }
     if (loginStatus == LoginStatus.notSet) {
-      await webDavSyncAuto(context);
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => firstLoginScreen),
       );
       return;
     }
-    await webDavSyncAuto(context);
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const AppScreen()),

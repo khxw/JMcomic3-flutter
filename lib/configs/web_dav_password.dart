@@ -10,6 +10,8 @@ const _propertyName = "WebDavPassword";
 
 String get currentWebDavPassword => _currentWebDavPassword;
 
+bool get webDavPasswordConfigured => _currentWebDavPassword.isNotEmpty;
+
 Future<String?> initWebDavPassword() async {
   _currentWebDavPassword = parseStringPropertyValue(
     await methods.loadProperty(_propertyName),
