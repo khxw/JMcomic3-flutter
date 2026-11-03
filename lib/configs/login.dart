@@ -527,9 +527,14 @@ class _LoginDialog extends StatefulWidget {
   State<StatefulWidget> createState() => _LoginDialogState();
 }
 
-class _LoginDialogState extends State<_LoginDialog> {
+class _LoginDialogState extends State<_LoginDialog>
+    with WidgetsBindingObserver {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _passwordFocusNode = FocusNode(debugLabel: 'login-password');
+  final _scrollController = ScrollController();
+  final _submitAnchorKey = GlobalKey();
+  Timer? _revealSubmitTimer;
   var _rememberCredentials = true;
   var _obscurePassword = true;
   var _busy = false;
@@ -538,6 +543,8 @@ class _LoginDialogState extends State<_LoginDialog> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _passwordFocusNode.addListener(_handlePasswordFocus);
     _loadSavedCredentials();
   }
 
@@ -557,9 +564,48 @@ class _LoginDialogState extends State<_LoginDialog> {
 
   @override
   void dispose() {
+    _revealSubmitTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _passwordFocusNode
+      ..removeListener(_handlePasswordFocus)
+      ..dispose();
+    _scrollController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    _scheduleSubmitReveal();
+  }
+
+  void _handlePasswordFocus() {
+    if (_passwordFocusNode.hasFocus) {
+      _scheduleSubmitReveal();
+    }
+  }
+
+  void _scheduleSubmitReveal() {
+    if (!_passwordFocusNode.hasFocus) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _revealSubmit());
+    _revealSubmitTimer?.cancel();
+    _revealSubmitTimer = Timer(
+      const Duration(milliseconds: 260),
+      _revealSubmit,
+    );
+  }
+
+  void _revealSubmit() {
+    if (!mounted || !_passwordFocusNode.hasFocus) return;
+    final submitContext = _submitAnchorKey.currentContext;
+    if (submitContext == null) return;
+    Scrollable.ensureVisible(
+      submitContext,
+      alignment: 1,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   Future<void> _submit() async {
@@ -611,6 +657,11 @@ class _LoginDialogState extends State<_LoginDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final media = MediaQuery.of(context);
+    final maxDialogHeight = media.size.height -
+        media.viewInsets.bottom -
+        media.padding.vertical -
+        48;
     return Dialog(
       key: const ValueKey('login-dialog'),
       insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
@@ -624,8 +675,13 @@ class _LoginDialogState extends State<_LoginDialog> {
         ),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440),
+        constraints: BoxConstraints(
+          maxWidth: 440,
+          maxHeight: maxDialogHeight.clamp(220, 760).toDouble(),
+        ),
         child: SingleChildScrollView(
+          controller: _scrollController,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -705,6 +761,7 @@ class _LoginDialogState extends State<_LoginDialog> {
               TextField(
                 key: const ValueKey('login-password'),
                 controller: _passwordController,
+                focusNode: _passwordFocusNode,
                 enabled: !_busy,
                 autofillHints: const [AutofillHints.password],
                 obscureText: _obscurePassword,
@@ -866,22 +923,25 @@ class _LoginDialogState extends State<_LoginDialog> {
                 ),
               ],
               const SizedBox(height: 14),
-              FilledButton.icon(
-                key: const ValueKey('login-submit'),
-                onPressed: _busy ? null : _submit,
-                icon: _busy
-                    ? const SizedBox(
-                        width: 17,
-                        height: 17,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.login_rounded, size: 19),
-                label: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 7),
-                  child: Text(
-                    _busy
-                        ? context.l10n.loggingIn
-                        : context.l10n.tr('登录', en: 'Sign in'),
+              KeyedSubtree(
+                key: _submitAnchorKey,
+                child: FilledButton.icon(
+                  key: const ValueKey('login-submit'),
+                  onPressed: _busy ? null : _submit,
+                  icon: _busy
+                      ? const SizedBox(
+                          width: 17,
+                          height: 17,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.login_rounded, size: 19),
+                  label: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 7),
+                    child: Text(
+                      _busy
+                          ? context.l10n.loggingIn
+                          : context.l10n.tr('登录', en: 'Sign in'),
+                    ),
                   ),
                 ),
               ),

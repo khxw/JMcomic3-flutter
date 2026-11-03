@@ -126,5 +126,16 @@ void main() {
     await tester.pump();
     expect(find.byKey(const ValueKey('login-error')), findsOneWidget);
     expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byKey(const ValueKey('login-password')));
+    await tester.pump();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 240);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+
+    final submitRect = tester.getRect(submit);
+    expect(submitRect.top, greaterThanOrEqualTo(0));
+    expect(submitRect.bottom, lessThanOrEqualTo(400));
+    expect(tester.takeException(), isNull);
   });
 }
