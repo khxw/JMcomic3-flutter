@@ -11,7 +11,6 @@ import '../configs/login.dart';
 import '../configs/network_api_host.dart';
 import '../configs/network_cdn_host.dart';
 import 'app_screen.dart';
-import 'components/recommend_links_panel.dart';
 
 const firstLoginScreen = FirstLoginScreen();
 
@@ -23,9 +22,10 @@ class FirstLoginScreen extends StatefulWidget {
 }
 
 class _FirstLoginScreenState extends State<FirstLoginScreen> {
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _logging = false;
-  String _username = "";
-  String _password = "";
+  bool _obscurePassword = true;
   int _onClickVersion = 0;
 
   Future<void> _continueAsGuest() async {
@@ -44,86 +44,56 @@ class _FirstLoginScreenState extends State<FirstLoginScreen> {
     ));
   }
 
-  Widget _usernameField() {
-    final l10n = context.l10n;
-    return ListTile(
-      title: Text(l10n.account),
-      subtitle: Text(_username),
-      onTap: () async {
-        final input = await displayTextInputDialog(
-          context,
-          hint: l10n.inputAccount,
-          title: l10n.account,
-          src: _username,
-        );
-        if (input != null) {
-          setState(() {
-            _username = input;
-          });
-        }
-      },
-    );
-  }
-
-  Widget _passwordField() {
-    final l10n = context.l10n;
-    return ListTile(
-      title: Text(l10n.password),
-      subtitle: Text(_password.isEmpty ? "" : '********'),
-      onTap: () async {
-        final input = await displayTextInputDialog(
-          context,
-          hint: l10n.inputPassword,
-          title: l10n.password,
-          isPasswd: true,
-          src: _password,
-        );
-        if (input != null) {
-          setState(() {
-            _password = input;
-          });
-        }
-      },
-    );
-  }
-
-  late final _saveButton = IconButton(
-    onPressed: () async {
+  Future<void> _submitLogin() async {
+    if (_logging) return;
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
+    if (username.isEmpty || password.isEmpty) {
+      defaultToast(
+        context,
+        context.l10n.tr(
+          '请输入账号和密码',
+          en: 'Enter your account and password',
+        ),
+      );
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _logging = true;
+    });
+    await login(username, password, context);
+    await reloadIsPro();
+    if (!mounted) return;
+    if (loginStatus != LoginStatus.loginSuccess) {
+      defaultToast(context, loginMessage);
       setState(() {
-        _logging = true;
+        _logging = false;
       });
-      await login(_username, _password, context);
-      await reloadIsPro();
-      if (loginStatus != LoginStatus.loginSuccess) {
-        defaultToast(context, loginMessage);
-        setState(() {
-          _logging = false;
-        });
-      } else {
-        Navigator.pushReplacement(context, MaterialPageRoute(
-          builder: (BuildContext context) {
-            return const AppScreen();
-          },
-        ));
-      }
-    },
-    icon: const Icon(Icons.save),
-  );
+      return;
+    }
+    Navigator.pushReplacement(context, MaterialPageRoute(
+      builder: (BuildContext context) {
+        return const AppScreen();
+      },
+    ));
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
     return Scaffold(
       appBar: AppBar(
         title: const Text('JMComic3 Mod'),
         actions: _logging
             ? []
             : [
-                IconButton(
-                  onPressed: _continueAsGuest,
-                  tooltip: l10n.guestMode,
-                  icon: const Icon(Icons.explore_outlined),
-                ),
                 IconButton(
                   onPressed: () {
                     setState(() {
@@ -136,7 +106,6 @@ class _FirstLoginScreenState extends State<FirstLoginScreen> {
                   },
                   icon: Text(currentVersion()),
                 ),
-                _saveButton,
               ],
       ),
       body: _logging ? _loading() : _form(),
@@ -148,6 +117,7 @@ class _FirstLoginScreenState extends State<FirstLoginScreen> {
   }
 
   Widget _form() {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return ListView(
@@ -187,16 +157,65 @@ class _FirstLoginScreenState extends State<FirstLoginScreen> {
           margin: EdgeInsets.zero,
           child: Column(
             children: [
-              _usernameField(),
-              const Divider(height: 1),
-              _passwordField(),
               Padding(
-                padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+                child: TextField(
+                  key: const ValueKey('first-login-username'),
+                  controller: _usernameController,
+                  enabled: !_logging,
+                  autofillHints: const [AutofillHints.username],
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(
+                    labelText: l10n.account,
+                    hintText: l10n.inputAccount,
+                    prefixIcon: const Icon(Icons.alternate_email_rounded),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+                child: TextField(
+                  key: const ValueKey('first-login-password'),
+                  controller: _passwordController,
+                  enabled: !_logging,
+                  autofillHints: const [AutofillHints.password],
+                  obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submitLogin(),
+                  decoration: InputDecoration(
+                    labelText: l10n.password,
+                    hintText: l10n.inputPassword,
+                    prefixIcon: const Icon(Icons.lock_outline_rounded),
+                    suffixIcon: IconButton(
+                      tooltip: l10n.tr(
+                        _obscurePassword ? '显示密码' : '隐藏密码',
+                        en: _obscurePassword
+                            ? 'Show password'
+                            : 'Hide password',
+                      ),
+                      onPressed: _logging
+                          ? null
+                          : () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
                 child: SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
                     key: const ValueKey('first-login-submit'),
-                    onPressed: _saveButton.onPressed,
+                    onPressed: _logging ? null : _submitLogin,
                     icon: const Icon(Icons.login_rounded, size: 19),
                     label: Text(context.l10n.login),
                   ),
@@ -238,7 +257,6 @@ class _FirstLoginScreenState extends State<FirstLoginScreen> {
         const LoginAgreementHint(
           padding: EdgeInsets.fromLTRB(4, 14, 4, 4),
         ),
-        const RecommendLinksPanel(),
       ],
     );
   }
