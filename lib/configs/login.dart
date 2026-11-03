@@ -531,10 +531,8 @@ class _LoginDialogState extends State<_LoginDialog>
     with WidgetsBindingObserver {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _passwordFocusNode = FocusNode(debugLabel: 'login-password');
-  final _scrollController = ScrollController();
-  final _submitAnchorKey = GlobalKey();
-  Timer? _revealSubmitTimer;
+  Timer? _keyboardResetTimer;
+  var _keyboardInsetCeiling = 0.0;
   var _rememberCredentials = true;
   var _obscurePassword = true;
   var _busy = false;
@@ -544,7 +542,6 @@ class _LoginDialogState extends State<_LoginDialog>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _passwordFocusNode.addListener(_handlePasswordFocus);
     _loadSavedCredentials();
   }
 
@@ -564,12 +561,8 @@ class _LoginDialogState extends State<_LoginDialog>
 
   @override
   void dispose() {
-    _revealSubmitTimer?.cancel();
+    _keyboardResetTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
-    _passwordFocusNode
-      ..removeListener(_handlePasswordFocus)
-      ..dispose();
-    _scrollController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -577,35 +570,25 @@ class _LoginDialogState extends State<_LoginDialog>
 
   @override
   void didChangeMetrics() {
-    _scheduleSubmitReveal();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncKeyboardInset());
   }
 
-  void _handlePasswordFocus() {
-    if (_passwordFocusNode.hasFocus) {
-      _scheduleSubmitReveal();
+  void _syncKeyboardInset() {
+    if (!mounted) return;
+    final currentInset = MediaQuery.viewInsetsOf(context).bottom;
+    if (currentInset > 0) {
+      _keyboardResetTimer?.cancel();
+      _keyboardResetTimer = null;
+      if (currentInset > _keyboardInsetCeiling + .5) {
+        setState(() => _keyboardInsetCeiling = currentInset);
+      }
+      return;
     }
-  }
-
-  void _scheduleSubmitReveal() {
-    if (!_passwordFocusNode.hasFocus) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _revealSubmit());
-    _revealSubmitTimer?.cancel();
-    _revealSubmitTimer = Timer(
-      const Duration(milliseconds: 260),
-      _revealSubmit,
-    );
-  }
-
-  void _revealSubmit() {
-    if (!mounted || !_passwordFocusNode.hasFocus) return;
-    final submitContext = _submitAnchorKey.currentContext;
-    if (submitContext == null) return;
-    Scrollable.ensureVisible(
-      submitContext,
-      alignment: 1,
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-    );
+    if (_keyboardInsetCeiling <= 0) return;
+    _keyboardResetTimer ??= Timer(const Duration(milliseconds: 450), () {
+      if (!mounted || MediaQuery.viewInsetsOf(context).bottom > 0) return;
+      setState(() => _keyboardInsetCeiling = 0);
+    });
   }
 
   Future<void> _submit() async {
@@ -658,298 +641,334 @@ class _LoginDialogState extends State<_LoginDialog>
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final media = MediaQuery.of(context);
-    final maxDialogHeight = media.size.height -
-        media.viewInsets.bottom -
-        media.padding.vertical -
-        48;
-    return Dialog(
-      key: const ValueKey('login-dialog'),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
-      backgroundColor: scheme.surface,
-      surfaceTintColor: Colors.transparent,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(26),
-        side: BorderSide(
-          color: scheme.outlineVariant.withValues(alpha: .55),
+    final keyboardInset = media.viewInsets.bottom > _keyboardInsetCeiling
+        ? media.viewInsets.bottom
+        : _keyboardInsetCeiling;
+    final stableMedia = media.copyWith(
+      viewInsets: media.viewInsets.copyWith(bottom: keyboardInset),
+    );
+    final maxDialogHeight =
+        media.size.height - keyboardInset - media.padding.vertical - 48;
+    return MediaQuery(
+      data: stableMedia,
+      child: Dialog(
+        key: const ValueKey('login-dialog'),
+        alignment:
+            keyboardInset > 0 ? Alignment.bottomCenter : Alignment.center,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+        insetAnimationDuration: const Duration(milliseconds: 220),
+        insetAnimationCurve: Curves.easeOutCubic,
+        backgroundColor: scheme.surface,
+        surfaceTintColor: Colors.transparent,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(26),
+          side: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: .55),
+          ),
         ),
-      ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 440,
-          maxHeight: maxDialogHeight.clamp(220, 760).toDouble(),
-        ),
-        child: SingleChildScrollView(
-          controller: _scrollController,
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 440,
+            maxHeight: maxDialogHeight.clamp(220, 760).toDouble(),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          scheme.primaryContainer,
-                          scheme.tertiaryContainer.withValues(alpha: .72),
+              Flexible(
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  scheme.primaryContainer,
+                                  scheme.tertiaryContainer
+                                      .withValues(alpha: .72),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              Icons.person_rounded,
+                              color: scheme.onPrimaryContainer,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  context.l10n.tr(
+                                    '登录 JMComic3',
+                                    en: 'Sign in to JMComic3',
+                                  ),
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  context.l10n.tr(
+                                    '登录后可同步收藏、评论与阅读记录',
+                                    en: 'Sync favorites, comments, and reading history',
+                                  ),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: context.l10n.tr('关闭', en: 'Close'),
+                            onPressed: _busy
+                                ? null
+                                : () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.close_rounded, size: 21),
+                          ),
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      Icons.person_rounded,
-                      color: scheme.onPrimaryContainer,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          context.l10n.tr(
-                            '登录 JMComic3',
-                            en: 'Sign in to JMComic3',
-                          ),
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          context.l10n.tr(
-                            '登录后可同步收藏、评论与阅读记录',
-                            en: 'Sync favorites, comments, and reading history',
-                          ),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: context.l10n.tr('关闭', en: 'Close'),
-                    onPressed: _busy ? null : () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded, size: 21),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              TextField(
-                key: const ValueKey('login-username'),
-                controller: _usernameController,
-                enabled: !_busy,
-                autofillHints: const [AutofillHints.username],
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: context.l10n.account,
-                  hintText: context.l10n.inputAccount,
-                  prefixIcon: const Icon(Icons.alternate_email_rounded),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                key: const ValueKey('login-password'),
-                controller: _passwordController,
-                focusNode: _passwordFocusNode,
-                enabled: !_busy,
-                autofillHints: const [AutofillHints.password],
-                obscureText: _obscurePassword,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _submit(),
-                decoration: InputDecoration(
-                  labelText: context.l10n.password,
-                  hintText: context.l10n.inputPassword,
-                  prefixIcon: const Icon(Icons.lock_outline_rounded),
-                  suffixIcon: IconButton(
-                    tooltip: context.l10n.tr(
-                      _obscurePassword ? '显示密码' : '隐藏密码',
-                      en: _obscurePassword ? 'Show password' : 'Hide password',
-                    ),
-                    onPressed: _busy
-                        ? null
-                        : () {
-                            setState(() {
-                              _obscurePassword = !_obscurePassword;
-                            });
-                          },
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                key: const ValueKey('login-remember-row'),
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: Checkbox(
-                      key: const ValueKey('login-remember-credentials'),
-                      value: _rememberCredentials,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                      onChanged: _busy
-                          ? null
-                          : (value) {
-                              final remember = value ?? false;
-                              setState(
-                                () => _rememberCredentials = remember,
-                              );
-                              if (!remember) {
-                                unawaited(
-                                  clearRememberedLogin().catchError((_) {}),
-                                );
-                              }
-                            },
-                    ),
-                  ),
-                  Flexible(
-                    flex: 3,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(6),
-                      onTap: _busy
-                          ? null
-                          : () {
-                              final remember = !_rememberCredentials;
-                              setState(
-                                () => _rememberCredentials = remember,
-                              );
-                              if (!remember) {
-                                unawaited(
-                                  clearRememberedLogin().catchError((_) {}),
-                                );
-                              }
-                            },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Text(
-                          context.l10n.tr(
-                            '记住账号密码',
-                            en: 'Remember account and password',
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall,
+                      const SizedBox(height: 18),
+                      TextField(
+                        key: const ValueKey('login-username'),
+                        controller: _usernameController,
+                        enabled: !_busy,
+                        autofillHints: const [AutofillHints.username],
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          labelText: context.l10n.account,
+                          hintText: context.l10n.inputAccount,
+                          prefixIcon: const Icon(Icons.alternate_email_rounded),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    flex: 4,
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerRight,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              context.l10n.tr(
-                                '使用前请阅读',
-                                en: 'Review the',
-                              ),
-                              maxLines: 1,
-                              style: theme.textTheme.bodySmall,
+                      const SizedBox(height: 12),
+                      TextField(
+                        key: const ValueKey('login-password'),
+                        controller: _passwordController,
+                        enabled: !_busy,
+                        autofillHints: const [AutofillHints.password],
+                        obscureText: _obscurePassword,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => _submit(),
+                        decoration: InputDecoration(
+                          labelText: context.l10n.password,
+                          hintText: context.l10n.inputPassword,
+                          prefixIcon: const Icon(Icons.lock_outline_rounded),
+                          suffixIcon: IconButton(
+                            tooltip: context.l10n.tr(
+                              _obscurePassword ? '显示密码' : '隐藏密码',
+                              en: _obscurePassword
+                                  ? 'Show password'
+                                  : 'Hide password',
                             ),
-                            const SizedBox(width: 4),
-                            InkWell(
-                              onTap: () =>
-                                  showLoginAgreementBottomSheet(context),
-                              child: Text(
-                                context.l10n.tr(
-                                  '使用协议',
-                                  en: 'Terms of use',
+                            onPressed: _busy
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _obscurePassword = !_obscurePassword;
+                                    });
+                                  },
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        key: const ValueKey('login-remember-row'),
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: Checkbox(
+                              key: const ValueKey('login-remember-credentials'),
+                              value: _rememberCredentials,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                              onChanged: _busy
+                                  ? null
+                                  : (value) {
+                                      final remember = value ?? false;
+                                      setState(
+                                        () => _rememberCredentials = remember,
+                                      );
+                                      if (!remember) {
+                                        unawaited(
+                                          clearRememberedLogin()
+                                              .catchError((_) {}),
+                                        );
+                                      }
+                                    },
+                            ),
+                          ),
+                          Flexible(
+                            flex: 3,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(6),
+                              onTap: _busy
+                                  ? null
+                                  : () {
+                                      final remember = !_rememberCredentials;
+                                      setState(
+                                        () => _rememberCredentials = remember,
+                                      );
+                                      if (!remember) {
+                                        unawaited(
+                                          clearRememberedLogin()
+                                              .catchError((_) {}),
+                                        );
+                                      }
+                                    },
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 6),
+                                child: Text(
+                                  context.l10n.tr(
+                                    '记住账号密码',
+                                    en: 'Remember account and password',
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall,
                                 ),
-                                maxLines: 1,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            flex: 4,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerRight,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      context.l10n.tr(
+                                        '使用前请阅读',
+                                        en: 'Review the',
+                                      ),
+                                      maxLines: 1,
+                                      style: theme.textTheme.bodySmall,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    InkWell(
+                                      onTap: () =>
+                                          showLoginAgreementBottomSheet(
+                                              context),
+                                      child: Text(
+                                        context.l10n.tr(
+                                          '使用协议',
+                                          en: 'Terms of use',
+                                        ),
+                                        maxLines: 1,
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_error != null) ...[
+                      Container(
+                        key: const ValueKey('login-error'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 9,
+                        ),
+                        decoration: BoxDecoration(
+                          color: scheme.errorContainer.withValues(alpha: .55),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.error_outline_rounded,
+                              size: 17,
+                              color: scheme.error,
+                            ),
+                            const SizedBox(width: 7),
+                            Expanded(
+                              child: Text(
+                                _error!,
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  decoration: TextDecoration.underline,
+                                  color: scheme.onErrorContainer,
                                 ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  ),
-                ],
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  key: const ValueKey('login-error'),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: scheme.errorContainer.withValues(alpha: .55),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        Icons.error_outline_rounded,
-                        size: 17,
-                        color: scheme.error,
-                      ),
-                      const SizedBox(width: 7),
-                      Expanded(
+                      const SizedBox(height: 12),
+                    ],
+                    FilledButton.icon(
+                      key: const ValueKey('login-submit'),
+                      onPressed: _busy ? null : _submit,
+                      icon: _busy
+                          ? const SizedBox(
+                              width: 17,
+                              height: 17,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.login_rounded, size: 19),
+                      label: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 7),
                         child: Text(
-                          _error!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: scheme.onErrorContainer,
-                          ),
+                          _busy
+                              ? context.l10n.loggingIn
+                              : context.l10n.tr('登录', en: 'Sign in'),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: 14),
-              KeyedSubtree(
-                key: _submitAnchorKey,
-                child: FilledButton.icon(
-                  key: const ValueKey('login-submit'),
-                  onPressed: _busy ? null : _submit,
-                  icon: _busy
-                      ? const SizedBox(
-                          width: 17,
-                          height: 17,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.login_rounded, size: 19),
-                  label: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 7),
-                    child: Text(
-                      _busy
-                          ? context.l10n.loggingIn
-                          : context.l10n.tr('登录', en: 'Sign in'),
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    TextButton(
+                      key: const ValueKey('login-guest'),
+                      onPressed: _busy ? null : _continueAsGuest,
+                      child: Text(context.l10n.guestMode),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 4),
-              TextButton(
-                key: const ValueKey('login-guest'),
-                onPressed: _busy ? null : _continueAsGuest,
-                child: Text(context.l10n.guestMode),
               ),
             ],
           ),

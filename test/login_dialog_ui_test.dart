@@ -127,15 +127,29 @@ void main() {
     expect(find.byKey(const ValueKey('login-error')), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    await tester.tap(find.byKey(const ValueKey('login-password')));
-    await tester.pump();
-    tester.view.viewInsets = const FakeViewPadding(bottom: 240);
+    final dialog = find.byKey(const ValueKey('login-dialog'));
+    final username = find.byKey(const ValueKey('login-username'));
+    final password = find.byKey(const ValueKey('login-password'));
+    await tester.tap(username);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 260);
     addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+    final accountKeyboardDialogBottom = tester.getRect(dialog).bottom;
+
+    tester.view.viewInsets = const FakeViewPadding(bottom: 220);
+    await tester.pump();
+    await tester.ensureVisible(password);
+    await tester.pumpAndSettle();
+    await tester.tap(password);
     await tester.pumpAndSettle();
 
     final submitRect = tester.getRect(submit);
     expect(submitRect.top, greaterThanOrEqualTo(0));
-    expect(submitRect.bottom, lessThanOrEqualTo(400));
+    expect(submitRect.bottom, lessThanOrEqualTo(380));
+    expect(
+      tester.getRect(dialog).bottom,
+      closeTo(accountKeyboardDialogBottom, 1),
+    );
     expect(tester.takeException(), isNull);
   });
 }
