@@ -786,17 +786,50 @@ class _LoginDialogState extends State<_LoginDialog> {
                             '记住账号密码',
                             en: 'Remember account and password',
                           ),
-                          style: theme.textTheme.bodyMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall,
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 4),
-                  const Expanded(
-                    flex: 2,
+                  Expanded(
+                    flex: 4,
                     child: Align(
                       alignment: Alignment.centerRight,
-                      child: LoginAgreementHint(padding: EdgeInsets.zero),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              context.l10n.tr(
+                                '使用前请阅读',
+                                en: 'Review the',
+                              ),
+                              maxLines: 1,
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            const SizedBox(width: 4),
+                            InkWell(
+                              onTap: () =>
+                                  showLoginAgreementBottomSheet(context),
+                              child: Text(
+                                context.l10n.tr(
+                                  '使用协议',
+                                  en: 'Terms of use',
+                                ),
+                                maxLines: 1,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ],

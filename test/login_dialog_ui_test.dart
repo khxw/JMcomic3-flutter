@@ -89,6 +89,27 @@ void main() {
       find.descendant(of: rememberRow, matching: find.text('使用协议')),
       findsOneWidget,
     );
+    expect(
+      tester
+          .getCenter(
+            find.descendant(
+              of: rememberRow,
+              matching: find.text('使用前请阅读'),
+            ),
+          )
+          .dy,
+      closeTo(
+        tester
+            .getCenter(
+              find.descendant(
+                of: rememberRow,
+                matching: find.text('使用协议'),
+              ),
+            )
+            .dy,
+        1,
+      ),
+    );
     expect(find.byKey(const ValueKey('login-submit')), findsOneWidget);
     expect(find.byKey(const ValueKey('login-guest')), findsOneWidget);
     expect(find.text('reader@example.com'), findsOneWidget);
