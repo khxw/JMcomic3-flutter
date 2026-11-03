@@ -41,11 +41,31 @@ void main() {
         }
       ],
     });
+    final albumPayload = jsonEncode({
+      'id': 1,
+      'name': 'Cached album',
+      'author': ['Writer'],
+      'images': <String>[],
+      'description': 'Cached details',
+      'total_views': 10,
+      'likes': 2,
+      'series': <Object>[],
+      'series_id': 1,
+      'comment_total': 0,
+      'tags': <String>[],
+      'works': <String>[],
+      'related_list': <Object>[],
+      'liked': false,
+      'is_favorite': false,
+    });
     final comicsKey = 'startup_cache_comics_v1_'
         '${base64Url.encode(utf8.encode('alpha|mr|1')).replaceAll('=', '')}';
+    final albumKey = 'startup_cache_album_v1_'
+        '${base64Url.encode(utf8.encode('1|false')).replaceAll('=', '')}';
     final properties = <String, String>{
       'startup_cache_categories_v1': _persisted(now, categoriesPayload),
       comicsKey: _persisted(now, comicsPayload),
+      albumKey: _persisted(now, albumPayload),
     };
     final calls = <String>[];
     final messenger =
@@ -64,11 +84,14 @@ void main() {
 
     final categories = await methods.categories();
     final comics = await methods.comics('alpha', sortByNew, 1);
+    final album = await methods.album(1);
 
     expect(categories.categories.single.name, 'Alpha');
     expect(comics.content.single.name, 'Cached comic');
+    expect(album.name, 'Cached album');
     expect(calls, isNot(contains('categories')));
     expect(calls, isNot(contains('comics')));
+    expect(calls, isNot(contains('album')));
   });
 }
 

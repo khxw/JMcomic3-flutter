@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -38,11 +39,14 @@ class Methods {
   static const Duration _coverCacheTtl = Duration(minutes: 30);
   static const Duration _categoriesPersistentCacheTtl = Duration(hours: 12);
   static const Duration _comicsPersistentCacheTtl = Duration(minutes: 30);
+  static const Duration _albumPersistentCacheTtl = Duration(minutes: 30);
   static const String _defaultCategoriesCacheKey = "__default__";
   static const String _categoriesPersistentCacheKey =
       "startup_cache_categories_v1";
   static const String _comicsPersistentCacheKeyPrefix =
       "startup_cache_comics_v1_";
+  static const String _albumPersistentCacheKeyPrefix =
+      "startup_cache_album_v1_";
   static const int _downloadThreadMin = 1;
 
   static final Map<String, _CacheEntry<String>> _categoriesCache = {};
@@ -68,6 +72,12 @@ class Methods {
   void _evictAlbumCache(int comicId) {
     _albumCache.removeWhere((key, _) => key.startsWith("$comicId|"));
     _albumInflight.removeWhere((key, _) => key.startsWith("$comicId|"));
+    unawaited(_removePersistentCache(
+      _albumPersistentPropertyKey("$comicId|false"),
+    ));
+    unawaited(_removePersistentCache(
+      _albumPersistentPropertyKey("$comicId|true"),
+    ));
   }
 
   Future<String> _loadCachedString({
@@ -140,6 +150,11 @@ class Methods {
     return "$_comicsPersistentCacheKeyPrefix$encoded";
   }
 
+  String _albumPersistentPropertyKey(String cacheKey) {
+    final encoded = base64Url.encode(utf8.encode(cacheKey)).replaceAll('=', '');
+    return "$_albumPersistentCacheKeyPrefix$encoded";
+  }
+
   Future<String?> _loadPersistentCache(
     String propertyKey,
     Duration ttl,
@@ -175,6 +190,14 @@ class Methods {
       );
     } catch (error) {
       debugPrient("startup cache write failed: ${error.runtimeType}");
+    }
+  }
+
+  Future<void> _removePersistentCache(String propertyKey) async {
+    try {
+      await saveProperty(propertyKey, "");
+    } catch (_) {
+      // A failed cleanup must not block a favorite or album refresh.
     }
   }
 
@@ -592,18 +615,59 @@ class Methods {
     return _invoke("save_property", {"k": key, "v": v});
   }
 
-  Future<AlbumResponse> album(int id, {bool ignoreViewLog = false}) async {
+  Future<AlbumResponse> album(
+    int id, {
+    bool ignoreViewLog = false,
+    bool forceRefresh = false,
+  }) async {
     final cacheKey = "$id|$ignoreViewLog";
+    final persistentKey = _albumPersistentPropertyKey(cacheKey);
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final current = _albumCache[cacheKey];
+    if (!forceRefresh &&
+        current != null &&
+        (nowMs - current.createdAtMs) <= _albumCacheTtl.inMilliseconds) {
+      return _decodeEntityResponse(
+        current.value,
+        "album",
+        AlbumResponse.fromJson,
+      );
+    }
+    if (!forceRefresh) {
+      final persisted = await _loadPersistentCache(
+        persistentKey,
+        _albumPersistentCacheTtl,
+      );
+      if (persisted != null) {
+        try {
+          final decoded = _decodeEntityResponse(
+            persisted,
+            "album",
+            AlbumResponse.fromJson,
+          );
+          _albumCache[cacheKey] = _CacheEntry(persisted, nowMs);
+          debugPrient("[api-cache-disk-hit] method=album key=$cacheKey");
+          return decoded;
+        } catch (_) {
+          // Ignore an incompatible cache and fetch a fresh response.
+        }
+      }
+    }
     final rsp = await _loadCachedString(
       cacheKey: cacheKey,
       ttl: _albumCacheTtl,
       cache: _albumCache,
       inflight: _albumInflight,
-      loader: () => _invoke("album", {
-        "id": id,
-        "ignore_view_log": ignoreViewLog,
-      }),
+      loader: () async {
+        final value = await _invoke("album", {
+          "id": id,
+          "ignore_view_log": ignoreViewLog,
+        });
+        await _savePersistentCache(persistentKey, value);
+        return value;
+      },
       allowStaleOnError: true,
+      forceRefresh: forceRefresh,
       debugName: "album",
     );
     return _decodeEntityResponse(rsp, "album", AlbumResponse.fromJson);

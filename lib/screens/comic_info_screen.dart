@@ -18,6 +18,7 @@ import 'components/comic_comments_list.dart';
 import 'components/comic_detail_chapters.dart';
 import 'components/comic_detail_header.dart';
 import 'components/comic_list.dart';
+import 'components/images.dart';
 import 'components/right_click_pop.dart';
 
 ComicBasic? effectiveComicInfoSimple(ComicBasic? simple, int comicId) {
@@ -75,11 +76,12 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
   late Future<AlbumResponse> _albumFuture = _loadAlbum();
   late Future<ViewLog?> _viewFuture = methods.findViewLog(widget.comicId);
 
-  Future<AlbumResponse> _loadAlbum() async {
+  Future<AlbumResponse> _loadAlbum({bool forceRefresh = false}) async {
     final bookshelfFuture = loadLocalBookshelf();
     final album = await methods.album(
       widget.comicId,
       ignoreViewLog: currentIgnoreVewLog(),
+      forceRefresh: forceRefresh,
     );
     if (!_accountFavoriteLoading) {
       _accountFavorite = album.isFavorite;
@@ -167,7 +169,7 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
   }
 
   Future<void> _refresh() async {
-    final future = _loadAlbum();
+    final future = _loadAlbum(forceRefresh: true);
     setState(() {
       _albumFuture = future;
       _viewFuture = methods.findViewLog(widget.comicId);
@@ -335,6 +337,8 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
       child: FutureBuilder<AlbumResponse>(
         future: _albumFuture,
         builder: (context, snapshot) {
+          final simple =
+              effectiveComicInfoSimple(widget.simple, widget.comicId);
           final album = snapshot.connectionState == ConnectionState.done &&
                   !snapshot.hasError
               ? snapshot.data
@@ -352,7 +356,9 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
                 key: ValueKey('comic-detail-back'),
               ),
               title: Text(
-                context.l10n.tr('漫画详情', en: 'Comic details'),
+                album?.name ??
+                    simple?.name ??
+                    context.l10n.tr('漫画详情', en: 'Comic details'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -372,14 +378,79 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
                       ),
                     ],
                   )
-                : _loadingOrError(snapshot.hasError),
+                : _loadingOrError(snapshot.hasError, simple: simple),
           );
         },
       ),
     );
   }
 
-  Widget _loadingOrError(bool error) {
+  Widget _loadingOrError(bool error, {ComicBasic? simple}) {
+    if (!error && simple != null) {
+      final theme = Theme.of(context);
+      final scheme = theme.colorScheme;
+      return ListView(
+        key: const ValueKey('comic-detail-loading-preview'),
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: scheme.outlineVariant.withValues(alpha: .35),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 82,
+                  height: 109,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(13),
+                    child: JM3x4Cover(
+                      comicId: widget.comicId,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        simple.name,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (simple.author.trim().isNotEmpty) ...[
+                        const SizedBox(height: 7),
+                        Text(
+                          simple.author,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      const LinearProgressIndicator(minHeight: 3),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
     return Center(
       child: error
           ? Column(mainAxisSize: MainAxisSize.min, children: [

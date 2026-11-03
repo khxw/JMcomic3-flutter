@@ -150,6 +150,7 @@ class _Fixture {
   String favoriteType = 'add';
   Completer<void>? favoriteGate;
   Completer<void>? viewLogGate;
+  Completer<void>? albumGate;
   String? coverPath;
   bool downloadCreated = false;
   final requests = <Map<String, dynamic>>[];
@@ -222,6 +223,7 @@ class _Fixture {
           'pro_info_pat': {'is_pro': true},
         });
       case 'album':
+        if (albumGate != null) await albumGate!.future;
         if (albumFailures > 0) {
           albumFailures--;
           return _response('', error: 'network unavailable');
@@ -409,6 +411,9 @@ Future<_Fixture> _prepare(
     }
     if (fixture.viewLogGate != null && !fixture.viewLogGate!.isCompleted) {
       fixture.viewLogGate!.complete();
+    }
+    if (fixture.albumGate != null && !fixture.albumGate!.isCompleted) {
+      fixture.albumGate!.complete();
     }
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 5));
@@ -1245,6 +1250,38 @@ void main() {
     expect(_key('title'), findsOneWidget);
     expect(_key('retry'), findsNothing);
     expect(tester.widget<FilledButton>(_key('read')).onPressed, isNotNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('detail shows known title and cover while album data loads',
+      (tester) async {
+    final fixture = await _prepare(tester);
+    fixture.albumGate = Completer<void>();
+    await tester.pumpWidget(_host(
+      ComicInfoScreen(fixture.album.id, _simple()),
+    ));
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('comic-detail-loading-preview')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('comic-detail-loading-preview')),
+        matching: find.text('Stale cached title'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Comic details'), findsNothing);
+
+    fixture.albumGate!.complete();
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('comic-detail-loading-preview')),
+      findsNothing,
+    );
+    expect(_key('title'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
