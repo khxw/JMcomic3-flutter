@@ -570,24 +570,24 @@ class _LoginDialogState extends State<_LoginDialog>
 
   @override
   void didChangeMetrics() {
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncKeyboardInset());
-  }
-
-  void _syncKeyboardInset() {
-    if (!mounted) return;
-    final currentInset = MediaQuery.viewInsetsOf(context).bottom;
-    if (currentInset > 0) {
-      _keyboardResetTimer?.cancel();
-      _keyboardResetTimer = null;
-      if (currentInset > _keyboardInsetCeiling + .5) {
-        setState(() => _keyboardInsetCeiling = currentInset);
-      }
-      return;
-    }
-    if (_keyboardInsetCeiling <= 0) return;
-    _keyboardResetTimer ??= Timer(const Duration(milliseconds: 450), () {
-      if (!mounted || MediaQuery.viewInsetsOf(context).bottom > 0) return;
-      setState(() => _keyboardInsetCeiling = 0);
+    _keyboardResetTimer?.cancel();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final currentInset = MediaQuery.viewInsetsOf(context).bottom;
+      _keyboardResetTimer = Timer(
+        Duration(milliseconds: currentInset > 0 ? 180 : 450),
+        () {
+          if (!mounted) return;
+          final settledInset = MediaQuery.viewInsetsOf(context).bottom;
+          if (settledInset > 0) {
+            if (settledInset > _keyboardInsetCeiling + .5) {
+              setState(() => _keyboardInsetCeiling = settledInset);
+            }
+          } else if (_keyboardInsetCeiling > 0) {
+            setState(() => _keyboardInsetCeiling = 0);
+          }
+        },
+      );
     });
   }
 
@@ -653,8 +653,7 @@ class _LoginDialogState extends State<_LoginDialog>
       data: stableMedia,
       child: Dialog(
         key: const ValueKey('login-dialog'),
-        alignment:
-            keyboardInset > 0 ? Alignment.bottomCenter : Alignment.center,
+        alignment: Alignment.bottomCenter,
         insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
         insetAnimationDuration: const Duration(milliseconds: 220),
         insetAnimationCurve: Curves.easeOutCubic,
@@ -667,10 +666,18 @@ class _LoginDialogState extends State<_LoginDialog>
             color: scheme.outlineVariant.withValues(alpha: .55),
           ),
         ),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 440,
-            maxHeight: maxDialogHeight.clamp(220, 760).toDouble(),
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(
+            end: maxDialogHeight.clamp(220, 760).toDouble(),
+          ),
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          builder: (context, maxHeight, child) => ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 440,
+              maxHeight: maxHeight,
+            ),
+            child: child,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,

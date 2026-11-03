@@ -130,6 +130,10 @@ void main() {
     final dialog = find.byKey(const ValueKey('login-dialog'));
     final username = find.byKey(const ValueKey('login-username'));
     final password = find.byKey(const ValueKey('login-password'));
+    expect(
+      tester.widget<Dialog>(dialog).alignment,
+      Alignment.bottomCenter,
+    );
     await tester.tap(username);
     tester.view.viewInsets = const FakeViewPadding(bottom: 260);
     addTearDown(tester.view.resetViewInsets);
@@ -149,6 +153,10 @@ void main() {
     expect(
       tester.getRect(dialog).bottom,
       closeTo(accountKeyboardDialogBottom, 1),
+    );
+    expect(
+      tester.widget<Dialog>(dialog).alignment,
+      Alignment.bottomCenter,
     );
     expect(tester.takeException(), isNull);
   });
