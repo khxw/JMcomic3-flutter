@@ -79,7 +79,16 @@ void main() {
     expect(find.byKey(const ValueKey('login-password')), findsOneWidget);
     final remember = find.byKey(const ValueKey('login-remember-credentials'));
     expect(remember, findsOneWidget);
-    expect(tester.widget<CheckboxListTile>(remember).value, isTrue);
+    expect(tester.widget<Checkbox>(remember).value, isTrue);
+    final rememberRow = find.byKey(const ValueKey('login-remember-row'));
+    expect(
+      find.descendant(of: rememberRow, matching: find.text('记住账号密码')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: rememberRow, matching: find.text('使用协议')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('login-submit')), findsOneWidget);
     expect(find.byKey(const ValueKey('login-guest')), findsOneWidget);
     expect(find.text('reader@example.com'), findsOneWidget);

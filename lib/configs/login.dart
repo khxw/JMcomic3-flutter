@@ -734,32 +734,72 @@ class _LoginDialogState extends State<_LoginDialog> {
                   ),
                 ),
               ),
-              CheckboxListTile(
-                key: const ValueKey('login-remember-credentials'),
-                value: _rememberCredentials,
-                enabled: !_busy,
-                dense: true,
-                visualDensity: VisualDensity.compact,
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                title: Text(
-                  context.l10n.tr(
-                    '记住账号密码',
-                    en: 'Remember account and password',
+              const SizedBox(height: 4),
+              Row(
+                key: const ValueKey('login-remember-row'),
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: Checkbox(
+                      key: const ValueKey('login-remember-credentials'),
+                      value: _rememberCredentials,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                      onChanged: _busy
+                          ? null
+                          : (value) {
+                              final remember = value ?? false;
+                              setState(
+                                () => _rememberCredentials = remember,
+                              );
+                              if (!remember) {
+                                unawaited(
+                                  clearRememberedLogin().catchError((_) {}),
+                                );
+                              }
+                            },
+                    ),
                   ),
-                  style: theme.textTheme.bodyMedium,
-                ),
-                onChanged: _busy
-                    ? null
-                    : (value) {
-                        final remember = value ?? false;
-                        setState(() => _rememberCredentials = remember);
-                        if (!remember) {
-                          unawaited(
-                            clearRememberedLogin().catchError((_) {}),
-                          );
-                        }
-                      },
+                  Flexible(
+                    flex: 3,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: _busy
+                          ? null
+                          : () {
+                              final remember = !_rememberCredentials;
+                              setState(
+                                () => _rememberCredentials = remember,
+                              );
+                              if (!remember) {
+                                unawaited(
+                                  clearRememberedLogin().catchError((_) {}),
+                                );
+                              }
+                            },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Text(
+                          context.l10n.tr(
+                            '记住账号密码',
+                            en: 'Remember account and password',
+                          ),
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Expanded(
+                    flex: 2,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: LoginAgreementHint(padding: EdgeInsets.zero),
+                    ),
+                  ),
+                ],
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
@@ -792,8 +832,6 @@ class _LoginDialogState extends State<_LoginDialog> {
                   ),
                 ),
               ],
-              const SizedBox(height: 14),
-              const LoginAgreementHint(padding: EdgeInsets.zero),
               const SizedBox(height: 14),
               FilledButton.icon(
                 key: const ValueKey('login-submit'),
