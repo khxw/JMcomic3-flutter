@@ -6,6 +6,7 @@ import 'package:jmcomic3/basic/local_bookshelf.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/basic/navigator.dart';
 import 'package:jmcomic3/configs/ignore_view_log.dart';
+import 'package:jmcomic3/configs/login.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
 import 'comic_download_screen.dart';
@@ -67,6 +68,8 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
   static const _contentWidth = 800.0;
   bool _bookshelfLoading = true;
   bool _inBookshelf = false;
+  bool _accountFavoriteLoading = false;
+  bool _accountFavorite = false;
   Timer? _viewLogRefreshTimer;
   ModalRoute<void>? _route;
   late Future<AlbumResponse> _albumFuture = _loadAlbum();
@@ -78,6 +81,9 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
       widget.comicId,
       ignoreViewLog: currentIgnoreVewLog(),
     );
+    if (!_accountFavoriteLoading) {
+      _accountFavorite = album.isFavorite;
+    }
     unawaited(_syncBookshelf(bookshelfFuture, album.id));
     return album;
   }
@@ -95,6 +101,7 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
   void initState() {
     super.initState();
     localBookshelfEvent.subscribe(_bookshelfChanged);
+    loginEvent.subscribe(_loginChanged);
   }
 
   @override
@@ -114,6 +121,8 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
     if (oldWidget.comicId != widget.comicId) {
       _inBookshelf = false;
       _bookshelfLoading = true;
+      _accountFavoriteLoading = false;
+      _accountFavorite = false;
       _albumFuture = _loadAlbum();
       _viewFuture = methods.findViewLog(widget.comicId);
     }
@@ -134,8 +143,19 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
   void dispose() {
     _viewLogRefreshTimer?.cancel();
     localBookshelfEvent.unsubscribe(_bookshelfChanged);
+    loginEvent.unsubscribe(_loginChanged);
     routeObserver.unsubscribe(this);
     super.dispose();
+  }
+
+  void _loginChanged(_) {
+    if (!mounted) return;
+    setState(() {
+      if (!hasJwtAccess) {
+        _accountFavoriteLoading = false;
+        _accountFavorite = false;
+      }
+    });
   }
 
   void _bookshelfChanged(_) {
@@ -200,6 +220,42 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
       if (mounted) defaultToast(context, '$error');
     } finally {
       if (mounted) setState(() => _bookshelfLoading = false);
+    }
+  }
+
+  Future<void> _toggleAccountFavorite(AlbumResponse album) async {
+    if (_accountFavoriteLoading || !hasJwtAccess) return;
+    setState(() => _accountFavoriteLoading = true);
+    try {
+      final response = await methods.setFavorite(album.id);
+      if (!mounted) return;
+      final type = response.type.trim().toLowerCase();
+      final favorited = type == 'add'
+          ? true
+          : type == 'remove'
+              ? false
+              : !_accountFavorite;
+      setState(() {
+        _accountFavorite = favorited;
+      });
+      defaultToast(
+        context,
+        favorited
+            ? context.l10n.tr('已收藏', en: 'Added to favorites')
+            : context.l10n.tr('已取消收藏', en: 'Removed from favorites'),
+      );
+    } catch (_) {
+      if (mounted) {
+        defaultToast(
+          context,
+          context.l10n.tr(
+            '收藏操作失败',
+            en: 'Favorite action failed',
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _accountFavoriteLoading = false);
     }
   }
 
@@ -417,6 +473,22 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
                   onLongPress: _bookshelfLoading
                       ? null
                       : () => _changeBookshelfGroup(album)),
+              if (hasJwtAccess) ...[
+                const SizedBox(width: 4),
+                _action(
+                    'comic-detail-account-favorite',
+                    _accountFavoriteLoading
+                        ? Icons.sync
+                        : _accountFavorite
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                    _accountFavorite
+                        ? context.l10n.tr('已收藏', en: 'Favorited')
+                        : context.l10n.tr('收藏', en: 'Favorite'),
+                    _accountFavoriteLoading
+                        ? null
+                        : () => _toggleAccountFavorite(album)),
+              ],
               const SizedBox(width: 12),
               Expanded(
                   child: FutureBuilder<ViewLog?>(

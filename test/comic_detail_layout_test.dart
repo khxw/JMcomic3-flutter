@@ -1281,6 +1281,55 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('account favorite is hidden for guests', (tester) async {
+    final fixture = await _prepare(tester);
+    await _mount(tester, fixture);
+
+    expect(_key('account-favorite'), findsNothing);
+    expect(fixture.calls('set_favorite'), isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('signed-in account favorite toggles through the bridge',
+      (tester) async {
+    final fixture = await _prepare(tester, signedIn: true);
+    await _mount(tester, fixture);
+
+    final action = _key('account-favorite');
+    expect(action, findsOneWidget);
+    expect(
+      find.descendant(of: action, matching: find.text('Favorite')),
+      findsOneWidget,
+    );
+
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    expect(fixture.calls('set_favorite'), hasLength(1));
+    expect(
+      find.descendant(of: action, matching: find.text('Favorited')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: action,
+        matching: find.byIcon(Icons.favorite_rounded),
+      ),
+      findsOneWidget,
+    );
+
+    fixture.favoriteType = 'remove';
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    expect(fixture.calls('set_favorite'), hasLength(2));
+    expect(
+      find.descendant(of: action, matching: find.text('Favorite')),
+      findsOneWidget,
+    );
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('long-press bookshelf action assigns and creates groups',
       (tester) async {
     final fixture = await _prepare(tester);
