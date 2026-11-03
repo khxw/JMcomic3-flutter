@@ -753,51 +753,110 @@ class _LoginDialogState extends State<_LoginDialog>
                         ],
                       ),
                       const SizedBox(height: 18),
-                      TextField(
-                        key: const ValueKey('login-username'),
-                        controller: _usernameController,
-                        enabled: !_busy,
-                        autofillHints: const [AutofillHints.username],
-                        textInputAction: TextInputAction.next,
-                        decoration: InputDecoration(
-                          labelText: context.l10n.account,
-                          hintText: context.l10n.inputAccount,
-                          prefixIcon: const Icon(Icons.alternate_email_rounded),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        key: const ValueKey('login-password'),
-                        controller: _passwordController,
-                        enabled: !_busy,
-                        autofillHints: const [AutofillHints.password],
-                        obscureText: _obscurePassword,
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => _submit(),
-                        decoration: InputDecoration(
-                          labelText: context.l10n.password,
-                          hintText: context.l10n.inputPassword,
-                          prefixIcon: const Icon(Icons.lock_outline_rounded),
-                          suffixIcon: IconButton(
-                            tooltip: context.l10n.tr(
-                              _obscurePassword ? '显示密码' : '隐藏密码',
-                              en: _obscurePassword
-                                  ? 'Show password'
-                                  : 'Hide password',
+                      AutofillGroup(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            TextField(
+                              key: const ValueKey('login-username'),
+                              controller: _usernameController,
+                              enabled: !_busy,
+                              autofillHints: const [AutofillHints.username],
+                              textInputAction: TextInputAction.next,
+                              decoration: InputDecoration(
+                                labelText: context.l10n.account,
+                                hintText: context.l10n.inputAccount,
+                                prefixIcon:
+                                    const Icon(Icons.alternate_email_rounded),
+                              ),
                             ),
-                            onPressed: _busy
-                                ? null
-                                : () {
-                                    setState(() {
-                                      _obscurePassword = !_obscurePassword;
-                                    });
-                                  },
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
+                            const SizedBox(height: 12),
+                            Stack(
+                              alignment: Alignment.centerLeft,
+                              children: [
+                                TextField(
+                                  key: const ValueKey('login-password'),
+                                  controller: _passwordController,
+                                  enabled: !_busy,
+                                  autofillHints: const [
+                                    AutofillHints.password,
+                                  ],
+                                  keyboardType: TextInputType.text,
+                                  autocorrect: false,
+                                  enableSuggestions: true,
+                                  obscureText: false,
+                                  textInputAction: TextInputAction.done,
+                                  onSubmitted: (_) => _submit(),
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    color: _obscurePassword
+                                        ? Colors.transparent
+                                        : null,
+                                    fontFamily: 'monospace',
+                                    letterSpacing: 2,
+                                  ),
+                                  decoration: InputDecoration(
+                                    labelText: context.l10n.password,
+                                    hintText: context.l10n.inputPassword,
+                                    prefixIcon:
+                                        const Icon(Icons.lock_outline_rounded),
+                                    suffixIcon: IconButton(
+                                      tooltip: context.l10n.tr(
+                                        _obscurePassword ? '显示密码' : '隐藏密码',
+                                        en: _obscurePassword
+                                            ? 'Show password'
+                                            : 'Hide password',
+                                      ),
+                                      onPressed: _busy
+                                          ? null
+                                          : () {
+                                              setState(() {
+                                                _obscurePassword =
+                                                    !_obscurePassword;
+                                              });
+                                            },
+                                      icon: Icon(
+                                        _obscurePassword
+                                            ? Icons.visibility_outlined
+                                            : Icons.visibility_off_outlined,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (_obscurePassword)
+                                  Positioned.fill(
+                                    child: IgnorePointer(
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          left: 56,
+                                          right: 56,
+                                        ),
+                                        child: Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: ValueListenableBuilder<
+                                              TextEditingValue>(
+                                            valueListenable:
+                                                _passwordController,
+                                            builder: (context, value, child) {
+                                              return Text(
+                                                '•' * value.text.length,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.clip,
+                                                style: theme.textTheme.bodyLarge
+                                                    ?.copyWith(
+                                                  fontFamily: 'monospace',
+                                                  letterSpacing: 2,
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                          ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 4),

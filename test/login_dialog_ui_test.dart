@@ -77,6 +77,12 @@ void main() {
     expect(find.byKey(const ValueKey('login-dialog')), findsOneWidget);
     expect(find.byKey(const ValueKey('login-username')), findsOneWidget);
     expect(find.byKey(const ValueKey('login-password')), findsOneWidget);
+    final passwordField = tester.widget<TextField>(
+      find.byKey(const ValueKey('login-password')),
+    );
+    expect(passwordField.obscureText, isFalse);
+    expect(passwordField.keyboardType, TextInputType.text);
+    expect(find.text('••••••'), findsOneWidget);
     final remember = find.byKey(const ValueKey('login-remember-credentials'));
     expect(remember, findsOneWidget);
     expect(tester.widget<Checkbox>(remember).value, isTrue);
