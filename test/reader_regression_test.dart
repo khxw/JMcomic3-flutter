@@ -472,7 +472,10 @@ void main() {
       await doubleTap(tester,
           tester.getRect(find.byType(zoomable.ZoomablePositionedList)).center);
       expect(find.byType(AppBar), findsNothing);
-      expect(tester.getRect(firstPage()).width, closeTo(before.width, 1));
+      final after = tester.getRect(firstPage());
+      expect(after.width, closeTo(before.width, 1));
+      expect(after.top, closeTo(before.top, 1));
+      expect(after.height, closeTo(before.height, 1));
       expect(
           tester
               .widget<zoomable.ZoomablePositionedList>(

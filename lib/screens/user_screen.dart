@@ -537,7 +537,6 @@ class _UserScreenState extends State<UserScreen>
     final colors = theme.colorScheme;
     final dark = theme.brightness == Brightness.dark;
     final accent = dark ? const Color(0xFF28D1DC) : colors.primary;
-    final message = selfInfo.message.trim();
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -688,10 +687,6 @@ class _UserScreenState extends State<UserScreen>
             );
           },
         ),
-        if (message.isNotEmpty) ...[
-          _buildProfileDivider(),
-          _buildProfileDetail(context.l10n.signature, message),
-        ],
       ],
     );
   }
@@ -835,53 +830,6 @@ class _UserScreenState extends State<UserScreen>
           ),
         ],
       ],
-    );
-  }
-
-  Widget _buildProfileDetail(String label, String value) {
-    final theme = Theme.of(context);
-    final style = theme.textTheme.bodySmall;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final labelPainter = TextPainter(
-          text: TextSpan(text: label, style: style),
-          textDirection: Directionality.of(context),
-          textScaler: MediaQuery.textScalerOf(context),
-          maxLines: 1,
-        )..layout();
-        final labelWidth = labelPainter.width.ceilToDouble();
-        labelPainter.dispose();
-        if (labelWidth + 8 + MediaQuery.textScalerOf(context).scale(32) >
-            constraints.maxWidth) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: style?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant)),
-              const SizedBox(height: 3),
-              Text(value,
-                  style: style?.copyWith(color: theme.colorScheme.onSurface)),
-            ],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: labelWidth,
-              child: Text(label,
-                  style: style?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant)),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(value,
-                  style: style?.copyWith(color: theme.colorScheme.onSurface)),
-            ),
-          ],
-        );
-      },
     );
   }
 

@@ -175,7 +175,7 @@ void main() {
     expect(find.text('Lv.22'), findsOneWidget);
     expect(find.text('A very long membership level'), findsOneWidget);
     expect(find.text('A long signature keeps all profile details readable.'),
-        findsOneWidget);
+        findsNothing);
     expect(find.byKey(const ValueKey('profile-statistics-row')), findsNothing);
     final progress = tester
         .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator));

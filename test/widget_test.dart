@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -180,11 +181,24 @@ void main() {
   testWidgets('next chapter uses entry series when chapter response omits it',
       (tester) async {
     final loaded = <int>[];
+    final readerKey = GlobalKey();
+    final secondChapter = Completer<ChapterResponse>();
+    ChapterResponse chapterResponse(int id) => ChapterResponse(
+          id: id,
+          series: [],
+          tags: '',
+          name: 'Chapter $id',
+          images: const ['images/ic.png'],
+          seriesId: 1,
+          isFavorite: false,
+          liked: false,
+        );
     await tester.pumpWidget(MaterialApp(
       locale: const Locale('en'),
       localizationsDelegates: const [AppLocalizations.delegate],
       supportedLocales: AppLocalizations.supportedLocales,
       home: ComicReaderScreen(
+        key: readerKey,
         comic: _comic(),
         series: [
           Series(id: 10, name: 'First', sort: '1'),
@@ -194,22 +208,27 @@ void main() {
         initRank: 0,
         loadChapter: (id) async {
           loaded.add(id);
-          return ChapterResponse(
-              id: id,
-              series: [],
-              tags: '',
-              name: 'Chapter $id',
-              images: const ['images/ic.png'],
-              seriesId: 1,
-              isFavorite: false,
-              liked: false);
+          if (id == 20) return secondChapter.future;
+          return chapterResponse(id);
         },
       ),
     ));
     await tester.pumpAndSettle();
+    final readerState = readerKey.currentState;
+    expect(readerState, isNotNull);
     await tester.tap(find.byIcon(Icons.skip_next_rounded));
+    await tester.pump();
+
+    expect(readerKey.currentState, same(readerState));
+    expect(
+        find.byKey(const ValueKey('reader-chapter-loading')), findsOneWidget);
+    expect(find.text('Chapter 10'), findsOneWidget);
+
+    secondChapter.complete(chapterResponse(20));
     await tester.pumpAndSettle();
     expect(loaded, [10, 20]);
+    expect(readerKey.currentState, same(readerState));
+    expect(find.text('Chapter 20'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();

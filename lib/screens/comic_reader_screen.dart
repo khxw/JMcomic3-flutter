@@ -63,7 +63,15 @@ class ComicReaderScreen extends StatefulWidget {
 class _ComicReaderScreenState extends State<ComicReaderScreen> {
   late ReaderType _readerType;
   late ReaderDirection _readerDirection;
-  late Future<ChapterResponse> _chapterFuture;
+  late int _chapterId;
+  late int _initRank;
+  late bool _readerFullScreen;
+  ChapterResponse? _chapter;
+  Object? _chapterError;
+  StackTrace? _chapterStack;
+  bool _chapterLoading = true;
+  int _chapterRequest = 0;
+  int _readerRevision = 0;
   bool _navigationInFlight = false;
 
   /// Preserve the server-side history behavior. Local page progress is written
@@ -89,48 +97,97 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
     );
   }
 
+  Future<void> _completeChapterLoad({
+    required int targetId,
+    required int revision,
+    required bool preserveCurrent,
+    required bool resetPosition,
+  }) async {
+    try {
+      final chapter = await _loadChapter(targetId);
+      if (!mounted || revision != _chapterRequest) return;
+      setState(() {
+        _chapterId = targetId;
+        _chapter = chapter;
+        if (resetPosition) _initRank = 0;
+        _chapterError = null;
+        _chapterStack = null;
+        _chapterLoading = false;
+        _readerRevision++;
+      });
+    } catch (error, stackTrace) {
+      if (!mounted || revision != _chapterRequest) return;
+      setState(() {
+        if (!preserveCurrent) _chapter = null;
+        _chapterError = error;
+        _chapterStack = stackTrace;
+        _chapterLoading = false;
+      });
+      if (preserveCurrent && _chapter != null) {
+        defaultToast(
+          context,
+          context.l10n.tr('章节加载失败', en: 'Failed to load chapter'),
+        );
+      }
+    }
+  }
+
   void _load() {
     if (!mounted) {
       return;
     }
+    final revision = ++_chapterRequest;
     setState(() {
       _readerType = currentReaderType;
       _readerDirection = currentReaderDirection;
-      _chapterFuture = _loadChapter(widget.chapterId);
+      _chapter = null;
+      _chapterError = null;
+      _chapterStack = null;
+      _chapterLoading = true;
     });
+    unawaited(_completeChapterLoad(
+      targetId: _chapterId,
+      revision: revision,
+      preserveCurrent: false,
+      resetPosition: false,
+    ));
   }
 
-  Future<void> _replaceReaderRoute({
-    required int chapterId,
-    required int initRank,
-    required bool fullScreen,
-  }) async {
+  Future<void> _changeChapter(int chapterId, bool fullScreen) async {
     if (!mounted || _navigationInFlight) {
       return;
     }
     _navigationInFlight = true;
+    final revision = ++_chapterRequest;
+    setState(() {
+      _readerType = currentReaderType;
+      _readerDirection = currentReaderDirection;
+      _readerFullScreen = fullScreen;
+      _chapterError = null;
+      _chapterStack = null;
+      _chapterLoading = true;
+    });
     try {
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (BuildContext context) {
-          return ComicReaderScreen(
-            comic: widget.comic,
-            series: widget.series,
-            chapterId: chapterId,
-            initRank: initRank,
-            loadChapter: widget.loadChapter,
-            fullScreenOnInit: fullScreen,
-          );
-        }),
+      await _completeChapterLoad(
+        targetId: chapterId,
+        revision: revision,
+        preserveCurrent: true,
+        resetPosition: true,
       );
-    } catch (error, stackTrace) {
-      // A route can disappear while a control callback is waiting. Keep the
-      // old reader usable when Navigator rejects the replacement instead of
-      // leaving the single-flight guard permanently locked.
-      debugPrient(
-          "reader navigation failed: ${error.runtimeType}/${stackTrace.runtimeType}");
     } finally {
       _navigationInFlight = false;
     }
+  }
+
+  void _reloadReader(int initRank, bool fullScreen) {
+    if (!mounted) return;
+    setState(() {
+      _readerType = currentReaderType;
+      _readerDirection = currentReaderDirection;
+      _initRank = initRank;
+      _readerFullScreen = fullScreen;
+      _readerRevision++;
+    });
   }
 
   @override
@@ -138,7 +195,16 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
     super.initState();
     _readerType = currentReaderType;
     _readerDirection = currentReaderDirection;
-    _chapterFuture = _loadChapter(widget.chapterId);
+    _chapterId = widget.chapterId;
+    _initRank = widget.initRank;
+    _readerFullScreen = widget.fullScreenOnInit;
+    final revision = ++_chapterRequest;
+    unawaited(_completeChapterLoad(
+      targetId: _chapterId,
+      revision: revision,
+      preserveCurrent: false,
+      resetPosition: false,
+    ));
     unawaited(_recordServerHistory());
   }
 
@@ -148,11 +214,24 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
     if (oldWidget.chapterId != widget.chapterId ||
         oldWidget.comic.id != widget.comic.id) {
       // A parent may reuse this State instead of pushing a replacement route.
-      // Replace the chapter Future synchronously so FutureBuilder cannot keep
-      // rendering the previous chapter after the identity changes.
+      // Reset the in-place chapter request so stale results cannot replace the
+      // newly selected chapter.
       _readerType = currentReaderType;
       _readerDirection = currentReaderDirection;
-      _chapterFuture = _loadChapter(widget.chapterId);
+      _chapterId = widget.chapterId;
+      _initRank = widget.initRank;
+      _readerFullScreen = widget.fullScreenOnInit;
+      _chapter = null;
+      _chapterError = null;
+      _chapterStack = null;
+      _chapterLoading = true;
+      final revision = ++_chapterRequest;
+      unawaited(_completeChapterLoad(
+        targetId: _chapterId,
+        revision: revision,
+        preserveCurrent: false,
+        resetPosition: true,
+      ));
       unawaited(_recordServerHistory());
     }
   }
@@ -163,84 +242,95 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
   }
 
   Widget buildScreen(BuildContext context) {
-    return FutureBuilder<ChapterResponse>(
-      future: _chapterFuture,
-      builder: (BuildContext context, AsyncSnapshot<ChapterResponse> snapshot) {
-        if (snapshot.hasError) {
-          return Scaffold(
-            appBar: AppBar(leading: const AppBackButton()),
-            body: ContentError(
-              onRefresh: () async {
-                if (!mounted) {
-                  return;
-                }
-                // 阅读器可能来自在线漫画或本地下载，重试必须沿用注入的章节加载器。
-                _load();
-              },
-              error: snapshot.error,
-              stackTrace: snapshot.stackTrace,
+    final chapter = _chapter;
+    if (chapter == null && _chapterError != null) {
+      return Scaffold(
+        appBar: AppBar(leading: const AppBackButton()),
+        body: ContentError(
+          onRefresh: () async {
+            if (!mounted) {
+              return;
+            }
+            // 阅读器可能来自在线漫画或本地下载，重试必须沿用注入的章节加载器。
+            _load();
+          },
+          error: _chapterError,
+          stackTrace: _chapterStack,
+        ),
+      );
+    }
+    if (chapter == null) {
+      return Scaffold(
+        appBar: AppBar(leading: const AppBackButton()),
+        body: const ContentLoading(),
+      );
+    }
+    final imageCount = chapter.images.length;
+    if (imageCount == 0) {
+      // Do not construct any reader implementation for an empty chapter:
+      // Gallery/PhotoView controllers may assert on an empty page list,
+      // while list readers have no meaningful page to restore.
+      return Scaffold(
+        appBar: AppBar(leading: const AppBackButton()),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(context.l10n.noContentAvailable),
+              TextButton(
+                onPressed: _load,
+                child: Text(context.l10n.tr('重试', en: 'Retry')),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    final safeStartIndex = _initRank.clamp(0, imageCount - 1).toInt();
+    final screen = Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: _ComicReader(
+              comicId: widget.comic.id,
+              chapter: chapter,
+              fallbackSeries: widget.series,
+              startIndex: safeStartIndex,
+              key: ValueKey(
+                'reader_${widget.comic.id}_${chapter.id}_$_readerType'
+                '_${_readerDirection}_${_readerFullScreen}_$safeStartIndex'
+                '_$_readerRevision',
+              ),
+              reload: _reloadReader,
+              onChangeEp: _changeChapter,
+              readerType: _readerType,
+              readerDirection: _readerDirection,
+              fullScreenOnInit: _readerFullScreen,
             ),
-          );
-        }
-        if (snapshot.connectionState != ConnectionState.done) {
-          return Scaffold(
-            appBar: AppBar(leading: const AppBackButton()),
-            body: const ContentLoading(),
-          );
-        }
-        final chapter = snapshot.requireData;
-        final imageCount = chapter.images.length;
-        if (imageCount == 0) {
-          // Do not construct any reader implementation for an empty chapter:
-          // Gallery/PhotoView controllers may assert on an empty page list,
-          // while list readers have no meaningful page to restore.
-          return Scaffold(
-            appBar: AppBar(leading: const AppBackButton()),
-            body: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(context.l10n.noContentAvailable),
-                  TextButton(
-                    onPressed: _load,
-                    child: Text(context.l10n.tr('重试', en: 'Retry')),
+          ),
+          if (_chapterLoading)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: Container(
+                    key: const ValueKey('reader-chapter-loading'),
+                    width: 44,
+                    height: 44,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: .72),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const CircularProgressIndicator(strokeWidth: 2.5),
                   ),
-                ],
+                ),
               ),
             ),
-          );
-        }
-        final safeStartIndex = widget.initRank.clamp(0, imageCount - 1).toInt();
-        final screen = Scaffold(
-          backgroundColor: Colors.black,
-          body: _ComicReader(
-            comicId: widget.comic.id,
-            chapter: chapter,
-            fallbackSeries: widget.series,
-            startIndex: safeStartIndex,
-            key: ValueKey(
-              'reader_${widget.comic.id}_${chapter.id}_$_readerType'
-              '_${_readerDirection}_${widget.fullScreenOnInit}_$safeStartIndex'
-              '_${identityHashCode(chapter)}',
-            ),
-            reload: (int index, bool fullScreen) => _replaceReaderRoute(
-              chapterId: widget.chapterId,
-              initRank: index,
-              fullScreen: fullScreen,
-            ),
-            onChangeEp: (int id, bool fullScreen) => _replaceReaderRoute(
-              chapterId: id,
-              initRank: 0,
-              fullScreen: fullScreen,
-            ),
-            readerType: _readerType,
-            readerDirection: _readerDirection,
-            fullScreenOnInit: widget.fullScreenOnInit,
-          ),
-        );
-        return readerKeyboardHolder(screen);
-      },
+        ],
+      ),
     );
+    return readerKeyboardHolder(screen);
   }
 }
 
@@ -706,10 +796,15 @@ abstract class _ComicReaderState extends State<_ComicReader>
         currentReaderSliderPosition != ReaderSliderPosition.bottom;
     return Scaffold(
       backgroundColor: Colors.black,
-      extendBody: !_fullScreen && !sideSlider,
-      appBar: _fullScreen
-          ? null
-          : AppBar(
+      body: Stack(children: [
+        Positioned.fill(child: _buildViewer()),
+        if (!_fullScreen)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: AppBar(
+              key: const ValueKey('reader-top-controls'),
               backgroundColor: Colors.black.withValues(alpha: .74),
               foregroundColor: Colors.white,
               surfaceTintColor: Colors.transparent,
@@ -733,59 +828,13 @@ abstract class _ComicReaderState extends State<_ComicReader>
                 ),
               ],
             ),
-      body: Stack(children: [
-        Positioned.fill(child: _buildViewer()),
-        if (!_fullScreen && sideSlider)
-          Align(
-            alignment: currentReaderSliderPosition == ReaderSliderPosition.left
-                ? Alignment.centerLeft
-                : Alignment.centerRight,
-            child: Container(
-              width: 34,
-              height: 280,
-              decoration: BoxDecoration(
-                color: const Color(0x88000000),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: _buildSliderWidget(Axis.vertical),
-            ),
           ),
-        if (currentReaderControllerType == ReaderControllerType.controller &&
-            (_fullScreen || sideSlider))
-          SafeArea(
-              child: Align(
-            alignment: Alignment.bottomLeft,
-            child: _readerIconButton(
-              tooltip: _fullScreen
-                  ? context.l10n.tr('退出全屏', en: 'Exit full screen')
-                  : context.l10n.tr('全屏', en: 'Full screen'),
-              icon: _fullScreen
-                  ? Icons.fullscreen_exit_rounded
-                  : Icons.fullscreen_rounded,
-              onPressed: _toggleFullscreen,
-            ),
-          )),
-        if (_position.preview != null)
-          IgnorePointer(
-              child: Center(
-                  child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xCC000000),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: .12)),
-            ),
-            child: Text('${_slider + 1} / ${widget.chapter.images.length}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                )),
-          ))),
-      ]),
-      bottomNavigationBar: _fullScreen || sideSlider
-          ? null
-          : ColoredBox(
+        if (!_fullScreen && !sideSlider)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: ColoredBox(
               key: const ValueKey('reader-bottom-controls'),
               color: const Color(0x88000000),
               child: SafeArea(
@@ -836,6 +885,55 @@ abstract class _ComicReaderState extends State<_ComicReader>
                 ),
               ),
             ),
+          ),
+        if (!_fullScreen && sideSlider)
+          Align(
+            alignment: currentReaderSliderPosition == ReaderSliderPosition.left
+                ? Alignment.centerLeft
+                : Alignment.centerRight,
+            child: Container(
+              width: 34,
+              height: 280,
+              decoration: BoxDecoration(
+                color: const Color(0x88000000),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: _buildSliderWidget(Axis.vertical),
+            ),
+          ),
+        if (currentReaderControllerType == ReaderControllerType.controller &&
+            (_fullScreen || sideSlider))
+          SafeArea(
+              child: Align(
+            alignment: Alignment.bottomLeft,
+            child: _readerIconButton(
+              tooltip: _fullScreen
+                  ? context.l10n.tr('退出全屏', en: 'Exit full screen')
+                  : context.l10n.tr('全屏', en: 'Full screen'),
+              icon: _fullScreen
+                  ? Icons.fullscreen_exit_rounded
+                  : Icons.fullscreen_rounded,
+              onPressed: _toggleFullscreen,
+            ),
+          )),
+        if (_position.preview != null)
+          IgnorePointer(
+              child: Center(
+                  child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xCC000000),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: .12)),
+            ),
+            child: Text('${_slider + 1} / ${widget.chapter.images.length}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                )),
+          ))),
+      ]),
     );
   }
 
