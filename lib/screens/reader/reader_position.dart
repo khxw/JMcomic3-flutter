@@ -68,6 +68,14 @@ class ReaderProgressWriter {
   int? _lastQueued;
   bool _closed = false;
 
+  static Future<void> waitForPending(int comicId) async {
+    while (true) {
+      final pending = _tails[comicId];
+      if (pending == null) return;
+      await pending;
+    }
+  }
+
   void schedule(int page) {
     if (_closed) return;
     _pending = page;

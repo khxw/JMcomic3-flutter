@@ -8,8 +8,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jmcomic3/basic/methods.dart';
+import 'package:jmcomic3/configs/no_animation.dart';
+import 'package:jmcomic3/configs/reader_controller_type.dart';
+import 'package:jmcomic3/configs/reader_direction.dart';
+import 'package:jmcomic3/configs/reader_slider_position.dart';
+import 'package:jmcomic3/configs/reader_type.dart';
 import 'package:jmcomic3/configs/theme.dart';
+import 'package:jmcomic3/configs/two_page_direction.dart';
+import 'package:jmcomic3/configs/volume_key_control.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
+import 'package:jmcomic3/screens/comic_reader_screen.dart';
 import 'package:jmcomic3/screens/download_album_screen.dart';
 
 const _channel = MethodChannel('methods');
@@ -106,6 +114,7 @@ void main() {
     final coverPath = await tester.runAsync(_createCover);
     final album = _album();
     final create = _create();
+    var viewLogCalls = 0;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(_channel, (call) async {
@@ -116,6 +125,7 @@ void main() {
         case 'download_album_by_id':
           return _response(album.toJson());
         case 'find_view_log':
+          viewLogCalls++;
           return _response({
             'id': album.id,
             'last_view_chapter_id': 94002,
@@ -128,6 +138,13 @@ void main() {
       }
     });
     addTearDown(() => messenger.setMockMethodCallHandler(_channel, null));
+    await initReaderControllerType();
+    await initReaderDirection();
+    await initReaderType();
+    await initReaderSliderPosition();
+    await initNoAnimation();
+    await initVolumeKeyControl();
+    await initTwoPageDirection();
 
     await tester.pumpWidget(_host(
       RepaintBoundary(
@@ -149,6 +166,15 @@ void main() {
       find.byKey(const ValueKey('download-detail-chapter-94000')),
       findsOneWidget,
     );
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byKey(const ValueKey('download-detail-read')));
+    await tester.pumpAndSettle();
+    expect(find.byType(ComicReaderScreen), findsOneWidget);
+    final callsBeforeReaderReturn = viewLogCalls;
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(viewLogCalls, callsBeforeReaderReturn + 1);
     expect(tester.takeException(), isNull);
 
     if (_saveScreenshots) {

@@ -11,6 +11,7 @@ import 'comic_reader_screen.dart';
 import 'comic_search_screen.dart';
 import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
+import 'reader/reader_position.dart';
 
 class DownloadAlbumScreen extends StatefulWidget {
   final DownloadAlbum album;
@@ -36,7 +37,7 @@ class _DownloadAlbumScreenState extends State<DownloadAlbumScreen> {
     super.initState();
     _album = widget.album;
     _future = methods.downloadById(_album.id);
-    _viewFuture = methods.findViewLog(_album.id);
+    _viewFuture = _loadViewLog();
     _syncAutoRefresh();
   }
 
@@ -73,7 +74,7 @@ class _DownloadAlbumScreenState extends State<DownloadAlbumScreen> {
     if (!mounted) return;
     setState(() {
       _future = methods.downloadById(_album.id);
-      _viewFuture = methods.findViewLog(_album.id);
+      _viewFuture = _loadViewLog();
     });
     try {
       await Future.wait([
@@ -93,9 +94,16 @@ class _DownloadAlbumScreenState extends State<DownloadAlbumScreen> {
     _autoRefreshTimer = Timer(_autoRefreshInterval, _refreshAlbum);
   }
 
+  Future<ViewLog?> _loadViewLog() async {
+    await ReaderProgressWriter.waitForPending(_album.id);
+    return methods.findViewLog(_album.id);
+  }
+
   void _reloadViewLog() {
     if (!mounted) return;
-    setState(() => _viewFuture = methods.findViewLog(_album.id));
+    setState(() {
+      _viewFuture = _loadViewLog();
+    });
   }
 
   @override
@@ -314,9 +322,13 @@ class _DownloadAlbumScreenState extends State<DownloadAlbumScreen> {
     );
   }
 
-  void _push(DownloadCreate create, int seriesId, int initRank) {
+  Future<void> _push(
+    DownloadCreate create,
+    int seriesId,
+    int initRank,
+  ) async {
     if (!create.hasChapters || !create.containsChapterId(seriesId)) return;
-    Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ComicReaderScreen(
@@ -334,6 +346,7 @@ class _DownloadAlbumScreenState extends State<DownloadAlbumScreen> {
         ),
       ),
     );
+    _reloadViewLog();
   }
 
   Future<ChapterResponse> _loadChapter(

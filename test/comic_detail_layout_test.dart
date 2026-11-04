@@ -1081,8 +1081,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('reader pop defers detail history refresh until transition ends',
-      (tester) async {
+  testWidgets('reader pop refreshes detail history', (tester) async {
     final fixture = await _prepare(tester);
     await _mount(tester, fixture);
     await _tapVisible(tester, _key('chapter-$_firstChapterId'));
@@ -1090,10 +1089,6 @@ void main() {
     final historyCalls = fixture.calls('find_view_log').length;
 
     await tester.pageBack();
-    await tester.pump(const Duration(milliseconds: 60));
-    expect(fixture.calls('find_view_log'), hasLength(historyCalls));
-    expect(tester.takeException(), isNull);
-
     await tester.pumpAndSettle();
     expect(fixture.calls('find_view_log').length, greaterThan(historyCalls));
     expect(find.byType(ComicInfoScreen), findsOneWidget);

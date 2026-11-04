@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/local_bookshelf.dart';
 import 'package:jmcomic3/basic/methods.dart';
-import 'package:jmcomic3/basic/navigator.dart';
 import 'package:jmcomic3/configs/ignore_view_log.dart';
 import 'package:jmcomic3/configs/login.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
@@ -20,6 +19,7 @@ import 'components/comic_detail_header.dart';
 import 'components/comic_list.dart';
 import 'components/images.dart';
 import 'components/right_click_pop.dart';
+import 'reader/reader_position.dart';
 
 ComicBasic? effectiveComicInfoSimple(ComicBasic? simple, int comicId) {
   if (simple == null || simple.name.trim().isEmpty) return null;
@@ -65,16 +65,19 @@ class ComicInfoScreen extends StatefulWidget {
   State<ComicInfoScreen> createState() => _ComicInfoScreenState();
 }
 
-class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
+class _ComicInfoScreenState extends State<ComicInfoScreen> {
   static const _contentWidth = 800.0;
   bool _bookshelfLoading = true;
   bool _inBookshelf = false;
   bool _accountFavoriteLoading = false;
   bool _accountFavorite = false;
-  Timer? _viewLogRefreshTimer;
-  ModalRoute<void>? _route;
   late Future<AlbumResponse> _albumFuture = _loadAlbum();
-  late Future<ViewLog?> _viewFuture = methods.findViewLog(widget.comicId);
+  late Future<ViewLog?> _viewFuture = _loadViewLog();
+
+  Future<ViewLog?> _loadViewLog() async {
+    await ReaderProgressWriter.waitForPending(widget.comicId);
+    return methods.findViewLog(widget.comicId);
+  }
 
   Future<AlbumResponse> _loadAlbum({bool forceRefresh = false}) async {
     final bookshelfFuture = loadLocalBookshelf();
@@ -107,17 +110,6 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final route = ModalRoute.of(context);
-    if (route != null && route != _route) {
-      routeObserver.unsubscribe(this);
-      _route = route;
-      routeObserver.subscribe(this, route);
-    }
-  }
-
-  @override
   void didUpdateWidget(covariant ComicInfoScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.comicId != widget.comicId) {
@@ -126,27 +118,14 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
       _accountFavoriteLoading = false;
       _accountFavorite = false;
       _albumFuture = _loadAlbum();
-      _viewFuture = methods.findViewLog(widget.comicId);
+      _viewFuture = _loadViewLog();
     }
   }
 
   @override
-  void didPopNext() {
-    _viewLogRefreshTimer?.cancel();
-    _viewLogRefreshTimer = Timer(const Duration(milliseconds: 180), () {
-      if (!mounted) return;
-      setState(() {
-        _viewFuture = methods.findViewLog(widget.comicId);
-      });
-    });
-  }
-
-  @override
   void dispose() {
-    _viewLogRefreshTimer?.cancel();
     localBookshelfEvent.unsubscribe(_bookshelfChanged);
     loginEvent.unsubscribe(_loginChanged);
-    routeObserver.unsubscribe(this);
     super.dispose();
   }
 
@@ -172,7 +151,7 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
     final future = _loadAlbum(forceRefresh: true);
     setState(() {
       _albumFuture = future;
-      _viewFuture = methods.findViewLog(widget.comicId);
+      _viewFuture = _loadViewLog();
     });
     try {
       await future;
@@ -190,7 +169,15 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
       );
 
   void _read(AlbumResponse album, int chapterId, int page) {
-    Navigator.of(context).push(MaterialPageRoute<void>(
+    unawaited(_openReader(album, chapterId, page));
+  }
+
+  Future<void> _openReader(
+    AlbumResponse album,
+    int chapterId,
+    int page,
+  ) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => ComicReaderScreen(
         comic: albumToSimple(album),
         series: album.series,
@@ -199,6 +186,10 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> with RouteAware {
         loadChapter: methods.chapter,
       ),
     ));
+    if (!mounted) return;
+    setState(() {
+      _viewFuture = _loadViewLog();
+    });
   }
 
   Future<void> _changeBookshelf(AlbumResponse album) async {

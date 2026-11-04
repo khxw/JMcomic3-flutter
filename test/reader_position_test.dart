@@ -95,4 +95,24 @@ void main() {
     expect(attempts, 2);
     expect(errors, hasLength(1));
   });
+
+  test('waiting for pending writes observes the final page', () async {
+    final gate = Completer<void>();
+    final saved = <int>[];
+    final writer = ReaderProgressWriter(
+        comicId: 4,
+        save: (page) async {
+          await gate.future;
+          saved.add(page);
+        },
+        onError: (e, s) => fail('$e'));
+    writer.schedule(5);
+    final closing = writer.close();
+    final waiting = ReaderProgressWriter.waitForPending(4);
+    await Future<void>.delayed(Duration.zero);
+    expect(saved, isEmpty);
+    gate.complete();
+    await Future.wait([closing, waiting]);
+    expect(saved, [5]);
+  });
 }
