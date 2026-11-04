@@ -389,7 +389,16 @@ void main() {
     await _loadProfile(tester);
     await tester.tap(find.byKey(const ValueKey('profile-daily-sign')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('daily-sign-toast')), findsOneWidget);
+    final dailySignToast = find.byKey(const ValueKey('daily-sign-toast'));
+    expect(dailySignToast, findsOneWidget);
+    expect(tester.getCenter(dailySignToast).dy, closeTo(426, 2));
+    expect(
+      find.descendant(
+        of: dailySignToast,
+        matching: find.byType(CircularProgressIndicator),
+      ),
+      findsNothing,
+    );
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
     expect(_requests.where((method) => method == 'daily'), hasLength(1));

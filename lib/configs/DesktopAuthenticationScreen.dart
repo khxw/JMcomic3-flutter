@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
@@ -42,12 +43,9 @@ class _VerifyPasswordState extends State<VerifyPassword> {
                   if (_password == savedPassword) {
                     Navigator.of(context).pop(true);
                   } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          context.l10n.tr("密码错误", en: "Wrong password"),
-                        ),
-                      ),
+                    defaultToast(
+                      context,
+                      context.l10n.tr("密码错误", en: "Wrong password"),
                     );
                   }
                 },
@@ -126,14 +124,11 @@ class _SetPasswordState extends State<SetPassword> {
                     child: ElevatedButton(
                       onPressed: () async {
                         if (_password != _password2) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                context.l10n.tr(
-                                  "两次输入的密码不一致",
-                                  en: "The two passwords do not match",
-                                ),
-                              ),
+                          defaultToast(
+                            context,
+                            context.l10n.tr(
+                              "两次输入的密码不一致",
+                              en: "The two passwords do not match",
                             ),
                           );
                           return;

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/configs/user_agreement.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/app_icon.dart';
@@ -31,14 +32,11 @@ class _UserAgreementScreenState extends State<UserAgreementScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.l10n.tr(
-              '无法保存协议状态，请重试。',
-              en: 'Could not save your choice. Please try again.',
-            ),
-          ),
+      defaultToast(
+        context,
+        context.l10n.tr(
+          '无法保存协议状态，请重试。',
+          en: 'Could not save your choice. Please try again.',
         ),
       );
     }

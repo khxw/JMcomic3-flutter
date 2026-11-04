@@ -90,24 +90,18 @@ Future<T?> chooseApiDialog<T>(BuildContext buildContext) async {
                       return;
                     }
                     setState(() {});
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(context.l10n
-                            .tr("分流列表已更新", en: "Routing list updated")),
-                        duration: const Duration(seconds: 1),
-                      ),
+                    defaultToast(
+                      context,
+                      context.l10n.tr("分流列表已更新", en: "Routing list updated"),
                     );
                   } catch (e) {
                     debugPrient("refreshApiHostList failed: $e");
                     if (!context.mounted) {
                       return;
                     }
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content:
-                            Text(context.l10n.tr("拉取失败", en: "Refresh failed")),
-                        duration: const Duration(seconds: 2),
-                      ),
+                    defaultToast(
+                      context,
+                      context.l10n.tr("拉取失败", en: "Refresh failed"),
                     );
                   }
                 },

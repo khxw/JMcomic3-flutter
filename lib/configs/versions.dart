@@ -6,7 +6,6 @@ import 'package:event/event.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException, rootBundle;
-import 'package:flutter_styled_toast/flutter_styled_toast.dart';
 import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/http_client.dart';
 import 'package:jmcomic3/basic/log.dart';
@@ -220,77 +219,13 @@ void _showUpdateCheckToast(
   required Color accent,
   bool loading = false,
 }) {
-  final theme = Theme.of(context);
-  final scheme = theme.colorScheme;
-  showToastWidget(
-    Container(
-      key: const ValueKey('update-check-toast'),
-      constraints: const BoxConstraints(maxWidth: 420),
-      padding: const EdgeInsets.fromLTRB(12, 10, 16, 10),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHigh.withValues(alpha: .98),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: .7),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .16),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            alignment: Alignment.center,
-            child: loading
-                ? SizedBox(
-                    width: 15,
-                    height: 15,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: accent,
-                      backgroundColor: accent.withValues(alpha: .18),
-                    ),
-                  )
-                : Icon(icon, size: 18, color: accent),
-          ),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: scheme.onSurface,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-    context: context,
-    position: const StyledToastPosition(
-      align: Alignment.bottomCenter,
-      offset: 28,
-    ),
-    duration: const Duration(milliseconds: 1500),
-    animDuration: const Duration(milliseconds: 180),
-    animation: StyledToastAnimation.slideFromBottomFade,
-    reverseAnimation: StyledToastAnimation.fade,
-    curve: Curves.easeOutCubic,
-    reverseCurve: Curves.easeInCubic,
-    dismissOtherToast: true,
-    textDirection: Directionality.of(context),
+  showAppPrompt(
+    context,
+    key: const ValueKey('update-check-toast'),
+    message: message,
+    icon: icon,
+    accent: accent,
+    loading: loading,
   );
 }
 

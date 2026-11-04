@@ -16,16 +16,92 @@ const coverShape = RoundedRectangleBorder(
 
 /// 显示一个toast
 void defaultToast(BuildContext context, String title) {
-  showToast(
-    context.l10n.tr(title),
+  showAppPrompt(
+    context,
+    key: const ValueKey('default-app-prompt'),
+    message: context.l10n.tr(title),
+    icon: Icons.info_outline_rounded,
+    accent: Theme.of(context).colorScheme.primary,
+  );
+}
+
+void showAppPrompt(
+  BuildContext context, {
+  required String message,
+  required IconData icon,
+  required Color accent,
+  Key? key,
+  bool loading = false,
+}) {
+  final theme = Theme.of(context);
+  final scheme = theme.colorScheme;
+  final prompt = Semantics(
+    liveRegion: true,
+    container: true,
+    label: message,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: Container(
+        key: key,
+        constraints: const BoxConstraints(maxWidth: 380),
+        padding: const EdgeInsets.fromLTRB(13, 11, 16, 11),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHigh.withValues(alpha: .98),
+          borderRadius: BorderRadius.circular(17),
+          border: Border.all(
+            color: scheme.outlineVariant.withValues(alpha: .72),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .2),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: .13),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 19, color: accent),
+            ),
+            const SizedBox(width: 11),
+            Flexible(
+              child: Text(
+                message,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+  showToastWidget(
+    prompt,
     context: context,
     position: StyledToastPosition.center,
+    duration: loading
+        ? const Duration(seconds: 30)
+        : const Duration(milliseconds: 1600),
+    animDuration: const Duration(milliseconds: 190),
     animation: StyledToastAnimation.scale,
     reverseAnimation: StyledToastAnimation.fade,
-    duration: const Duration(seconds: 4),
-    animDuration: const Duration(seconds: 1),
-    curve: Curves.elasticOut,
-    reverseCurve: Curves.linear,
+    curve: Curves.easeOutBack,
+    reverseCurve: Curves.easeInCubic,
+    dismissOtherToast: true,
+    textDirection: Directionality.of(context),
   );
 }
 

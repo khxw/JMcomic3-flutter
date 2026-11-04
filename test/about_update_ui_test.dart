@@ -137,7 +137,16 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('about-check-update')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
-    expect(find.byKey(const ValueKey('update-check-toast')), findsOneWidget);
+    final updateToast = find.byKey(const ValueKey('update-check-toast'));
+    expect(updateToast, findsOneWidget);
+    expect(tester.getCenter(updateToast).dy, closeTo(400, 2));
+    expect(
+      find.descendant(
+        of: updateToast,
+        matching: find.byType(CircularProgressIndicator),
+      ),
+      findsNothing,
+    );
     await tester.pump(const Duration(milliseconds: 1600));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('update-check-toast')), findsNothing);

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/content_error.dart';
 
+import '../basic/commons.dart';
 import '../basic/methods.dart';
 import '../screens/components/app_back_button.dart';
 import 'property_json.dart';
@@ -310,14 +311,11 @@ class _CategoriesSortPanelState extends State<CategoriesSortPanel> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.l10n.tr(
-              '保存分类排序失败，请重试',
-              en: 'Could not save category order. Try again.',
-            ),
-          ),
+      defaultToast(
+        context,
+        context.l10n.tr(
+          '保存分类排序失败，请重试',
+          en: 'Could not save category order. Try again.',
         ),
       );
     }
