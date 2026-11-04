@@ -15,6 +15,50 @@ class HostPingResult {
   });
 }
 
+class HostLatencyProbe {
+  final String host;
+  final int milliseconds;
+
+  const HostLatencyProbe({
+    required this.host,
+    required this.milliseconds,
+  });
+}
+
+Future<HostLatencyProbe?> selectFastestHost(
+  Iterable<String> hosts,
+  Future<int> Function(String host) ping, {
+  Duration timeout = const Duration(milliseconds: 1800),
+}) async {
+  final candidates = <String>[];
+  final seen = <String>{};
+  for (final host in hosts) {
+    final normalized = host.trim();
+    if (normalized.isNotEmpty && seen.add(normalized.toLowerCase())) {
+      candidates.add(normalized);
+    }
+  }
+  if (candidates.isEmpty) return null;
+
+  final results = await Future.wait(candidates.map((host) async {
+    try {
+      final milliseconds = await ping(host).timeout(timeout);
+      if (milliseconds <= 0) return null;
+      return HostLatencyProbe(host: host, milliseconds: milliseconds);
+    } catch (_) {
+      return null;
+    }
+  }));
+  final available = results.whereType<HostLatencyProbe>().toList();
+  if (available.isEmpty) return null;
+  available.sort((left, right) {
+    final latency = left.milliseconds.compareTo(right.milliseconds);
+    if (latency != 0) return latency;
+    return left.host.toLowerCase().compareTo(right.host.toLowerCase());
+  });
+  return available.first;
+}
+
 /// The first request creates DNS/TCP/TLS state; the second measures the route
 /// after that cold-start cost has been paid.
 Future<HostPingResult> measureHostPing(

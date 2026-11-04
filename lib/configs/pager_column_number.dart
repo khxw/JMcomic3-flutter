@@ -7,7 +7,7 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'int_property.dart';
 
 const _propertyName = "pager_column_number";
-const int _defaultPagerColumnNumber = 4;
+const int _defaultPagerColumnNumber = 3;
 const int _pagerColumnMin = 1;
 const int _pagerColumnMax = 10;
 late int _pagerColumnNumber;

@@ -7,6 +7,7 @@ import 'package:jmcomic3/configs/network_ping.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
 const _defaultApiHost = "www.cdngwc.club";
+const _automaticProbeTimeout = Duration(milliseconds: 1800);
 // 动态域名拉取失败时使用内置移动端 API 候选，保持设置页和后端候选一致。
 const _fallbackApiHosts = <String>[
   "www.cdnhjk.net",
@@ -38,6 +39,7 @@ Future<void> initApiHost() async {
   if (rawLoaded.trim() != _apiHost) {
     await methods.saveApiHost(_apiHost);
   }
+  await autoSelectApiHost();
 }
 
 String get currentApiHostName => (_apiHost);
@@ -55,6 +57,24 @@ String normalizeApiHostCandidate(
 
 void _mergeApiList(Iterable<String> items) {
   _apiList = mergeNetworkHostLists(_apiList, items);
+}
+
+Future<bool> autoSelectApiHost() async {
+  final fastest = await selectFastestHost(
+    _apiList,
+    methods.ping,
+    timeout: _automaticProbeTimeout,
+  );
+  if (fastest == null) return false;
+  try {
+    await methods.saveApiHost(fastest.host);
+  } catch (error) {
+    debugPrient("autoSelectApiHost save failed: $error");
+    return false;
+  }
+  _apiHost = fastest.host;
+  _mergeApiList([_apiHost]);
+  return true;
 }
 
 Future<T?> chooseApiDialog<T>(BuildContext buildContext) async {
@@ -86,6 +106,7 @@ Future<T?> chooseApiDialog<T>(BuildContext buildContext) async {
                     _mergeApiList(_fallbackApiHosts);
                     _mergeApiList(latest);
                     _mergeApiList([_apiHost]);
+                    await autoSelectApiHost();
                     if (!context.mounted) {
                       return;
                     }
@@ -205,7 +226,12 @@ Widget apiHostSetting() {
           setState(() {});
         },
         title: Text(context.l10n.tr("API分流", en: "API routing")),
-        subtitle: Text(_apiHost.isEmpty ? _defaultApiHost : _apiHost),
+        subtitle: Text(
+          context.l10n.tr(
+            '自动选择：${_apiHost.isEmpty ? _defaultApiHost : _apiHost}',
+            en: 'Automatic: ${_apiHost.isEmpty ? _defaultApiHost : _apiHost}',
+          ),
+        ),
       );
     },
   );

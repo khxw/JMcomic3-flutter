@@ -6,6 +6,7 @@ import 'package:jmcomic3/configs/network_ping.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
 const _defaultCdnHost = "cdn-msp3.jmapiproxy1.cc";
+const _automaticProbeTimeout = Duration(milliseconds: 1800);
 String _cdnHost = _defaultCdnHost;
 
 String _truncateLabel(String value, {int max = 21}) {
@@ -45,6 +46,7 @@ Future<void> initCdnHost() async {
   if (rawLoaded.trim() != _cdnHost) {
     await methods.saveCdnHost(_cdnHost);
   }
+  await autoSelectCdnHost();
 }
 
 Future chooseCdnHost(BuildContext context) async {
@@ -60,6 +62,23 @@ void _mergeCdnList(Iterable<String> items) {
   _cdnList = mergeNetworkHostLists(_cdnList, items);
 }
 
+Future<bool> autoSelectCdnHost() async {
+  final fastest = await selectFastestHost(
+    _cdnList,
+    methods.pingCdn,
+    timeout: _automaticProbeTimeout,
+  );
+  if (fastest == null) return false;
+  try {
+    await methods.saveCdnHost(fastest.host);
+  } catch (_) {
+    return false;
+  }
+  _cdnHost = fastest.host;
+  _mergeCdnList([_cdnHost]);
+  return true;
+}
+
 Widget cdnHostSetting() {
   return StatefulBuilder(
     builder: (BuildContext context, void Function(void Function()) setState) {
@@ -70,7 +89,12 @@ Widget cdnHostSetting() {
           setState(() {});
         },
         title: Text(context.l10n.tr("图片分流", en: "Image routing")),
-        subtitle: Text(_cdnHost.isEmpty ? _defaultCdnHost : _cdnHost),
+        subtitle: Text(
+          context.l10n.tr(
+            '自动选择：${_cdnHost.isEmpty ? _defaultCdnHost : _cdnHost}',
+            en: 'Automatic: ${_cdnHost.isEmpty ? _defaultCdnHost : _cdnHost}',
+          ),
+        ),
       );
     },
   );

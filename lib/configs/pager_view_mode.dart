@@ -46,7 +46,7 @@ PagerViewMode _parse(String string) {
   return parseEnumPropertyValue(
     string,
     PagerViewMode.values,
-    PagerViewMode.cover,
+    PagerViewMode.titleAndCover,
   );
 }
 
