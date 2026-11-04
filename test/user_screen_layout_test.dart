@@ -174,6 +174,13 @@ void main() {
     expect(find.text(_username), findsOneWidget);
     expect(find.text('Lv.22'), findsOneWidget);
     expect(find.text('A very long membership level'), findsOneWidget);
+    final usernameRect =
+        tester.getRect(find.byKey(const ValueKey('profile-username')));
+    final uidRect = tester.getRect(find.byKey(const ValueKey('profile-uid')));
+    final levelRect =
+        tester.getRect(find.byKey(const ValueKey('profile-level-row')));
+    expect(uidRect.top, greaterThan(usernameRect.top));
+    expect(levelRect.top, greaterThan(uidRect.top));
     expect(find.text('A long signature keeps all profile details readable.'),
         findsNothing);
     expect(find.byKey(const ValueKey('profile-statistics-row')), findsNothing);

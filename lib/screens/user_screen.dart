@@ -588,35 +588,32 @@ class _UserScreenState extends State<UserScreen>
             final accountName = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      selfInfo.username,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    _buildIdentityBadge(
-                      'Lv.${selfInfo.level}',
-                      foreground: accent,
-                      background: accent.withValues(alpha: .12),
-                    ),
-                  ],
+                Text(
+                  selfInfo.username,
+                  key: const ValueKey('profile-username'),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(height: 7),
+                Text(
+                  'UID ${selfInfo.uid}',
+                  key: const ValueKey('profile-uid'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 6),
                 Wrap(
+                  key: const ValueKey('profile-level-row'),
                   spacing: 7,
                   runSpacing: 6,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text(
-                      'UID ${selfInfo.uid}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
+                    _buildIdentityBadge(
+                      'Lv.${selfInfo.level}',
+                      foreground: accent,
+                      background: accent.withValues(alpha: .12),
                     ),
                     if (selfInfo.levelName.trim().isNotEmpty)
                       _buildIdentityBadge(
