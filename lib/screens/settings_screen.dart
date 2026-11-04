@@ -12,6 +12,7 @@ import 'package:jmcomic3/configs/ignore_upgrade_pop.dart';
 import 'package:jmcomic3/configs/ignore_view_log.dart';
 import 'package:jmcomic3/configs/is_pro.dart';
 import 'package:jmcomic3/configs/login.dart';
+import 'package:jmcomic3/configs/local_bookshelf_backup.dart';
 import 'package:jmcomic3/configs/network_api_host.dart';
 import 'package:jmcomic3/configs/network_cdn_host.dart';
 import 'package:jmcomic3/configs/no_animation.dart';
@@ -140,6 +141,54 @@ class _SettingsState extends State<SettingsScreen> {
                   panelKey: const ValueKey('settings-update-download-expanded'),
                   children: [
                     updateDownloadMirrorSetting(),
+                  ],
+                ),
+                _SettingsSection(
+                  sectionKey: const ValueKey('settings-bookshelf-backup'),
+                  icon: Icons.bookmarks_rounded,
+                  title: l10n.tr('离线书架备份', en: 'Offline bookshelf backup'),
+                  subtitle: l10n.tr(
+                    '导出或恢复书架、分组和加入时间',
+                    en: 'Export or restore shelf items, groups and dates',
+                  ),
+                  panelKey:
+                      const ValueKey('settings-bookshelf-backup-expanded'),
+                  children: [
+                    ListTile(
+                      key: const ValueKey('settings-bookshelf-backup-export'),
+                      leading: const Icon(Icons.upload_file_rounded),
+                      title: Text(
+                        l10n.tr(
+                          '导出离线书架备份',
+                          en: 'Export offline bookshelf backup',
+                        ),
+                      ),
+                      subtitle: Text(
+                        l10n.tr(
+                          '保存为 JSON 文件',
+                          en: 'Save as a JSON file',
+                        ),
+                      ),
+                      onTap: () => exportOfflineBookshelfBackup(context),
+                    ),
+                    ListTile(
+                      key: const ValueKey('settings-bookshelf-backup-import'),
+                      leading: const Icon(Icons.file_download_outlined),
+                      title: Text(
+                        l10n.tr(
+                          '导入离线书架备份',
+                          en: 'Import offline bookshelf backup',
+                        ),
+                      ),
+                      subtitle: Text(
+                        l10n.tr(
+                          '与当前书架合并，重复漫画跳过',
+                          en: 'Merge with the current shelf and skip duplicates',
+                        ),
+                      ),
+                      onTap: () =>
+                          importOfflineBookshelfBackupFromFile(context),
+                    ),
                   ],
                 ),
                 _SettingsSection(

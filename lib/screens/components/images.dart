@@ -1403,8 +1403,6 @@ Widget buildFile(
       final previewText = context.l10n.tr('预览图片', en: 'Preview image');
       final saveToGalleryText =
           context.l10n.tr('保存图片到相册', en: 'Save image to gallery');
-      final saveToFileText =
-          context.l10n.tr('保存图片到文件', en: 'Save image to file');
       String? choose = await chooseListDialog(
         context,
         title: context.l10n.choose,
@@ -1413,11 +1411,6 @@ Widget buildFile(
           ...Platform.isAndroid || Platform.isIOS
               ? [
                   saveToGalleryText,
-                ]
-              : [],
-          ...!Platform.isIOS
-              ? [
-                  saveToFileText,
                 ]
               : [],
           ...longPressMenuItems?.map((e) => e.title) ?? [],
@@ -1429,8 +1422,6 @@ Widget buildFile(
         ));
       } else if (choose == saveToGalleryText) {
         saveImageFileToGallery(context, file);
-      } else if (choose == saveToFileText) {
-        saveImageFileToFile(context, file);
       } else {
         for (var item in longPressMenuItems ?? []) {
           if (item.title == choose) {

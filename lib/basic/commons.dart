@@ -284,32 +284,6 @@ Future saveImageFileToGallery(BuildContext context, String path) async {
       context, context.l10n.tr("暂不支持该平台", en: "Platform not supported"));
 }
 
-Future saveImageFileToFile(BuildContext context, String path) async {
-  if (!await androidGalleryPermissionRequest()) {
-    throw Exception(context.l10n.tr("申请权限被拒绝", en: "Permission denied"));
-  }
-  late String folder;
-  if (Platform.isAndroid) {
-    folder = await methods.picturesDir();
-  } else if (Platform.isIOS) {
-    folder = await methods.iosGetDocumentDir() + "/pictures";
-  } else {
-    var _f = await chooseFolder(context);
-    if (_f != null) {
-      folder = _f;
-    }
-  }
-  try {
-    await methods.copyPictureToFolder(folder, path);
-    defaultToast(context, context.l10n.tr("保存成功", en: "Saved successfully"));
-  } catch (e) {
-    defaultToast(
-      context,
-      context.l10n.tr("保存失败", en: "Save failed") + " : $e",
-    );
-  }
-}
-
 Future<SortBy?> chooseSortBy(BuildContext context) async {
   final values = <String, SortBy>{
     sortByName(context, sortByDefault): sortByDefault,

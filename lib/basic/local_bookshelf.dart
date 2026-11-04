@@ -115,6 +115,8 @@ Future<void> _saveStorage() async {
   localBookshelfEvent.broadcast();
 }
 
+Future<void> saveLocalBookshelf() => _saveStorage();
+
 String _normalizedGroup(String value) => value.trim();
 
 bool _sameGroup(String left, String right) =>

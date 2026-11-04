@@ -128,7 +128,6 @@ class MainActivity : FlutterActivity() {
                 "androidMkdirs" -> androidMkdirs(
                     call.arguments<String>() ?: throw Exception("need arg"),
                 )
-                "picturesDir" -> picturesDir().absolutePath
                 "verifyAuthentication" -> auth()
                 else -> notImplementedToken
             }
@@ -313,11 +312,6 @@ class MainActivity : FlutterActivity() {
 
     fun storageRoot(): String {
         return Environment.getExternalStorageDirectory().absolutePath
-    }
-
-    private fun picturesDir(): File {
-        return Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-            ?: throw java.lang.IllegalStateException()
     }
 
     private fun downloadsDir(): File {
