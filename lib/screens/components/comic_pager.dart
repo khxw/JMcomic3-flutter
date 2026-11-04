@@ -47,11 +47,13 @@ class ComicPager extends StatefulWidget {
   final Future<InnerComicPage> Function(int page) onPage;
   final List<ComicLongPressMenuItem>? longPressMenuItems;
   final List<Widget>? appendList;
+  final bool hideStreamStatus;
 
   const ComicPager(
       {required this.onPage,
       this.longPressMenuItems,
       this.appendList,
+      this.hideStreamStatus = false,
       Key? key})
       : super(key: key);
 
@@ -91,7 +93,8 @@ class _ComicPagerState extends State<ComicPager> {
         return _StreamPager(
             onPage: widget.onPage,
             longPressMenuItems: widget.longPressMenuItems,
-            appendList: widget.appendList);
+            appendList: widget.appendList,
+            hideStatus: widget.hideStreamStatus);
       case PagerControllerMode.pager:
         return _PagerPager(
             onPage: widget.onPage,
@@ -105,12 +108,14 @@ class _StreamPager extends StatefulWidget {
   final Future<InnerComicPage> Function(int page) onPage;
   final List<ComicLongPressMenuItem>? longPressMenuItems;
   final List<Widget>? appendList;
+  final bool hideStatus;
 
   const _StreamPager(
       {Key? key,
       required this.onPage,
       this.longPressMenuItems,
-      this.appendList})
+      this.appendList,
+      this.hideStatus = false})
       : super(key: key);
 
   @override
@@ -434,7 +439,7 @@ class _StreamPagerState extends State<_StreamPager> {
     final loadingCard = _buildLoadingCard();
     return Column(
       children: [
-        _buildPagerBar(),
+        if (!widget.hideStatus) _buildPagerBar(),
         Expanded(
           child: ComicList(
             controller: _controller,

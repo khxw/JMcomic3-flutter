@@ -41,6 +41,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   String _sort = "mr";
   var _refreshGeneration = 0;
+  var _total = -1;
 
   Map<String, String> _sortNameMap(BuildContext context) {
     return {
@@ -129,45 +130,115 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 
   Widget _buildEmbedded(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final sortNameMap = _sortNameMap(context);
+    final folderName = _folderMap[_folderId] ?? context.l10n.all;
+    final sortName = sortNameMap[_sort] ?? '';
+    final countLabel = _total < 0
+        ? context.l10n.tr('正在同步收藏', en: 'Syncing favorites')
+        : context.l10n.tr(
+            '$_total 部收藏',
+            en: '$_total ${_total == 1 ? 'favorite' : 'favorites'}',
+          );
     return Column(
       key: const ValueKey('bookshelf-online-content'),
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 8, 4),
-          child: Row(
+        Container(
+          key: const ValueKey('favorites-overview'),
+          margin: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+          padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(17),
+            border: Border.all(
+              color: scheme.outlineVariant.withValues(alpha: .45),
+            ),
+          ),
+          child: Column(
             children: [
-              Expanded(
-                child: Text(
-                  _folderMap[_folderId] ?? context.l10n.all,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: scheme.primary.withValues(alpha: .12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.favorite_rounded,
+                      size: 20,
+                      color: scheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          folderName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$countLabel · $sortName',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    key: const ValueKey('favorites-refresh'),
+                    onPressed: () {
+                      setState(() {
+                        _total = -1;
+                        _refreshGeneration++;
+                      });
+                    },
+                    tooltip: context.l10n.tr('刷新收藏', en: 'Refresh favorites'),
+                    icon: const Icon(Icons.refresh_rounded, size: 21),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      key: const ValueKey('favorites-sort'),
+                      onPressed: _chooseSort,
+                      icon: const Icon(Icons.sort_rounded, size: 18),
+                      label: Text(
+                        sortName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                ),
-              ),
-              IconButton(
-                key: const ValueKey('favorites-sort'),
-                onPressed: _chooseSort,
-                tooltip:
-                    "${context.l10n.chooseSort}: ${sortNameMap[_sort] ?? ""}",
-                icon: const Icon(Icons.sort_rounded, size: 21),
-              ),
-              IconButton(
-                key: const ValueKey('favorites-folder'),
-                onPressed: _chooseFolder,
-                tooltip:
-                    "${context.l10n.chooseFolder}: ${_folderMap[_folderId] ?? context.l10n.all}",
-                icon: const Icon(Icons.folder_copy_outlined, size: 21),
-              ),
-              IconButton(
-                key: const ValueKey('favorites-refresh'),
-                onPressed: () {
-                  setState(() => _refreshGeneration++);
-                },
-                tooltip: context.l10n.tr('刷新收藏', en: 'Refresh favorites'),
-                icon: const Icon(Icons.refresh_rounded, size: 21),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      key: const ValueKey('favorites-folder'),
+                      onPressed: _chooseFolder,
+                      icon: const Icon(Icons.folder_copy_outlined, size: 18),
+                      label: Text(
+                        folderName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -180,10 +251,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   Widget _buildPager(BuildContext context) {
     return ComicPager(
       key: Key("FAVOUR:$_folderId:$_sort:$_refreshGeneration"),
+      hideStreamStatus: widget.embedded,
       onPage: (int page) async {
         final response = await methods.favorites(_folderId, page, _sort);
         if (mounted) {
           setState(() {
+            _total = response.total;
             favData = response.folderList;
             _folderMap
               ..clear()

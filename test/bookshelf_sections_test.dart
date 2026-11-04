@@ -68,7 +68,7 @@ void main() {
   testWidgets('online favorites only appear after signing in', (tester) async {
     final pendingCover = Completer<String>();
     final properties = <String, String>{
-      'pager_controller_mode': PagerControllerMode.pager.toString(),
+      'pager_controller_mode': PagerControllerMode.stream.toString(),
       'pager_view_mode': PagerViewMode.cover.toString(),
       'pager_cover_rate': PagerCoverRate.rate3x4.toString(),
       'pager_column_number': '4',
@@ -148,6 +148,10 @@ void main() {
       find.byKey(const ValueKey('bookshelf-online-content')),
       findsOneWidget,
     );
+    expect(find.byKey(const ValueKey('favorites-overview')), findsOneWidget);
+    expect(find.byKey(const ValueKey('favorites-sort')), findsOneWidget);
+    expect(find.byKey(const ValueKey('favorites-folder')), findsOneWidget);
+    expect(find.textContaining('Loaded '), findsNothing);
     final onlineList = tester.widget<ComicList>(find.byType(ComicList));
     expect(onlineList.data.single.name, 'online comic');
     expect(tester.takeException(), isNull);
