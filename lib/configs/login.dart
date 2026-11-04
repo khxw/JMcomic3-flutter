@@ -25,6 +25,7 @@ LoginStatus _status = LoginStatus.notSet;
 String _loginMessage = "";
 const _guestModePropertyName = "guest_mode";
 bool _guestMode = false;
+bool _refreshAccountOnLogin = false;
 final Event _event = Event();
 
 SelfInfo get selfInfo => _selfInfo;
@@ -38,6 +39,12 @@ String get loginMessage => _loginMessage;
 bool get hasJwtAccess => _status == LoginStatus.loginSuccess;
 
 bool get isGuestMode => _status == LoginStatus.guest;
+
+bool consumeLoginAccountRefresh() {
+  if (!_refreshAccountOnLogin) return false;
+  _refreshAccountOnLogin = false;
+  return true;
+}
 
 set _loginState(LoginStatus value) {
   _status = value;
@@ -190,7 +197,9 @@ Future login(
     _guestMode = false;
     await methods.saveProperty(_guestModePropertyName, "false");
     _selfInfo = selfInfo;
+    _refreshAccountOnLogin = true;
     _loginState = LoginStatus.loginSuccess;
+    await refreshSelfInfo();
     try {
       await saveRememberedLogin(
         username,
@@ -209,7 +218,23 @@ Future login(
   }
 }
 
+Future<bool> refreshSelfInfo() async {
+  if (!hasJwtAccess) return false;
+  try {
+    final preLogin = await methods.preLogin();
+    if (!preLogin.preLogin || preLogin.selfInfo == null) return false;
+    _selfInfo = preLogin.selfInfo!;
+    _event.broadcast();
+    return true;
+  } catch (error, stackTrace) {
+    debugPrient(
+        "refresh account info failed: ${error.runtimeType}/${stackTrace.runtimeType}");
+    return false;
+  }
+}
+
 Future<void> enterGuestMode() async {
+  _refreshAccountOnLogin = false;
   _guestMode = true;
   await methods.saveProperty(_guestModePropertyName, "true");
   _loginMessage = "";
@@ -219,6 +244,7 @@ Future<void> enterGuestMode() async {
 Future<void> logoutAccount() async {
   await methods.logout();
   favData = [];
+  _refreshAccountOnLogin = false;
   _guestMode = true;
   _loginMessage = "";
   _loginState = LoginStatus.guest;

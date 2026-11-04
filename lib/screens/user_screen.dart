@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/configs/login.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
@@ -34,18 +36,35 @@ class _UserScreenState extends State<UserScreen>
 
   @override
   void initState() {
-    loginEvent.subscribe(_setState);
+    loginEvent.subscribe(_loginChanged);
     proEvent.subscribe(_setState);
     dailySignEvent.subscribe(_setState);
     super.initState();
+    if (consumeLoginAccountRefresh()) {
+      _scheduleDailySignRefresh();
+    }
   }
 
   @override
   void dispose() {
-    loginEvent.unsubscribe(_setState);
+    loginEvent.unsubscribe(_loginChanged);
     proEvent.unsubscribe(_setState);
     dailySignEvent.unsubscribe(_setState);
     super.dispose();
+  }
+
+  void _loginChanged(_) {
+    _setState(null);
+    if (consumeLoginAccountRefresh()) {
+      _scheduleDailySignRefresh();
+    }
+  }
+
+  void _scheduleDailySignRefresh() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || loginStatus != LoginStatus.loginSuccess) return;
+      unawaited(checkDailySignStatus(context));
+    });
   }
 
   void _setState(_) {
