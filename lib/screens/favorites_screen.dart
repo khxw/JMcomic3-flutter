@@ -8,6 +8,7 @@ import 'package:jmcomic3/screens/components/comic_pager.dart';
 
 import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
+import 'components/types.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({Key? key, this.embedded = false}) : super(key: key);
@@ -36,6 +37,82 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       setState(() {
         _folderId = f;
       });
+    }
+  }
+
+  Future<void> _reloadFavoriteFolders() async {
+    final response = await methods.favorite();
+    favData = response.folderList;
+    if (!mounted) return;
+    setState(() {
+      _folderMap
+        ..clear()
+        ..addAll({
+          0: context.l10n.all,
+          for (final folder in response.folderList) folder.fid: folder.name,
+        });
+    });
+  }
+
+  Future<void> _moveFavoriteToFolder(ComicBasic comic) async {
+    final targets = <String, int>{
+      context.l10n.tr('默认收藏夹', en: 'Default favorites'): 0,
+      for (final entry in _folderMap.entries)
+        if (entry.key != 0) entry.value: entry.key,
+      context.l10n.tr('新建收藏夹...', en: 'New favorites folder...'): -1,
+    };
+    var target = await chooseMapDialog<int>(
+      context,
+      values: targets,
+      title: context.l10n.tr(
+        '移动“${comic.name}”到',
+        en: 'Move "${comic.name}" to',
+      ),
+    );
+    if (target == null || !mounted) return;
+    if (target == -1) {
+      final name = await displayTextInputDialog(
+        context,
+        title: context.l10n.tr('新建收藏夹', en: 'New favorites folder'),
+        hint: context.l10n.tr('文件夹名称', en: 'Folder name'),
+      );
+      if (name == null || name.trim().isEmpty || !mounted) return;
+      try {
+        await methods.createFavoriteFolder(name.trim());
+        await _reloadFavoriteFolders();
+        int? createdId;
+        for (final folder in favData.reversed) {
+          if (folder.name == name.trim()) {
+            createdId = folder.fid;
+            break;
+          }
+        }
+        if (createdId == null) {
+          throw StateError('Created folder was not returned');
+        }
+        target = createdId;
+      } catch (error) {
+        if (mounted) {
+          defaultToast(context, context.l10n.tr('新建收藏夹失败：$error'));
+        }
+        return;
+      }
+    }
+    try {
+      await methods.comicFavoriteFolderMove(comic.id, target);
+      if (!mounted) return;
+      setState(() {
+        _total = -1;
+        _refreshGeneration++;
+      });
+      defaultToast(
+        context,
+        context.l10n.tr('已移动到收藏夹', en: 'Moved to favorites folder'),
+      );
+    } catch (error) {
+      if (mounted) {
+        defaultToast(context, context.l10n.tr('移动收藏失败：$error'));
+      }
     }
   }
 
@@ -252,6 +329,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     return ComicPager(
       key: Key("FAVOUR:$_folderId:$_sort:$_refreshGeneration"),
       hideStreamStatus: widget.embedded,
+      longPressMenuItems: [
+        ComicLongPressMenuItem(
+          context.l10n.tr('移动到收藏夹', en: 'Move to favorites folder'),
+          _moveFavoriteToFolder,
+        ),
+      ],
       onPage: (int page) async {
         final response = await methods.favorites(_folderId, page, _sort);
         if (mounted) {

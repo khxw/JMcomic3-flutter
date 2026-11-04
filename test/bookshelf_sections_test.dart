@@ -12,6 +12,7 @@ import 'package:jmcomic3/configs/pager_view_mode.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/bookshelf_screen.dart';
 import 'package:jmcomic3/screens/components/comic_list.dart';
+import 'package:jmcomic3/screens/components/images.dart';
 
 const _channel = MethodChannel('methods');
 
@@ -67,6 +68,7 @@ void main() {
 
   testWidgets('online favorites only appear after signing in', (tester) async {
     final pendingCover = Completer<String>();
+    final movedFavorites = <List<dynamic>>[];
     final properties = <String, String>{
       'pager_controller_mode': PagerControllerMode.stream.toString(),
       'pager_view_mode': PagerViewMode.cover.toString(),
@@ -101,6 +103,11 @@ void main() {
             'list': [_comicFixture()],
             'folder_list': <dynamic>[],
           });
+        case 'comic_favorite_folder_move':
+          movedFavorites.add(
+            (jsonDecode(payload['params'] as String) as List).cast<dynamic>(),
+          );
+          return _response('');
         case 'jm_3x4_cover':
           return pendingCover.future;
         default:
@@ -154,6 +161,19 @@ void main() {
     expect(find.textContaining('Loaded '), findsNothing);
     final onlineList = tester.widget<ComicList>(find.byType(ComicList));
     expect(onlineList.data.single.name, 'online comic');
+
+    await tester.longPress(find.byType(JM3x4Cover));
+    await tester.pumpAndSettle();
+    expect(find.text('Move to favorites folder'), findsOneWidget);
+    await tester.tap(find.text('Move to favorites folder'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Default favorites'));
+    await tester.pumpAndSettle();
+    expect(movedFavorites, [
+      [7, 0],
+    ]);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 }
