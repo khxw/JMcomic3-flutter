@@ -148,8 +148,8 @@ class _SettingsState extends State<SettingsScreen> {
                   icon: Icons.bookmarks_rounded,
                   title: l10n.tr('离线书架备份', en: 'Offline bookshelf backup'),
                   subtitle: l10n.tr(
-                    '导出或恢复书架、分组和加入时间',
-                    en: 'Export or restore shelf items, groups and dates',
+                    '导出或恢复书架、分组和阅读进度',
+                    en: 'Export or restore shelf items, groups and reading progress',
                   ),
                   panelKey:
                       const ValueKey('settings-bookshelf-backup-expanded'),
@@ -165,8 +165,8 @@ class _SettingsState extends State<SettingsScreen> {
                       ),
                       subtitle: Text(
                         l10n.tr(
-                          '保存为 JSON 文件',
-                          en: 'Save as a JSON file',
+                          '包含漫画、分组和阅读进度',
+                          en: 'Includes comics, groups and reading progress',
                         ),
                       ),
                       onTap: () => exportOfflineBookshelfBackup(context),
@@ -182,8 +182,8 @@ class _SettingsState extends State<SettingsScreen> {
                       ),
                       subtitle: Text(
                         l10n.tr(
-                          '与当前书架合并，重复漫画跳过',
-                          en: 'Merge with the current shelf and skip duplicates',
+                          '合并书架并恢复最新章节和页码',
+                          en: 'Merge the shelf and restore chapters and pages',
                         ),
                       ),
                       onTap: () =>

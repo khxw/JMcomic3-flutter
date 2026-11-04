@@ -75,6 +75,7 @@ void main() {
     expect(result.added, 1);
     expect(result.skipped, 1);
     expect(result.groupsAdded, 2);
+    expect(result.progressRestored, 0);
     expect(localBookshelfItems, hasLength(2));
     expect(localBookshelfGroupNames, containsAll(['Existing', 'Shared']));
     expect(
@@ -87,8 +88,19 @@ void main() {
     );
   });
 
-  test('bookshelf backup round trip keeps items and groups', () async {
+  test('bookshelf backup round trip keeps items, groups and progress',
+      () async {
     final properties = <String, String>{};
+    ViewLog? savedLog = ViewLog(
+      id: 7,
+      author: 'author',
+      description: '',
+      name: 'saved',
+      lastViewTime: 1700000000000,
+      lastViewChapterId: 77,
+      lastViewPage: 12,
+    );
+    final updates = <Map<String, dynamic>>[];
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(_channel, (call) async {
@@ -99,6 +111,13 @@ void main() {
         case 'save_property':
           final values = jsonDecode(request['params'] as String) as Map;
           properties[values['k'] as String] = values['v'] as String;
+          return _response('');
+        case 'find_view_log':
+          return _response(savedLog?.toJson());
+        case 'update_view_log':
+          final values =
+              jsonDecode(request['params'] as String) as Map<String, dynamic>;
+          updates.add(values);
           return _response('');
         default:
           return _response('');
@@ -117,6 +136,23 @@ void main() {
     expect(parsed.items, hasLength(1));
     expect(parsed.items.single.comic.name, 'saved');
     expect(parsed.groups, contains('Favorites'));
+    expect(parsed.readingProgress, hasLength(1));
+    expect(parsed.readingProgress.single.chapterId, 77);
+    expect(parsed.readingProgress.single.page, 12);
     expect(jsonDecode(exported)['format'], 'jmcomic3-offline-bookshelf');
+    expect(jsonDecode(exported)['version'], 2);
+
+    properties.clear();
+    savedLog = null;
+    resetLocalBookshelfMemory();
+    final result = await importOfflineBookshelfBackup(parsed);
+
+    expect(result.added, 1);
+    expect(result.progressRestored, 1);
+    expect(localBookshelfContains(7), isTrue);
+    expect(updates, hasLength(1));
+    expect(updates.single['id'], 7);
+    expect(updates.single['last_view_chapter_id'], 77);
+    expect(updates.single['last_view_page'], 12);
   });
 }

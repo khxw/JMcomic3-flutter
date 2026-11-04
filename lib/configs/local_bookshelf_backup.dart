@@ -6,25 +6,67 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/local_bookshelf.dart';
+import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
 const _backupFormat = 'jmcomic3-offline-bookshelf';
-const _backupVersion = 1;
+const _backupVersion = 2;
 const _maxBackupBytes = 5 * 1024 * 1024;
+
+class OfflineReadingProgress {
+  final int comicId;
+  final int chapterId;
+  final int page;
+  final int viewedAt;
+
+  const OfflineReadingProgress({
+    required this.comicId,
+    required this.chapterId,
+    required this.page,
+    required this.viewedAt,
+  });
+
+  factory OfflineReadingProgress.fromJson(Map<String, dynamic> json) {
+    return OfflineReadingProgress(
+      comicId: _toInt(json['comic_id']),
+      chapterId: _toInt(json['chapter_id']),
+      page: _toInt(json['page']),
+      viewedAt: _toInt(json['viewed_at']),
+    );
+  }
+
+  bool get isValid => comicId > 0 && chapterId > 0 && page >= 0;
+
+  Map<String, dynamic> toJson() => {
+        'comic_id': comicId,
+        'chapter_id': chapterId,
+        'page': page,
+        'viewed_at': viewedAt,
+      };
+
+  static int _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse('$value') ?? 0;
+  }
+}
 
 class OfflineBookshelfBackupData {
   final List<LocalBookshelfItem> items;
   final List<String> groups;
+  final List<OfflineReadingProgress> readingProgress;
 
   const OfflineBookshelfBackupData({
     required this.items,
     required this.groups,
+    this.readingProgress = const [],
   });
 
   factory OfflineBookshelfBackupData.parse(String raw) {
     final decoded = jsonDecode(raw);
     final items = <LocalBookshelfItem>[];
     final groups = <String>[];
+    final readingProgress = <OfflineReadingProgress>[];
     if (decoded is List) {
       for (final entry in decoded.whereType<Map>()) {
         final item = LocalBookshelfItem.fromJson(
@@ -32,7 +74,11 @@ class OfflineBookshelfBackupData {
         );
         if (item.comic.id > 0) items.add(item);
       }
-      return OfflineBookshelfBackupData(items: items, groups: groups);
+      return OfflineBookshelfBackupData(
+        items: items,
+        groups: groups,
+        readingProgress: readingProgress,
+      );
     }
     if (decoded is! Map ||
         decoded['format'] != _backupFormat ||
@@ -59,7 +105,20 @@ class OfflineBookshelfBackupData {
     for (final item in items) {
       if (item.group.trim().isNotEmpty) groups.add(item.group.trim());
     }
-    return OfflineBookshelfBackupData(items: items, groups: groups);
+    final rawProgress = decoded['reading_progress'];
+    if (rawProgress is List) {
+      for (final entry in rawProgress.whereType<Map>()) {
+        final progress = OfflineReadingProgress.fromJson(
+          Map<String, dynamic>.from(entry),
+        );
+        if (progress.isValid) readingProgress.add(progress);
+      }
+    }
+    return OfflineBookshelfBackupData(
+      items: items,
+      groups: groups,
+      readingProgress: readingProgress,
+    );
   }
 }
 
@@ -67,16 +126,42 @@ class OfflineBookshelfImportResult {
   final int added;
   final int skipped;
   final int groupsAdded;
+  final int progressRestored;
 
   const OfflineBookshelfImportResult({
     required this.added,
     required this.skipped,
     required this.groupsAdded,
+    required this.progressRestored,
   });
 }
 
 Future<String> encodeOfflineBookshelfBackup() async {
   await loadLocalBookshelf();
+  final readingProgress = <OfflineReadingProgress>[];
+  const batchSize = 8;
+  for (var offset = 0;
+      offset < localBookshelfItems.length;
+      offset += batchSize) {
+    final end =
+        (offset + batchSize).clamp(0, localBookshelfItems.length).toInt();
+    final batch = localBookshelfItems.sublist(offset, end);
+    final logs = await Future.wait(
+      batch.map((item) => methods.findViewLog(item.comic.id)),
+    );
+    for (var index = 0; index < logs.length; index++) {
+      final log = logs[index];
+      if (log == null || log.lastViewChapterId <= 0 || log.lastViewPage < 0) {
+        continue;
+      }
+      readingProgress.add(OfflineReadingProgress(
+        comicId: batch[index].comic.id,
+        chapterId: log.lastViewChapterId,
+        page: log.lastViewPage,
+        viewedAt: log.lastViewTime,
+      ));
+    }
+  }
   return const JsonEncoder.withIndent('  ').convert({
     'format': _backupFormat,
     'version': _backupVersion,
@@ -84,6 +169,9 @@ Future<String> encodeOfflineBookshelfBackup() async {
     'groups': localBookshelfGroupNames,
     'items': localBookshelfItems
         .map((item) => item.toJson())
+        .toList(growable: false),
+    'reading_progress': readingProgress
+        .map((progress) => progress.toJson())
         .toList(growable: false),
   });
 }
@@ -124,10 +212,27 @@ Future<OfflineBookshelfImportResult> importOfflineBookshelfBackup(
   if (added > 0 || updated || groupsBefore != localBookshelfGroups.length) {
     await saveLocalBookshelf();
   }
+  var progressRestored = 0;
+  for (final progress in backup.readingProgress) {
+    if (!existingIds.contains(progress.comicId)) continue;
+    final current = await methods.findViewLog(progress.comicId);
+    final shouldRestore = current == null ||
+        current.lastViewChapterId <= 0 ||
+        progress.viewedAt <= 0 ||
+        progress.viewedAt > current.lastViewTime;
+    if (!shouldRestore) continue;
+    await methods.updateViewLog(
+      progress.comicId,
+      progress.chapterId,
+      progress.page,
+    );
+    progressRestored++;
+  }
   return OfflineBookshelfImportResult(
     added: added,
     skipped: skipped,
     groupsAdded: localBookshelfGroups.length - groupsBefore,
+    progressRestored: progressRestored,
   );
 }
 
@@ -149,7 +254,10 @@ Future<void> exportOfflineBookshelfBackup(BuildContext context) async {
     if (path == null || !context.mounted) return;
     defaultToast(
       context,
-      context.l10n.tr('离线书架备份已导出'),
+      context.l10n.tr(
+        '离线书架和阅读进度备份已导出',
+        en: 'Offline bookshelf and reading progress exported',
+      ),
     );
   } catch (error) {
     if (context.mounted) {
@@ -188,7 +296,11 @@ Future<void> importOfflineBookshelfBackupFromFile(
       context,
       context.l10n.tr('导入离线书架备份'),
       context.l10n.tr(
-        '将合并 ${backup.items.length} 本漫画和 ${backup.groups.length} 个分组，重复漫画会自动跳过。',
+        '将合并 ${backup.items.length} 本漫画、${backup.groups.length} 个分组和 '
+        '${backup.readingProgress.length} 条阅读进度，重复漫画会自动跳过。',
+        en: 'Merge ${backup.items.length} comics, ${backup.groups.length} groups '
+            'and ${backup.readingProgress.length} reading positions? '
+            'Duplicate comics will be skipped.',
       ),
     );
     if (!confirmed || !context.mounted) return;
@@ -197,7 +309,10 @@ Future<void> importOfflineBookshelfBackupFromFile(
     defaultToast(
       context,
       context.l10n.tr(
-        '导入完成：新增 ${result.added} 本，跳过 ${result.skipped} 本',
+        '导入完成：新增 ${result.added} 本，跳过 ${result.skipped} 本，'
+        '恢复 ${result.progressRestored} 条阅读进度',
+        en: 'Import complete: ${result.added} added, ${result.skipped} skipped, '
+            '${result.progressRestored} reading positions restored',
       ),
     );
   } catch (error) {
