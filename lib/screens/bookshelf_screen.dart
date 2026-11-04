@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/local_bookshelf.dart';
 import 'package:jmcomic3/basic/methods.dart';
+import 'package:jmcomic3/configs/login.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/bookshelf_group_management_screen.dart';
 import 'package:jmcomic3/screens/bookshelf_group_screen.dart';
 import 'package:jmcomic3/screens/components/content_loading.dart';
+import 'package:jmcomic3/screens/favorites_screen.dart';
 
 class BookshelfScreen extends StatefulWidget {
   const BookshelfScreen({Key? key}) : super(key: key);
@@ -21,22 +23,34 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
 
   bool _loading = true;
   String _sort = _sortRecent;
+  var _section = _BookshelfSection.local;
 
   @override
   void initState() {
     super.initState();
     localBookshelfEvent.subscribe(_shelfChanged);
+    loginEvent.subscribe(_loginChanged);
     _load();
   }
 
   @override
   void dispose() {
     localBookshelfEvent.unsubscribe(_shelfChanged);
+    loginEvent.unsubscribe(_loginChanged);
     super.dispose();
   }
 
   void _shelfChanged(_) {
     if (mounted) setState(() {});
+  }
+
+  void _loginChanged(_) {
+    if (!mounted) return;
+    setState(() {
+      if (loginStatus != LoginStatus.loginSuccess) {
+        _section = _BookshelfSection.local;
+      }
+    });
   }
 
   Future<void> _load({bool force = false}) async {
@@ -96,6 +110,8 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
     final scheme = Theme.of(context).colorScheme;
     final groups = localBookshelfGroupNames;
     final books = localBookshelfItems.length;
+    final signedIn = loginStatus == LoginStatus.loginSuccess;
+    final online = signedIn && _section == _BookshelfSection.online;
     return Scaffold(
       key: const ValueKey('compose-bookshelf-page'),
       backgroundColor: Colors.transparent,
@@ -104,7 +120,7 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
         title: AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
           child: Column(
-            key: ValueKey('${groups.length}:$books:$_sort'),
+            key: ValueKey('$_section:${groups.length}:$books:$_sort'),
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -116,10 +132,15 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
                     ),
               ),
               Text(
-                context.l10n.tr(
-                  '${groups.length} 个分组 · $books 本漫画',
-                  en: '${groups.length} ${groups.length == 1 ? 'group' : 'groups'} · $books ${books == 1 ? 'comic' : 'comics'}',
-                ),
+                online
+                    ? context.l10n.tr(
+                        '账号收藏与在线同步',
+                        en: 'Account favorites and online sync',
+                      )
+                    : context.l10n.tr(
+                        '${groups.length} 个分组 · $books 本漫画',
+                        en: '${groups.length} ${groups.length == 1 ? 'group' : 'groups'} · $books ${books == 1 ? 'comic' : 'comics'}',
+                      ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -130,61 +151,92 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
           ),
         ),
         actions: [
-          PopupMenuButton<_ShelfMenuAction>(
-            key: const ValueKey('bookshelf-options-menu'),
-            tooltip: context.l10n.tr('书架菜单', en: 'Bookshelf menu'),
-            icon: const Icon(Icons.more_horiz_rounded),
-            onSelected: (action) {
-              switch (action) {
-                case _ShelfMenuAction.manageGroups:
-                  _manageGroups();
-                  break;
-                case _ShelfMenuAction.sort:
-                  _chooseSort();
-                  break;
-                case _ShelfMenuAction.refresh:
-                  _load(force: true);
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: _ShelfMenuAction.manageGroups,
-                child: _ShelfMenuItem(
-                  icon: Icons.create_new_folder_outlined,
-                  title: context.l10n.tr('分组管理', en: 'Manage groups'),
-                  subtitle: context.l10n.tr(
-                    '新建、重命名或删除文件夹',
-                    en: 'Create, rename or delete folders',
+          if (!online)
+            PopupMenuButton<_ShelfMenuAction>(
+              key: const ValueKey('bookshelf-options-menu'),
+              tooltip: context.l10n.tr('书架菜单', en: 'Bookshelf menu'),
+              icon: const Icon(Icons.more_horiz_rounded),
+              onSelected: (action) {
+                switch (action) {
+                  case _ShelfMenuAction.manageGroups:
+                    _manageGroups();
+                    break;
+                  case _ShelfMenuAction.sort:
+                    _chooseSort();
+                    break;
+                  case _ShelfMenuAction.refresh:
+                    _load(force: true);
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: _ShelfMenuAction.manageGroups,
+                  child: _ShelfMenuItem(
+                    icon: Icons.create_new_folder_outlined,
+                    title: context.l10n.tr('分组管理', en: 'Manage groups'),
+                    subtitle: context.l10n.tr(
+                      '新建、重命名或删除文件夹',
+                      en: 'Create, rename or delete folders',
+                    ),
                   ),
                 ),
-              ),
-              PopupMenuItem(
-                value: _ShelfMenuAction.sort,
-                child: _ShelfMenuItem(
-                  icon: Icons.sort_rounded,
-                  title: context.l10n.tr('排列', en: 'Sort'),
-                  subtitle: _sortNames(context)[_sort] ?? '',
+                PopupMenuItem(
+                  value: _ShelfMenuAction.sort,
+                  child: _ShelfMenuItem(
+                    icon: Icons.sort_rounded,
+                    title: context.l10n.tr('排列', en: 'Sort'),
+                    subtitle: _sortNames(context)[_sort] ?? '',
+                  ),
                 ),
-              ),
-              PopupMenuItem(
-                value: _ShelfMenuAction.refresh,
-                child: _ShelfMenuItem(
-                  icon: Icons.refresh_rounded,
-                  title: context.l10n.tr('刷新书架', en: 'Refresh'),
+                PopupMenuItem(
+                  value: _ShelfMenuAction.refresh,
+                  child: _ShelfMenuItem(
+                    icon: Icons.refresh_rounded,
+                    title: context.l10n.tr('刷新书架', en: 'Refresh'),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 6),
+              ],
+            ),
+          if (!online) const SizedBox(width: 6),
         ],
       ),
       body: Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.paddingOf(context).bottom,
         ),
-        child: _buildBody(context),
+        child: Column(
+          children: [
+            if (signedIn)
+              _ShelfSectionSwitcher(
+                section: _section,
+                onChanged: (section) {
+                  if (_section != section) {
+                    setState(() => _section = section);
+                  }
+                },
+              ),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: online
+                    ? _buildOnlineBody(context)
+                    : KeyedSubtree(
+                        key: const ValueKey('bookshelf-local-content'),
+                        child: _buildBody(context),
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildOnlineBody(BuildContext context) {
+    return const FavoritesScreen(
+      key: ValueKey('bookshelf-online-favorites'),
+      embedded: true,
     );
   }
 
@@ -279,6 +331,122 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
       );
     }
     return folders;
+  }
+}
+
+enum _BookshelfSection { local, online }
+
+class _ShelfSectionSwitcher extends StatelessWidget {
+  final _BookshelfSection section;
+  final ValueChanged<_BookshelfSection> onChanged;
+
+  const _ShelfSectionSwitcher({
+    required this.section,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      key: const ValueKey('bookshelf-section-switcher'),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: .45),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _ShelfSectionButton(
+              key: const ValueKey('bookshelf-section-local'),
+              selected: section == _BookshelfSection.local,
+              icon: Icons.folder_copy_outlined,
+              label: context.l10n.tr('离线书架', en: 'Offline shelf'),
+              onTap: () => onChanged(_BookshelfSection.local),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Expanded(
+            child: _ShelfSectionButton(
+              key: const ValueKey('bookshelf-section-online'),
+              selected: section == _BookshelfSection.online,
+              icon: Icons.cloud_outlined,
+              label: context.l10n.tr('在线收藏', en: 'Online favorites'),
+              onTap: () => onChanged(_BookshelfSection.online),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShelfSectionButton extends StatelessWidget {
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ShelfSectionButton({
+    super.key,
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final foreground = selected ? scheme.onPrimary : scheme.onSurfaceVariant;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
+        height: 38,
+        decoration: BoxDecoration(
+          color: selected ? scheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(11),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(11),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 17, color: foreground),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: foreground,
+                        fontWeight:
+                            selected ? FontWeight.w700 : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
