@@ -181,7 +181,9 @@ Future fav(BuildContext buildContext) async {
     favData = (await methods.favorite()).folderList;
   } catch (e, st) {
     debugPrient("$e\n$st");
-    defaultToast(buildContext, "$e");
+    if (buildContext.mounted) {
+      defaultToast(buildContext, "$e");
+    }
   }
 }
 
@@ -306,7 +308,7 @@ Future loginDialog(BuildContext context) async {
     context: context,
     useSafeArea: true,
     barrierColor: scheme.scrim.withValues(alpha: .58),
-    builder: (_) => const _LoginDialog(),
+    builder: (_) => _LoginDialog(hostContext: context),
   );
 }
 
@@ -547,7 +549,9 @@ class _LoginAgreementSheet extends StatelessWidget {
 }
 
 class _LoginDialog extends StatefulWidget {
-  const _LoginDialog();
+  final BuildContext hostContext;
+
+  const _LoginDialog({required this.hostContext});
 
   @override
   State<StatefulWidget> createState() => _LoginDialogState();
@@ -629,28 +633,20 @@ class _LoginDialogState extends State<_LoginDialog>
       return;
     }
     FocusScope.of(context).unfocus();
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    _busy = true;
+    _error = null;
+    unawaited(_startLogin(username, password));
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _startLogin(String username, String password) async {
     await login(
       username,
       password,
-      context,
+      widget.hostContext,
       rememberCredentials: _rememberCredentials,
     );
     await reloadIsPro();
-    if (!mounted) return;
-    if (loginStatus == LoginStatus.loginSuccess) {
-      Navigator.of(context).pop();
-      return;
-    }
-    setState(() {
-      _busy = false;
-      _error = loginMessage.trim().isEmpty
-          ? context.l10n.tr('登录失败，请检查账号和密码', en: 'Login failed')
-          : loginMessage;
-    });
   }
 
   Future<void> _continueAsGuest() async {
