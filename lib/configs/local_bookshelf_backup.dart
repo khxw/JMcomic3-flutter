@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:filesystem_picker/filesystem_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/local_bookshelf.dart';
@@ -332,18 +331,14 @@ Future<void> importOfflineBookshelfBackupFromFile(
   BuildContext context,
 ) async {
   try {
-    Uint8List? bytes;
+    late final String text;
     if (Platform.isAndroid) {
-      final selectedPath = await FilesystemPicker.open(
-        title: context.l10n.tr('选择离线书架备份'),
-        context: context,
-        rootDirectory: Directory('/storage/emulated/0'),
-        fsType: FilesystemType.file,
-        allowedExtensions: const ['.json'],
-        fileTileSelectMode: FileTileSelectMode.wholeTile,
+      final selected = await methods.openTextDocument(
+        mimeType: 'application/json',
+        maxBytes: _maxBackupBytes,
       );
-      if (selectedPath == null || !context.mounted) return;
-      bytes = await File(selectedPath).readAsBytes();
+      if (selected == null || !context.mounted) return;
+      text = selected;
     } else {
       final selected = await FilePicker.platform.pickFiles(
         dialogTitle: context.l10n.tr('导入离线书架备份'),
@@ -356,17 +351,19 @@ Future<void> importOfflineBookshelfBackupFromFile(
         return;
       }
       final file = selected.files.single;
-      bytes = file.bytes ??
+      final bytes = file.bytes ??
           (file.path == null ? null : await File(file.path!).readAsBytes());
+      if (bytes == null) {
+        throw const FormatException('Unable to read backup file');
+      }
+      if (bytes.length > _maxBackupBytes) {
+        throw const FormatException('Backup file is too large');
+      }
+      text = utf8.decode(bytes);
     }
-    if (bytes == null) {
-      throw const FormatException('Unable to read backup file');
-    }
-    if (bytes.length > _maxBackupBytes) {
-      throw const FormatException('Backup file is too large');
-    }
-    final text = utf8.decode(bytes).replaceFirst(RegExp(r'^\uFEFF'), '');
-    final backup = OfflineBookshelfBackupData.parse(text);
+    final backup = OfflineBookshelfBackupData.parse(
+      text.replaceFirst(RegExp(r'^\uFEFF'), ''),
+    );
     if (!context.mounted) return;
     final confirmed = await confirmDialog(
       context,

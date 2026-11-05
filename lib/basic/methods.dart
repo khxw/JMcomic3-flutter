@@ -1340,6 +1340,17 @@ class Methods {
     });
   }
 
+  Future<String?> openTextDocument({
+    String mimeType = "application/json",
+    int maxBytes = 0,
+  }) {
+    if (!Platform.isAndroid) return Future<String?>.value(null);
+    return _channel.invokeMethod<String>("openTextDocument", {
+      "mime_type": mimeType,
+      "max_bytes": maxBytes,
+    });
+  }
+
   Future<bool> openExternalUrl(String url) async {
     if (!Platform.isAndroid) return false;
     return await _channel.invokeMethod<bool>(

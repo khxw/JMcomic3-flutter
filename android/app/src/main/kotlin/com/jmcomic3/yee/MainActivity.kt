@@ -42,6 +42,7 @@ class MainActivity : FlutterActivity() {
         private const val ALL_FILES_SETTINGS_REQUEST = 7414
         private const val UNKNOWN_SOURCES_REQUEST = 7415
         private const val CREATE_DOCUMENT_REQUEST = 7416
+        private const val OPEN_DOCUMENT_REQUEST = 7417
     }
 
     private val uiThreadHandler = Handler(Looper.getMainLooper())
@@ -50,6 +51,8 @@ class MainActivity : FlutterActivity() {
     private var pendingDirectoryResult: MethodChannel.Result? = null
     private var pendingCreateDocumentResult: MethodChannel.Result? = null
     private var pendingCreateDocumentContent: String? = null
+    private var pendingOpenDocumentResult: MethodChannel.Result? = null
+    private var pendingOpenDocumentMaxBytes: Long = 0L
     private var pendingInstallResult: MethodChannel.Result? = null
     private var pendingInstallPath: String? = null
 
@@ -122,6 +125,17 @@ class MainActivity : FlutterActivity() {
                         fileName = args["file_name"]?.toString() ?: "backup.json",
                         content = args["content"]?.toString() ?: "",
                         mimeType = args["mime_type"]?.toString() ?: "application/json",
+                        result = result,
+                    )
+                }
+                return
+            }
+            "openTextDocument" -> {
+                val args = call.arguments as? Map<*, *> ?: emptyMap<Any?, Any?>()
+                uiThreadHandler.post {
+                    openTextDocument(
+                        mimeType = args["mime_type"]?.toString() ?: "application/json",
+                        maxBytes = (args["max_bytes"] as? Number)?.toLong() ?: 0L,
                         result = result,
                     )
                 }
@@ -244,6 +258,36 @@ class MainActivity : FlutterActivity() {
         } catch (error: Exception) {
             pendingCreateDocumentResult = null
             pendingCreateDocumentContent = null
+            result.error("document_picker_unavailable", error.message, null)
+        }
+    }
+
+    private fun openTextDocument(
+        mimeType: String,
+        maxBytes: Long,
+        result: MethodChannel.Result,
+    ) {
+        if (pendingOpenDocumentResult != null) {
+            result.error("document_picker_busy", "A document picker is already open.", null)
+            return
+        }
+        pendingOpenDocumentResult = result
+        pendingOpenDocumentMaxBytes = maxBytes
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = mimeType
+            putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf("application/json", "text/plain", "application/octet-stream"),
+            )
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(intent, OPEN_DOCUMENT_REQUEST)
+        } catch (error: Exception) {
+            pendingOpenDocumentResult = null
+            pendingOpenDocumentMaxBytes = 0L
             result.error("document_picker_unavailable", error.message, null)
         }
     }
@@ -494,6 +538,30 @@ class MainActivity : FlutterActivity() {
                 result.success(uri.toString())
             } catch (error: Exception) {
                 result.error("document_write_failed", error.message, null)
+            }
+            return
+        }
+        if (requestCode == OPEN_DOCUMENT_REQUEST) {
+            val result = pendingOpenDocumentResult
+            val maxBytes = pendingOpenDocumentMaxBytes
+            pendingOpenDocumentResult = null
+            pendingOpenDocumentMaxBytes = 0L
+            if (result == null) return
+            val uri = data?.data
+            if (resultCode != Activity.RESULT_OK || uri == null) {
+                result.success(null)
+                return
+            }
+            try {
+                val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: throw IllegalStateException("Unable to open the selected document")
+                if (maxBytes > 0 && bytes.size.toLong() > maxBytes) {
+                    result.error("document_too_large", "The selected document is too large.", null)
+                    return
+                }
+                result.success(bytes.toString(Charsets.UTF_8))
+            } catch (error: Exception) {
+                result.error("document_read_failed", error.message, null)
             }
             return
         }
