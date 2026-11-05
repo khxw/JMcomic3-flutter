@@ -1377,6 +1377,60 @@ class _UpdatePromptDialog extends StatelessWidget {
                       ),
                       const SizedBox(height: 13),
                       Container(
+                        key: const ValueKey('update-backup-warning'),
+                        padding: const EdgeInsets.all(13),
+                        decoration: BoxDecoration(
+                          color:
+                              scheme.tertiaryContainer.withValues(alpha: .62),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            color: scheme.tertiary.withValues(alpha: .32),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.inventory_2_outlined,
+                              size: 20,
+                              color: scheme.onTertiaryContainer,
+                            ),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    context.l10n.tr(
+                                      '升级前请先导出离线书架备份',
+                                      en: 'Export an offline bookshelf backup before upgrading',
+                                    ),
+                                    style:
+                                        theme.textTheme.labelMedium?.copyWith(
+                                      color: scheme.onTertiaryContainer,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    context.l10n.tr(
+                                      '避免升级过程中出现异常，导致阅读进度、分组或下载记录无法恢复。',
+                                      en: 'This protects reading progress, groups, and download records if an upgrade issue occurs.',
+                                    ),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: scheme.onTertiaryContainer
+                                          .withValues(alpha: .8),
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
                         padding: const EdgeInsets.all(13),
                         decoration: BoxDecoration(
                           color: scheme.surfaceContainerLow,
