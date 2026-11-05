@@ -12,6 +12,7 @@ use crate::download::{album_dir, chapter_dir, manager_shared, DownloadControl, D
 use crate::export::{export_album, ExportFormat};
 use crate::history::HistoryStore;
 use crate::import::{import_album_archive, import_album_directory};
+use crate::legacy;
 use crate::media::MediaCache;
 use crate::models::SearchSort;
 use crate::store::PropertyStore;
@@ -47,6 +48,21 @@ impl BackendState {
     fn open(root: &Path) -> BackendResult<Self> {
         std::fs::create_dir_all(root)?;
         let store = Arc::new(PropertyStore::open(root)?);
+        let history = Arc::new(HistoryStore::open(root)?);
+        match legacy::migrate_if_needed(root, &store, &history) {
+            Ok(report) if report.migrated => {
+                tracing::info!(
+                    properties = report.properties,
+                    view_logs = report.view_logs,
+                    search_histories = report.search_histories,
+                    "legacy jmcomic3 data migrated"
+                );
+            }
+            Ok(_) => {}
+            Err(error) => {
+                tracing::error!(%error, "legacy jmcomic3 data migration failed");
+            }
+        }
         let custom_download_root = stored_download_root(&store)?;
         let download_root = if custom_download_root.trim().is_empty() {
             root.join("downloads")
@@ -57,7 +73,7 @@ impl BackendState {
         Ok(Self {
             client,
             store,
-            history: Arc::new(HistoryStore::open(root)?),
+            history,
             media: Arc::new(MediaCache::open(&root.join("image_cache"))?),
             downloads: manager_shared(root, download_root)?,
         })

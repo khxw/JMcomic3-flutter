@@ -8,6 +8,7 @@ pub mod export;
 pub mod ffi;
 pub mod history;
 pub mod import;
+pub mod legacy;
 pub mod media;
 pub mod models;
 pub mod store;

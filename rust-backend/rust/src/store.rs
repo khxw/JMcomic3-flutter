@@ -68,6 +68,35 @@ impl PropertyStore {
         Ok(())
     }
 
+    pub fn merge_missing_values(
+        &self,
+        values: &BTreeMap<String, serde_json::Value>,
+    ) -> BackendResult<usize> {
+        let mut data = self
+            .data
+            .lock()
+            .map_err(|_| BackendError::Config("property store lock poisoned".into()))?;
+        let mut inserted = 0;
+        for (key, value) in values {
+            if key.trim().is_empty() || data.properties.contains_key(key) {
+                continue;
+            }
+            data.properties
+                .insert(key.clone(), value_to_string(value.clone()));
+            inserted += 1;
+        }
+        if inserted > 0 {
+            let encoded = serde_json::to_vec_pretty(&*data)?;
+            let temporary = self.path.with_extension("json.tmp");
+            fs::write(&temporary, encoded)?;
+            if self.path.exists() {
+                fs::remove_file(&self.path)?;
+            }
+            fs::rename(temporary, &self.path)?;
+        }
+        Ok(inserted)
+    }
+
     pub fn snapshot(&self) -> BackendResult<serde_json::Value> {
         let data = self
             .data
