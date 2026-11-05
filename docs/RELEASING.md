@@ -19,8 +19,9 @@ GitHub 中仅保留手动诊断 CI。正式包在固定本地环境生成，再�
 2. 使用 `scripts/update_version.ps1 -Version 1.8.2+131` 同步 `pubspec.yaml`、
    `lib/assets/version.txt`、`ci/version.code.txt` 和本地 Android 版本；更新
    `ci/version.info.txt`、README 和 CHANGELOG 的实际内容。
-3. 固定 `ci/backend.commit.txt`，核对后端检出和锁文件；按 [BUILDING.md](BUILDING.md)
-   执行分析、测试、设备回归及 Android / Windows 构建。符号按版本保存在本机归档。
+3. 核对 `rust-backend/rust` 源码、`Cargo.lock` 和提交的 JNI 动态库；按
+   [BUILDING.md](BUILDING.md) 执行分析、测试、设备回归及 Android / Windows 构建。
+   符号按版本保存在本机归档。
 4. 校验 APK / AAB 的版本、架构、签名和 native 内容；核对 Android 签名证书与上一正式版
    一致。Windows 核对 EXE 文件版本、完整目录并测试启动。
 5. 创建并合并 PR，在合并后的精确提交上创建版本标签。源码相同的已验证构建可以复用，

@@ -48,6 +48,8 @@ Back up bookshelf, history, and download settings before upgrading.
   light mode, and dark mode.
 - Redesigned download cards with status, cover, percentage, and image counts.
 - Successful downloads open the download list and highlight the new task.
+- Download tasks support pause, resume, resumable existing images, and
+  configurable 1–8 worker threads.
 - Chapter selection, select all, clear, batch export, and export result states.
 - Custom download directory selection, storage permissions, write checks, and
   restoration of saved paths.
@@ -55,6 +57,11 @@ Back up bookshelf, history, and download settings before upgrading.
 - Redesigned reader app bar, paging controls, chapter list, and settings panels.
 - Visible-page reading progress and safe reader cache/resource cleanup.
 - Themes, locales, fonts, display refresh modes, network routes, and WebDAV.
+- Automatic cover-cache pruning keeps covers below about 48 MB and 30 days
+  without removing downloaded comics or reading data.
+- Startup prefers the first responsive API/image routes and prefetches home feeds
+  in parallel.
+- Rust v2 backend source and the Flutter app are maintained in this repository.
 
 ## Installation
 
@@ -84,7 +91,8 @@ See [docs/BUILDING.md](docs/BUILDING.md) and
 - Flutter is pinned by [.fvmrc](.fvmrc).
 - JDK 17 or newer is required.
 - Android SDK 36 and NDK `25.2.9519653` are used by the current release setup.
-- A complete Rust backend checkout or prebuilt JNI libraries are required.
+- Rust v2 backend source is included under `rust-backend/rust`, and the verified
+  prebuilt JNI libraries are committed under `android/app/src/main/jniLibs`.
 
 ```powershell
 flutter pub get --enforce-lockfile
@@ -104,11 +112,10 @@ flutter build apk --release --no-pub --target-platform android-arm64 --split-per
 
 ## Known limitations
 
-- The current Rust JNI backend has no per-comic pause/resume API.
 - A custom download directory currently keeps a copy in addition to app-local
   download storage; deleting a task may not remove old external copies.
-- Rust backend source is not included in this repository; the release uses the
-  tracked prebuilt JNI libraries.
+- Cover cache pruning is automatic; the current UI does not expose a separate
+  cover-cache size or manual cover-only cleanup control.
 
 ## References
 

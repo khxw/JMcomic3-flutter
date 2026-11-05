@@ -36,3 +36,31 @@ jobs:
 
       - name: Test
         run: flutter test --no-pub --concurrency=1
+
+  rust-backend:
+    name: Rust backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: rust-backend/rust
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Check
+        run: cargo check --all-targets --locked
+
+      - name: Test
+        run: cargo test --all-targets --locked
+
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings

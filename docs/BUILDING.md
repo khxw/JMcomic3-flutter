@@ -14,22 +14,21 @@
 | Windows C++ | Visual Studio Build Tools 2022 / MSVC 14.44 |
 
 本机环境脚本从当前仓库位置查找 `_flutter/flutter`、`toolchains/`、`_cache/` 和
-`rust-backend/rust`。这些本地目录已忽略；换机器时需要自行准备同版本工具链。
+`rust-backend/rust`。工具链目录已忽略；换机器时需要自行准备同版本工具链。
 `enter_build_env.ps1` 不是自动安装器。
 
-Rust 后端单独检出到 `rust-backend/`，使用 `ci/backend.commit.txt` 的固定 SHA。
-如果已有后端检出，先检查未提交改动，再切换版本；不要覆盖本地修改。
+Rust v2 后端源码已经包含在本仓库的 `rust-backend/rust/`，不再依赖外部后端仓库
+或固定提交 SHA。修改后端时，源码、`Cargo.lock` 和生成的 JNI 动态库需要在同一
+次提交中保持同步。
 
 ```powershell
-git clone https://github.com/MrYu-JMComic/jmcomic3-rust-backend.git rust-backend
-git -C rust-backend checkout --detach (Get-Content ci/backend.commit.txt).Trim()
 . .\scripts\enter_build_env.ps1
 .\scripts\verify_build_env.ps1
 flutter pub get --enforce-lockfile
 ```
 
-后端仓库访问权限由 GitHub 账号决定。Windows 需要 Developer Mode 以创建 Flutter
-插件软链接。Android 发布需要已有的 `android/key.properties` 和 keystore；参考
+Windows 需要 Developer Mode 以创建 Flutter 插件软链接。Android 发布需要已有的
+`android/key.properties` 和 keystore；参考
 `android/key.properties.example`，密钥和口令不得提交。
 
 ## 测试

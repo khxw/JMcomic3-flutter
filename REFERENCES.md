@@ -19,8 +19,8 @@
 - 项目：[hect0x7/JMComic-Crawler-Python](https://github.com/hect0x7/JMComic-Crawler-Python)。
 - 参考范围：`jm_config.py`、`jm_client_impl.py` 中的移动端 API 协议、版本与时间戳、
   请求签名、请求头、登录表单及域名候选/回退处理。
-- 对应实现：独立 [Rust 后端](https://github.com/MrYu-JMComic/jmcomic3-rust-backend)
-  中的 API 请求与响应适配；Flutter 通过 MethodChannel / C ABI 调用该后端。
+- 对应实现：本仓库 [Rust v2 后端](rust-backend/rust/README.md) 中的 API 请求与
+  响应适配；Flutter 通过 MethodChannel / C ABI 调用该后端。
 - 本应用不包含 Python 解释器，也不将该项目列为运行时依赖。这里标注协议参考来源。
 - 上游 [MIT 许可证](https://github.com/hect0x7/JMComic-Crawler-Python/blob/master/LICENSE)
   的版权声明为 `Copyright (c) 2023 hect0x7`；其许可证保留在上游仓库。
@@ -38,5 +38,5 @@
 
 Flutter / Dart 包版本由 `pubspec.yaml` 与提交的 `pubspec.lock` 记录，使用各依赖自己的
 许可证。Flutter 的许可证登记机制保留包内声明；发布时同时保留所分发第三方组件的声明。
-Rust 后端的固定版本见 `ci/backend.commit.txt`，后端仓库分别维护源码与依赖声明。
-漫画、图片和第三方服务内容的权利属于相应权利人。
+Rust 后端源码、`Cargo.lock`、协议说明和第三方声明均保存在
+`rust-backend/rust/`。漫画、图片和第三方服务内容的权利属于相应权利人。

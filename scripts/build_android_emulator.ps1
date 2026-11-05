@@ -8,9 +8,9 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'enter_build_env.ps1')
 
-# 默认使用独立仓库中的当前后端源码，允许调用方显式指定其他源码目录。
+# 默认使用本仓库内置的后端源码，允许调用方显式指定其他源码目录。
 if ([string]::IsNullOrWhiteSpace($RustBackendDir)) {
-    $RustBackendDir = Join-Path $env:JM3_BUILD_ROOT '..\jmcomic3-rust-backend\rust'
+    $RustBackendDir = Join-Path $env:JM3_BUILD_ROOT 'rust-backend\rust'
 }
 $rustCrate = (Resolve-Path -LiteralPath $RustBackendDir).Path
 if (-not (Test-Path -LiteralPath (Join-Path $rustCrate 'Cargo.toml') -PathType Leaf)) {

@@ -1,0 +1,42 @@
+[package]
+name = "jmcomic3-rust-backend-v2"
+version = "0.1.0"
+edition = "2021"
+description = "Compatibility-oriented JMComic3 Rust backend"
+license = "MIT"
+
+[lib]
+name = "jmcomic3_rust_backend_v2"
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "jmcomic3-backend-cli"
+path = "src/bin/cli.rs"
+
+[[bin]]
+name = "jmcomic3-backend-smoke"
+path = "src/bin/smoke.rs"
+
+[dependencies]
+aes = "0.8"
+anyhow = "1"
+base64 = "0.22"
+bytes = "1"
+flate2 = "1"
+image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
+jni = "0.21"
+md5 = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+tracing = "0.1"
+
+[target.'cfg(windows)'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["brotli", "cookies", "gzip", "json", "native-tls"] }
+
+[target.'cfg(not(windows))'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["brotli", "cookies", "gzip", "json", "rustls-tls"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

@@ -445,4 +445,4 @@
 - 发布本地构建的 Android ARM64 / ARM32 APK、AAB 和 Windows x64 ZIP。
 - 此版启用新的 Android 发布签名密钥；此前使用旧密钥的安装需要备份数据后重新安装。
 
-更早版本的记录见 [GitHub Releases](https://github.com/MrYu-JMComic/JMcomic3-flutter/releases)。
+更早版本的记录见 [GitHub Releases](https://github.com/khxw/JMcomic3-flutter/releases)。
