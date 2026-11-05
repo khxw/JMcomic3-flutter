@@ -131,6 +131,7 @@ class _SearchScreenState extends State<SearchScreen>
   Widget build(BuildContext context) {
     super.build(context);
     final scheme = Theme.of(context).colorScheme;
+    final showingResults = _query.isNotEmpty;
     return Scaffold(
       key: const ValueKey('compose-search-page'),
       backgroundColor: scheme.surface,
@@ -160,21 +161,32 @@ class _SearchScreenState extends State<SearchScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              context.l10n.navSearch,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineSmall
+                              showingResults
+                                  ? context.l10n.tr(
+                                      '搜索结果',
+                                      en: 'Search results',
+                                    )
+                                  : context.l10n.navSearch,
+                              style: (showingResults
+                                      ? Theme.of(context).textTheme.titleLarge
+                                      : Theme.of(context)
+                                          .textTheme
+                                          .headlineSmall)
                                   ?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: -.4,
-                                  ),
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -.4,
+                              ),
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              context.l10n.tr(
-                                '按标题、作者或标签发现漫画',
-                                en: 'Find comics by title, author or tag',
-                              ),
+                              showingResults
+                                  ? '“$_query”'
+                                  : context.l10n.tr(
+                                      '按标题、作者或标签发现漫画',
+                                      en: 'Find comics by title, author or tag',
+                                    ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: Theme.of(context)
                                   .textTheme
                                   .bodySmall
@@ -183,6 +195,13 @@ class _SearchScreenState extends State<SearchScreen>
                           ],
                         ),
                       ),
+                      if (showingResults)
+                        IconButton.filledTonal(
+                          tooltip:
+                              '${context.l10n.chooseSort}: ${sortByName(context, _sortBy)}',
+                          onPressed: _chooseSort,
+                          icon: const Icon(Icons.sort_rounded),
+                        ),
                       const BrowserBottomSheetAction(),
                     ],
                   ),
@@ -457,57 +476,26 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildResults(BuildContext context) {
-    return Column(
+    return ComicPager(
       key: ValueKey('search-results:$_query:$_sortBy'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 0, 12, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  context.l10n.tr(
-                    '“$_query”的搜索结果',
-                    en: 'Results for “$_query”',
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-                ),
-              ),
-              IconButton.filledTonal(
-                tooltip:
-                    '${context.l10n.chooseSort}: ${sortByName(context, _sortBy)}',
-                onPressed: () async {
-                  final value = await chooseSortBy(context);
-                  if (!mounted || value == null) return;
-                  setState(() {
-                    _sortBy = value;
-                  });
-                },
-                icon: const Icon(Icons.sort_rounded),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ComicPager(
-            key: Key("search-tab:$_query:$_sortBy"),
-            onPage: (page) async {
-              final response = await methods.comicSearch(_query, _sortBy, page);
-              return InnerComicPage(
-                total: response.total,
-                list: response.content,
-                redirectAid: response.redirectAid,
-              );
-            },
-          ),
-        ),
-      ],
+      denseGrid: true,
+      onPage: (page) async {
+        final response = await methods.comicSearch(_query, _sortBy, page);
+        return InnerComicPage(
+          total: response.total,
+          list: response.content,
+          redirectAid: response.redirectAid,
+        );
+      },
     );
+  }
+
+  Future<void> _chooseSort() async {
+    final value = await chooseSortBy(context);
+    if (!mounted || value == null) return;
+    setState(() {
+      _sortBy = value;
+    });
   }
 
   Future<void> _clearSearchHistory() async {
