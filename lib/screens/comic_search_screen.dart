@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/methods.dart';
+import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/floating_search_bar.dart';
 
 import 'components/app_back_button.dart';
@@ -40,7 +41,29 @@ class _ComicSearchScreenState extends State<ComicSearchScreen> {
       child: Scaffold(
         appBar: AppBar(
           leading: const AppBackButton(),
-          title: Text(_keywords),
+          toolbarHeight: 64,
+          titleSpacing: 0,
+          title: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.l10n.tr('搜索结果', en: 'Search results'),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _keywords,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+          ),
           actions: [
             IconButton(
               onPressed: () async {
@@ -59,6 +82,7 @@ class _ComicSearchScreenState extends State<ComicSearchScreen> {
         ),
         body: ComicPager(
           key: Key("$_keywords:$_sortBy"),
+          denseGrid: true,
           onPage: (int page) async {
             final response = await methods.comicSearch(
               _keywords,

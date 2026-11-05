@@ -19,6 +19,7 @@ class ComicList extends StatefulWidget {
   final ScrollController? controller;
   final Function? onScroll;
   final List<ComicLongPressMenuItem>? longPressMenuItems;
+  final bool dense;
 
   const ComicList({
     Key? key,
@@ -28,6 +29,7 @@ class ComicList extends StatefulWidget {
     this.inScroll = false,
     this.onScroll,
     this.longPressMenuItems,
+    this.dense = false,
   }) : super(key: key);
 
   @override
@@ -77,7 +79,12 @@ class _ComicListState extends State<ComicList> {
       if (constraints.maxWidth <= 0) return const SizedBox.shrink();
       final compact = _compact;
       final caption = currentPagerViewMode == PagerViewMode.titleAndCover;
-      final basePadding = compact ? (caption ? 10.0 : 0.0) : 12.0;
+      final dense = widget.dense;
+      final basePadding = dense
+          ? 8.0
+          : compact
+              ? (caption ? 10.0 : 0.0)
+              : 12.0;
       final horizontalPadding = math.min(basePadding, constraints.maxWidth / 4);
       final contentWidth = constraints.maxWidth - horizontalPadding * 2;
       // Remove the phone-only restriction without changing the existing
@@ -86,9 +93,16 @@ class _ComicListState extends State<ComicList> {
           ? math.min(pagerColumnNumber, 2)
           : pagerColumnNumber;
       // Reduce desktop gaps when they would otherwise consume the grid.
-      final spacing =
-          compact ? 0.0 : math.min(_spacing, contentWidth / (columnCount * 2));
-      final rowSpacing = compact ? 0.0 : _spacing;
+      final spacing = dense
+          ? 8.0
+          : compact
+              ? 0.0
+              : math.min(_spacing, contentWidth / (columnCount * 2));
+      final rowSpacing = dense
+          ? 12.0
+          : compact
+              ? 0.0
+              : _spacing;
       final padding = EdgeInsets.symmetric(
         horizontal: horizontalPadding,
         vertical: basePadding,
@@ -96,10 +110,13 @@ class _ComicListState extends State<ComicList> {
       final columnWidth =
           (contentWidth - spacing * (columnCount - 1)) / columnCount;
       final coverHeight = columnWidth / _coverAspectRatio;
-      final titleStyle = Theme.of(context).textTheme.bodyMedium!.copyWith(
-            height: 1.3,
-            fontWeight: FontWeight.normal,
-          );
+      final titleStyle = (dense
+              ? Theme.of(context).textTheme.bodySmall!
+              : Theme.of(context).textTheme.bodyMedium!)
+          .copyWith(
+        height: dense ? 1.25 : 1.3,
+        fontWeight: FontWeight.w500,
+      );
       // Reserve two complete lines at the active text scale, including fonts
       // whose ascent/descent is larger than their nominal font size.
       final titlePainter = TextPainter(
@@ -110,12 +127,21 @@ class _ComicListState extends State<ComicList> {
         maxLines: 2,
       )..layout();
       final measuredTitleHeight = titlePainter.height.ceilToDouble();
-      final titleHeight = compact
-          ? math.max(50.0, measuredTitleHeight + 10)
-          : measuredTitleHeight;
+      final titleHeight = dense
+          ? math.max(38.0, measuredTitleHeight + 6)
+          : compact
+              ? math.max(50.0, measuredTitleHeight + 10)
+              : measuredTitleHeight;
       titlePainter.dispose();
-      final itemHeight =
-          coverHeight + (caption ? titleHeight + (compact ? 0 : 8) : 0);
+      final itemHeight = coverHeight +
+          (caption
+              ? titleHeight +
+                  (dense
+                      ? 6
+                      : compact
+                          ? 0
+                          : 8)
+              : 0);
 
       Widget itemBuilder(BuildContext context, int index) {
         if (index >= widget.data.length) {
@@ -169,13 +195,21 @@ class _ComicListState extends State<ComicList> {
     final cover = SizedBox(
       height: coverHeight,
       child: Card(
-        margin: compact ? const EdgeInsets.all(4) : EdgeInsets.zero,
+        margin: widget.dense
+            ? const EdgeInsets.all(2)
+            : compact
+                ? const EdgeInsets.all(4)
+                : EdgeInsets.zero,
         elevation: 0,
-        shape: compact
-            ? coverShape
-            : const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(12)),
-              ),
+        shape: widget.dense
+            ? const RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(10)),
+              )
+            : compact
+                ? coverShape
+                : const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
         clipBehavior: Clip.antiAlias,
         child: LayoutBuilder(builder: (context, constraints) {
           final image = _buildCover(index, constraints);
@@ -224,15 +258,19 @@ class _ComicListState extends State<ComicList> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 cover,
-                if (!compact) const SizedBox(height: 8),
+                if (!compact && !widget.dense) const SizedBox(height: 8),
                 Container(
                   height: titleHeight,
-                  padding: compact
-                      ? const EdgeInsets.fromLTRB(5, 0, 5, 10)
-                      : EdgeInsets.zero,
+                  padding: widget.dense
+                      ? const EdgeInsets.fromLTRB(4, 0, 4, 6)
+                      : compact
+                          ? const EdgeInsets.fromLTRB(5, 0, 5, 10)
+                          : EdgeInsets.zero,
                   child: Text(
                     comic.name,
-                    textAlign: compact ? TextAlign.center : TextAlign.start,
+                    textAlign: compact && !widget.dense
+                        ? TextAlign.center
+                        : TextAlign.start,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: titleStyle,

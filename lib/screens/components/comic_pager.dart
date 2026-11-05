@@ -48,12 +48,14 @@ class ComicPager extends StatefulWidget {
   final List<ComicLongPressMenuItem>? longPressMenuItems;
   final List<Widget>? appendList;
   final bool hideStreamStatus;
+  final bool denseGrid;
 
   const ComicPager(
       {required this.onPage,
       this.longPressMenuItems,
       this.appendList,
       this.hideStreamStatus = false,
+      this.denseGrid = false,
       Key? key})
       : super(key: key);
 
@@ -94,12 +96,14 @@ class _ComicPagerState extends State<ComicPager> {
             onPage: widget.onPage,
             longPressMenuItems: widget.longPressMenuItems,
             appendList: widget.appendList,
-            hideStatus: widget.hideStreamStatus);
+            hideStatus: widget.hideStreamStatus,
+            denseGrid: widget.denseGrid);
       case PagerControllerMode.pager:
         return _PagerPager(
             onPage: widget.onPage,
             longPressMenuItems: widget.longPressMenuItems,
-            appendList: widget.appendList);
+            appendList: widget.appendList,
+            denseGrid: widget.denseGrid);
     }
   }
 }
@@ -109,13 +113,15 @@ class _StreamPager extends StatefulWidget {
   final List<ComicLongPressMenuItem>? longPressMenuItems;
   final List<Widget>? appendList;
   final bool hideStatus;
+  final bool denseGrid;
 
   const _StreamPager(
       {Key? key,
       required this.onPage,
       this.longPressMenuItems,
       this.appendList,
-      this.hideStatus = false})
+      this.hideStatus = false,
+      this.denseGrid = false})
       : super(key: key);
 
   @override
@@ -451,6 +457,7 @@ class _StreamPagerState extends State<_StreamPager> {
                   ]
                 : widget.appendList,
             longPressMenuItems: widget.longPressMenuItems,
+            dense: widget.denseGrid,
           ),
         ),
       ],
@@ -459,15 +466,16 @@ class _StreamPagerState extends State<_StreamPager> {
 
   PreferredSize _buildPagerBar() {
     return PreferredSize(
-      preferredSize: const Size.fromHeight(30),
+      preferredSize: const Size.fromHeight(36),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: const BoxDecoration(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: .72),
           border: Border(
             bottom: BorderSide(
               width: .5,
-              style: BorderStyle.solid,
-              color: _pagerDividerColor,
+              color:
+                  Theme.of(context).colorScheme.outline.withValues(alpha: .18),
             ),
           ),
         ),
@@ -475,7 +483,7 @@ class _StreamPagerState extends State<_StreamPager> {
           onTap: _jumpPage,
           behavior: HitTestBehavior.opaque,
           child: SizedBox(
-            height: 30,
+            height: 36,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -486,6 +494,9 @@ class _StreamPagerState extends State<_StreamPager> {
                     "已加载 $_loadedPages / $_maxPage 页",
                     en: "Loaded $_loadedPages / $_maxPage pages",
                   ),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 )),
@@ -499,6 +510,9 @@ class _StreamPagerState extends State<_StreamPager> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.end,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                 )),
               ],
             ),
@@ -520,12 +534,14 @@ class _PagerPager extends StatefulWidget {
   final Future<InnerComicPage> Function(int page) onPage;
   final List<ComicLongPressMenuItem>? longPressMenuItems;
   final List<Widget>? appendList;
+  final bool denseGrid;
 
   const _PagerPager(
       {Key? key,
       required this.onPage,
       this.longPressMenuItems,
-      this.appendList})
+      this.appendList,
+      this.denseGrid = false})
       : super(key: key);
 
   @override
@@ -631,6 +647,7 @@ class _PagerPagerState extends State<_PagerPager> {
             appendList: widget.appendList,
             data: _data,
             longPressMenuItems: widget.longPressMenuItems,
+            dense: widget.denseGrid,
           ),
         );
       },
