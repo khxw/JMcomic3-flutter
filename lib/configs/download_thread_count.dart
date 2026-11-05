@@ -10,7 +10,7 @@ import 'is_pro.dart';
 
 late int _downloadThreadCount;
 int get downloadThreadCount => _downloadThreadCount;
-const _values = [1, 2, 3, 4, 5];
+const _values = [1, 2, 3, 4, 5, 6, 8];
 final downloadThreadCountEvent = Event();
 
 Future initDownloadThreadCount() async {

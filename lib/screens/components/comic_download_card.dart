@@ -8,6 +8,8 @@ class ComicDownloadCard extends StatelessWidget {
   final DownloadAlbum comic;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onTogglePause;
+  final bool pauseBusy;
   final bool highlighted;
 
   const ComicDownloadCard(
@@ -15,6 +17,8 @@ class ComicDownloadCard extends StatelessWidget {
     Key? key,
     this.onTap,
     this.onLongPress,
+    this.onTogglePause,
+    this.pauseBusy = false,
     this.highlighted = false,
   }) : super(key: key);
 
@@ -164,11 +168,41 @@ class ComicDownloadCard extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            Icon(
-                              Icons.chevron_right_rounded,
-                              size: 18,
-                              color: scheme.onSurfaceVariant,
-                            ),
+                            if (onTogglePause != null)
+                              IconButton(
+                                key: ValueKey('download-pause-${comic.id}'),
+                                tooltip: comic.isPaused
+                                    ? context.l10n.tr('继续下载', en: 'Resume')
+                                    : context.l10n.tr('暂停下载', en: 'Pause'),
+                                onPressed: pauseBusy ? null : onTogglePause,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 30,
+                                  height: 30,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                icon: pauseBusy
+                                    ? const SizedBox(
+                                        width: 15,
+                                        height: 15,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 1.8,
+                                        ),
+                                      )
+                                    : Icon(
+                                        comic.isPaused
+                                            ? Icons.play_arrow_rounded
+                                            : Icons.pause_rounded,
+                                        size: 19,
+                                        color: status.color,
+                                      ),
+                              )
+                            else
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 18,
+                                color: scheme.onSurfaceVariant,
+                              ),
                           ],
                         ),
                       ],
@@ -193,6 +227,13 @@ class _DownloadCardStatus {
 
   factory _DownloadCardStatus.of(BuildContext context, DownloadAlbum album) {
     final scheme = Theme.of(context).colorScheme;
+    if (album.isPaused) {
+      return _DownloadCardStatus(
+        context.l10n.tr('已暂停', en: 'Paused'),
+        Icons.pause_circle_filled_rounded,
+        Colors.amber.shade700,
+      );
+    }
     if (album.isQueuedOrDownloading) {
       if (album.dledImageCount > 0) {
         return _DownloadCardStatus(

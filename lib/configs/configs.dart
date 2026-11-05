@@ -91,7 +91,7 @@ Future initConfigs(BuildContext context) async {
     initIgnoreUpgradePop(),
   ]);
   final loginFuture = hostFuture.then<void>((_) async {
-    unawaited(_prefetchCategories());
+    unawaited(_prefetchHome());
     await initLogin(context);
   });
   final authenticationFuture =
@@ -110,9 +110,25 @@ Future initConfigs(BuildContext context) async {
   if (normalPlatform) autoCheckNewVersion();
 }
 
-Future<void> _prefetchCategories() async {
+Future<void> _prefetchHome() async {
   try {
-    await methods.categories();
+    final initial = await Future.wait<dynamic>([
+      methods.categories(),
+      methods.comics("latest", sortByNew, 1),
+    ]);
+    final categories = initial[0] as CategoriesResponse;
+    final prefetchedSlugs = <String>{'latest'};
+    final requests = <Future<dynamic>>[];
+    for (final category in categories.categories.take(4)) {
+      final rawSlug = category.slug.trim();
+      final slug = rawSlug.isEmpty ? 'latest' : rawSlug;
+      if (prefetchedSlugs.add(slug)) {
+        requests.add(methods.comics(slug, sortByNew, 1));
+      }
+    }
+    if (requests.isNotEmpty) {
+      await Future.wait<dynamic>(requests);
+    }
   } catch (_) {
     // The browser page owns the visible retry/error state.
   }

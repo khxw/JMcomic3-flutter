@@ -6,7 +6,7 @@ import 'package:jmcomic3/configs/network_ping.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
 const _defaultCdnHost = "cdn-msp3.jmapiproxy1.cc";
-const _automaticProbeTimeout = Duration(milliseconds: 1800);
+const _automaticProbeTimeout = Duration(milliseconds: 1200);
 String _cdnHost = _defaultCdnHost;
 
 String _truncateLabel(String value, {int max = 21}) {
@@ -67,8 +67,12 @@ Future<bool> autoSelectCdnHost() async {
     _cdnList,
     methods.pingCdn,
     timeout: _automaticProbeTimeout,
+    returnOnFirstSuccess: true,
   );
   if (fastest == null) return false;
+  if (fastest.host.toLowerCase() == _cdnHost.toLowerCase()) {
+    return true;
+  }
   try {
     await methods.saveCdnHost(fastest.host);
   } catch (_) {

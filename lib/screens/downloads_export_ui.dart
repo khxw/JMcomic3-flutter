@@ -415,6 +415,12 @@ class _ExportStatus {
   const _ExportStatus(this.label, this.color);
 
   factory _ExportStatus.of(BuildContext context, DownloadAlbum album) {
+    if (album.isPaused) {
+      return _ExportStatus(
+        context.l10n.tr('已暂停', en: 'Paused'),
+        Colors.amber,
+      );
+    }
     if (album.isDownloaded) {
       return _ExportStatus(
         context.l10n.tr('已下载', en: 'Downloaded'),

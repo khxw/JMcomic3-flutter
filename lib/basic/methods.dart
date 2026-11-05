@@ -24,6 +24,8 @@ class Methods {
     "all_downloads",
     "download_by_id",
     "create_download",
+    "pause_download",
+    "resume_download",
     "dl_image_by_chapter_id",
     "delete_download",
     "renew_all_downloads",
@@ -47,7 +49,7 @@ class Methods {
       "startup_cache_comics_v1_";
   static const String _albumPersistentCacheKeyPrefix =
       "startup_cache_album_v1_";
-  static const int _downloadThreadMin = 1;
+  static const int _downloadThreadFallback = 3;
 
   static final Map<String, _CacheEntry<String>> _categoriesCache = {};
   static final Map<String, _CacheEntry<String>> _comicsCache = {};
@@ -58,15 +60,23 @@ class Methods {
   static final Map<String, Future<String>> _albumInflight = {};
   static final Map<String, Future<String>> _coverInflight = {};
 
-  void _clearResponseCaches() {
+  void _clearApiResponseCaches() {
     _categoriesCache.clear();
     _comicsCache.clear();
     _albumCache.clear();
-    _coverCache.clear();
     _categoriesInflight.clear();
     _comicsInflight.clear();
     _albumInflight.clear();
+  }
+
+  void _clearImageResponseCaches() {
+    _coverCache.clear();
     _coverInflight.clear();
+  }
+
+  void _clearResponseCaches() {
+    _clearApiResponseCaches();
+    _clearImageResponseCaches();
   }
 
   void _evictAlbumCache(int comicId) {
@@ -895,12 +905,11 @@ class Methods {
   }
 
   Future saveApiHost(String choose) {
-    _clearResponseCaches();
+    _clearApiResponseCaches();
     return _invoke("save_api_host", choose);
   }
 
   Future saveCdnHost(String choose) {
-    _clearResponseCaches();
     return _invoke("save_cdn_host", choose);
   }
 
@@ -1022,6 +1031,14 @@ class Methods {
   /// Create download task
   Future<dynamic> createDownload(DownloadCreate create) async {
     return _invoke("create_download", create);
+  }
+
+  Future<dynamic> pauseDownload(int id) async {
+    return _invoke("pause_download", id);
+  }
+
+  Future<dynamic> resumeDownload(int id) async {
+    return _invoke("resume_download", id);
   }
 
   /// Download image list
@@ -1275,7 +1292,7 @@ class Methods {
     return _parseBackendInt(
       await _invoke("load_download_thread", ""),
       "load_download_thread",
-      fallback: _downloadThreadMin,
+      fallback: _downloadThreadFallback,
     );
   }
 

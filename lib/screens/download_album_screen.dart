@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/basic/reader_pages.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
@@ -30,6 +31,7 @@ class _DownloadAlbumScreenState extends State<DownloadAlbumScreen> {
   late Future<ViewLog?> _viewFuture;
   Timer? _autoRefreshTimer;
   bool _loadingAlbum = false;
+  bool _pauseBusy = false;
   bool _taskRemoved = false;
 
   @override
@@ -87,6 +89,25 @@ class _DownloadAlbumScreenState extends State<DownloadAlbumScreen> {
     }
   }
 
+  Future<void> _togglePause() async {
+    if (_pauseBusy) return;
+    setState(() => _pauseBusy = true);
+    try {
+      if (_album.isPaused) {
+        await methods.resumeDownload(_album.id);
+      } else {
+        await methods.pauseDownload(_album.id);
+      }
+      await _refreshAlbum();
+    } catch (error) {
+      if (mounted) {
+        defaultToast(context, '$error');
+      }
+    } finally {
+      if (mounted) setState(() => _pauseBusy = false);
+    }
+  }
+
   void _syncAutoRefresh() {
     _autoRefreshTimer?.cancel();
     _autoRefreshTimer = null;
@@ -136,6 +157,25 @@ class _DownloadAlbumScreenState extends State<DownloadAlbumScreen> {
           ],
         ),
         actions: [
+          if (_album.isQueuedOrDownloading || _album.isPaused)
+            IconButton(
+              key: const ValueKey('download-detail-pause'),
+              tooltip: _album.isPaused
+                  ? context.l10n.tr('继续下载', en: 'Resume')
+                  : context.l10n.tr('暂停下载', en: 'Pause'),
+              onPressed: _pauseBusy ? null : _togglePause,
+              icon: _pauseBusy
+                  ? const SizedBox(
+                      width: 19,
+                      height: 19,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      _album.isPaused
+                          ? Icons.play_arrow_rounded
+                          : Icons.pause_rounded,
+                    ),
+            ),
           IconButton(
             tooltip: context.l10n.tr('刷新', en: 'Refresh'),
             onPressed: _reloadAll,
@@ -356,8 +396,15 @@ class _DownloadAlbumScreenState extends State<DownloadAlbumScreen> {
     if (!create.containsChapterId(seriesId)) {
       throw StateError('download chapter is unavailable');
     }
+    final results = await Future.wait([
+      methods.dlImageByChapterId(seriesId),
+      methods.dlImageLocalAvailability(seriesId),
+    ]);
     final images = ReaderPageRepository.orderOfflineImages(
-      await methods.dlImageByChapterId(seriesId),
+      ReaderPageRepository.mergeLocalAvailability(
+        results[0],
+        results[1],
+      ),
     );
     final chapter = create.chapterById(seriesId);
     if (chapter == null) {
@@ -515,6 +562,13 @@ class _DownloadStatus {
   const _DownloadStatus(this.label, this.icon, this.color);
 
   factory _DownloadStatus.of(BuildContext context, DownloadAlbum album) {
+    if (album.isPaused) {
+      return _DownloadStatus(
+        context.l10n.tr('已暂停', en: 'Paused'),
+        Icons.pause_circle_filled_rounded,
+        Colors.amber,
+      );
+    }
     if (album.isDownloaded) {
       return _DownloadStatus(
         context.l10n.tr('已下载', en: 'Downloaded'),

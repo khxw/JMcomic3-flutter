@@ -1390,6 +1390,7 @@ class DownloadAlbum {
   bool get isDownloaded => dlStatus == 1;
   bool get isFailed => dlStatus == 2;
   bool get isDeleting => dlStatus == 3;
+  bool get isPaused => dlStatus == 4;
   bool get shouldAutoRefreshStatus => isQueuedOrDownloading || isDeleting;
 
   /// 作者/标签/作品在历史库中可能是纯文本，新后端则可能返回 JSON 字符串或数组。

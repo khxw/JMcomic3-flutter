@@ -7,7 +7,7 @@ import 'package:jmcomic3/configs/network_ping.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
 const _defaultApiHost = "www.cdngwc.club";
-const _automaticProbeTimeout = Duration(milliseconds: 1800);
+const _automaticProbeTimeout = Duration(milliseconds: 1200);
 // 动态域名拉取失败时使用内置移动端 API 候选，保持设置页和后端候选一致。
 const _fallbackApiHosts = <String>[
   "www.cdnhjk.net",
@@ -25,13 +25,15 @@ List<String> _apiList = [];
 Future<void> initApiHost() async {
   _apiList = [];
   _mergeApiList(_fallbackApiHosts);
+  final hostListFuture = methods.loadApiHostList();
+  final currentHostFuture = methods.loadApiHost();
   try {
-    _mergeApiList(await methods.loadApiHostList());
+    _mergeApiList(await hostListFuture);
   } catch (e) {
     debugPrient("initApiHost loadApiHostList failed: $e");
     // Keep local fallback list when backend list is unavailable.
   }
-  final rawLoaded = await methods.loadApiHost();
+  final rawLoaded = await currentHostFuture;
   final loaded =
       normalizeApiHostCandidate(rawLoaded, fallback: _defaultApiHost);
   _apiHost = loaded;
@@ -64,8 +66,12 @@ Future<bool> autoSelectApiHost() async {
     _apiList,
     methods.ping,
     timeout: _automaticProbeTimeout,
+    returnOnFirstSuccess: true,
   );
   if (fastest == null) return false;
+  if (fastest.host.toLowerCase() == _apiHost.toLowerCase()) {
+    return true;
+  }
   try {
     await methods.saveApiHost(fastest.host);
   } catch (error) {

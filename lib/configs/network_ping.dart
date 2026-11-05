@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -29,6 +30,7 @@ Future<HostLatencyProbe?> selectFastestHost(
   Iterable<String> hosts,
   Future<int> Function(String host) ping, {
   Duration timeout = const Duration(milliseconds: 1800),
+  bool returnOnFirstSuccess = false,
 }) async {
   final candidates = <String>[];
   final seen = <String>{};
@@ -39,6 +41,36 @@ Future<HostLatencyProbe?> selectFastestHost(
     }
   }
   if (candidates.isEmpty) return null;
+
+  if (returnOnFirstSuccess) {
+    final completer = Completer<HostLatencyProbe?>();
+    var pending = candidates.length;
+    for (final host in candidates) {
+      unawaited(() async {
+        HostLatencyProbe? result;
+        try {
+          final milliseconds = await ping(host).timeout(timeout);
+          if (milliseconds > 0) {
+            result = HostLatencyProbe(
+              host: host,
+              milliseconds: milliseconds,
+            );
+          }
+        } catch (_) {
+          // Another route may still answer before the timeout.
+        }
+        if (result != null && !completer.isCompleted) {
+          completer.complete(result);
+          return;
+        }
+        pending--;
+        if (pending == 0 && !completer.isCompleted) {
+          completer.complete(null);
+        }
+      }());
+    }
+    return completer.future;
+  }
 
   final results = await Future.wait(candidates.map((host) async {
     try {

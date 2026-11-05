@@ -30,6 +30,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   bool _loading = true;
   bool _loadingDownloads = false;
   List<DownloadAlbum> _downloads = [];
+  final Set<int> _pauseBusy = {};
   Timer? _autoRefreshTimer;
 
   void _setState(_) {
@@ -205,9 +206,36 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           highlighted: download.id == widget.initialDownloadId,
           onTap: () => _openDownload(download),
           onLongPress: () => _confirmDelete(download),
+          onTogglePause: download.isQueuedOrDownloading || download.isPaused
+              ? () => _togglePause(download)
+              : null,
+          pauseBusy: _pauseBusy.contains(download.id),
         );
       },
     );
+  }
+
+  Future<void> _togglePause(DownloadAlbum download) async {
+    if (_pauseBusy.contains(download.id)) return;
+    setState(() => _pauseBusy.add(download.id));
+    try {
+      if (download.isPaused) {
+        await methods.resumeDownload(download.id);
+      } else {
+        await methods.pauseDownload(download.id);
+      }
+      if (mounted) {
+        await _load();
+      }
+    } catch (error) {
+      if (mounted) {
+        defaultToast(context, '$error');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _pauseBusy.remove(download.id));
+      }
+    }
   }
 
   Future<void> _openDownload(DownloadAlbum download) async {

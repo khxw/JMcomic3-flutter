@@ -14,7 +14,6 @@ import 'package:jmcomic3/screens/components/comic_floating_search_bar.dart'
 import 'package:jmcomic3/screens/components/compose_ui.dart';
 import 'package:jmcomic3/screens/components/content_builder.dart';
 import 'package:jmcomic3/screens/components/content_error.dart';
-import 'package:jmcomic3/screens/components/content_loading.dart';
 import 'package:jmcomic3/screens/components/images.dart';
 import 'package:jmcomic3/screens/week_screen.dart';
 
@@ -58,7 +57,7 @@ class _BrowserScreenWrapperState extends State<BrowserScreenWrapper> {
           onRefresh: () async {},
         );
       case LoginStatus.logging:
-        return ContentLoading(label: context.l10n.loggingIn);
+        return BrowserScreen(onSearchRequested: widget.onSearchRequested);
       case LoginStatus.notSet:
         return ContentError(
           error: context.l10n.pleaseLogin,

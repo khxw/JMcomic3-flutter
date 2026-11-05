@@ -1220,10 +1220,14 @@ Widget buildLoading(BuildContext context, double? width, double? height,
           ),
         ),
         child: Center(
-          child: Icon(
-            Icons.downloading_rounded,
-            size: spinnerExtent * .62,
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: .72),
+          child: SizedBox(
+            width: spinnerExtent * .58,
+            height: spinnerExtent * .58,
+            child: CircularProgressIndicator(
+              strokeWidth: spinnerExtent <= 20 ? 1.8 : 2.2,
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: .82),
+            ),
           ),
         ),
       ),
