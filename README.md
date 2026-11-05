@@ -1,11 +1,6 @@
 # JMComic3 Mod
 
-[![最新版本](https://img.shields.io/github/v/release/khxw/JMcomic3-flutter)](https://github.com/khxw/JMcomic3-flutter/releases/latest)
-[![Android](https://img.shields.io/badge/Android-ARM64-3DDC84?logo=android&logoColor=white)](https://github.com/khxw/JMcomic3-flutter/releases/latest)
-[![Flutter](https://img.shields.io/badge/Flutter-3.41.2-02569B?logo=flutter)](https://flutter.dev/)
-[![Rust](https://img.shields.io/badge/Backend-Rust-000000?logo=rust)](https://www.rust-lang.org/)
-
-简体中文 · [English](README-en.md)
+简体中文 · [English](https://github.com/khxw/JMcomic3-flutter/blob/main/README-en.md)
 
 > 本仓库是 JMComic3 Flutter 的**非官方修改分支**，与上游项目维护者无隶属关系。
 > 当前修改版聚焦界面重做、下载与导出流程、存储权限、阅读性能和响应式布局。
@@ -13,26 +8,23 @@
 Android 包标识为 `io.github.khxw.jmcomic3mod`。修改版使用独立包标识，可与上游
 JMComic3 并存安装。
 
-<p align="center">
-  <img src="mockup/home-redesign.png" width="330" alt="JMComic3 Mod 首页">
-</p>
-
 ## 当前版本
 
-**v1.8.28+157** · Android ARM64 · API 24+
+**v1.8.54+183** · Android ARM64 · API 24+
 
 - 最新发布：[GitHub Releases](https://github.com/khxw/JMcomic3-flutter/releases/latest)
-- 完整更新记录：[CHANGELOG.md](CHANGELOG.md)
+- 完整更新记录：[CHANGELOG.md](https://github.com/khxw/JMcomic3-flutter/blob/main/CHANGELOG.md)
 - 源码分支：[`main`](https://github.com/khxw/JMcomic3-flutter/tree/main)
 
 ## 下载
 
 | 文件 | 用途 |
 | --- | --- |
-| `JMComic3-Mod-v1.8.28-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
+| `JMComic3-Mod-v1.8.54-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
 | `SHA256SUMS.txt` | 校验 APK 文件完整性 |
 
-当前 Fork 只发布 **Android ARM64 APK**。本仓库没有为这个修改版提供 ARM32、Windows 或 AAB 安装包。
+当前 Fork 只发布 **Android ARM64 APK**。本仓库没有为这个修改版提供 ARM32、
+Windows 或 AAB 安装包。
 
 升级前请备份书架、阅读记录和下载设置。
 
@@ -67,23 +59,26 @@ JMComic3 并存安装。
 Windows PowerShell 校验示例：
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.8.28-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.8.54-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 当前 APK SHA-256：
 
 ```text
-078EB7F6B9A7BE6A89F4DC273E6A362A0CF67660839E3CC620CBDA50B754D6D9
+DE355BF11605B53BE13C726D7A490F4937076B7CF3256D12DEFF8CF5E1275198
 ```
 
 ## 构建
 
-构建环境与发布步骤见 [docs/BUILDING.md](docs/BUILDING.md) 和
-[docs/RELEASING.md](docs/RELEASING.md)。
+构建环境与发布步骤见
+[docs/BUILDING.md](https://github.com/khxw/JMcomic3-flutter/blob/main/docs/BUILDING.md)
+和
+[docs/RELEASING.md](https://github.com/khxw/JMcomic3-flutter/blob/main/docs/RELEASING.md)。
 
 基本要求：
 
-- Flutter 版本由 [.fvmrc](.fvmrc) 固定。
+- Flutter 版本由
+  [.fvmrc](https://github.com/khxw/JMcomic3-flutter/blob/main/.fvmrc) 固定。
 - JDK 17 或更高版本。
 - Android SDK 36 和 Android NDK `25.2.9519653`。
 - Rust v2 后端源码位于 `rust-backend/rust/`，已验证的预构建 JNI 库位于
@@ -118,9 +113,11 @@ flutter build apk --release --no-pub --target-platform android-arm64 --split-per
 - [hect0x7/JMComic-Crawler-Python](https://github.com/hect0x7/JMComic-Crawler-Python)：
   Rust 后端的移动端 API 协议、请求签名、登录与域名回退参考，不作为运行时依赖。
 - `zoomable_positioned_list` 1.1.0：连续阅读组件，许可证与本地补丁见
-  [PATCHES.md](third_party/zoomable_positioned_list/PATCHES.md)。
+  [PATCHES.md](https://github.com/khxw/JMcomic3-flutter/blob/main/third_party/zoomable_positioned_list/PATCHES.md)。
 
-完整来源范围见 [REFERENCES.md](REFERENCES.md)。相关项目名称、代码和内容权利归各自作者所有。
+完整来源范围见
+[REFERENCES.md](https://github.com/khxw/JMcomic3-flutter/blob/main/REFERENCES.md)。
+相关项目名称、代码和内容权利归各自作者所有。
 
 ## 使用约定
 
