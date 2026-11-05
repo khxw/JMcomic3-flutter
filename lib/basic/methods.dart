@@ -42,7 +42,7 @@ class Methods {
   static const Duration _albumPersistentCacheTtl = Duration(minutes: 30);
   static const String _defaultCategoriesCacheKey = "__default__";
   static const String _categoriesPersistentCacheKey =
-      "startup_cache_categories_v1";
+      "startup_cache_categories_v2";
   static const String _comicsPersistentCacheKeyPrefix =
       "startup_cache_comics_v1_";
   static const String _albumPersistentCacheKeyPrefix =
