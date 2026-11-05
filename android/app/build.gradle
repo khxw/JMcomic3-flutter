@@ -33,6 +33,53 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
+def appRepoRoot = rootProject.projectDir.parentFile
+def assetVersionFile = new File(appRepoRoot, 'lib/assets/version.txt')
+def ciVersionFile = new File(appRepoRoot, 'ci/version.code.txt')
+def releaseInfoFile = new File(appRepoRoot, 'ci/version.info.txt')
+
+tasks.register('validateAppVersionSync') {
+    group = 'verification'
+    description = 'Validates that pubspec, Dart asset, CI metadata and Android version values match.'
+    inputs.files(
+            new File(appRepoRoot, 'pubspec.yaml'),
+            assetVersionFile,
+            ciVersionFile,
+            releaseInfoFile,
+            localPropertiesFile)
+    doLast {
+        def pubspecFile = new File(appRepoRoot, 'pubspec.yaml')
+        def matcher = (pubspecFile.getText('UTF-8') =~ /(?m)^version:\s*(\S+)\s*$/)
+        if (!matcher.find()) {
+            throw new GradleException("Unable to read version from ${pubspecFile}")
+        }
+        def expectedVersion = "v${matcher.group(1)}"
+        [
+                assetVersionFile,
+                ciVersionFile,
+                releaseInfoFile
+        ].each { File versionFile ->
+            if (!versionFile.isFile()) {
+                throw new GradleException("Version metadata file is missing: ${versionFile}")
+            }
+            def actual = versionFile.getText('UTF-8').readLines().find { it.trim() }?.trim()
+            if (actual != expectedVersion) {
+                throw new GradleException(
+                        "Version mismatch in ${versionFile}: expected ${expectedVersion}, found ${actual}")
+            }
+        }
+        def androidVersion = "v${flutterVersionName}+${flutterVersionCode}"
+        if (androidVersion != expectedVersion) {
+            throw new GradleException(
+                    "Android version mismatch: expected ${expectedVersion}, found ${androidVersion}")
+        }
+    }
+}
+
+tasks.matching { it.name == 'preBuild' }.configureEach {
+    dependsOn('validateAppVersionSync')
+}
+
 def rustAndroidTrackedAbis = ['arm64-v8a', 'armeabi-v7a']
 def rustAndroidDestLibName = 'librust.so'
 def rustAndroidDefaultSourceLibName = 'librust_lib_jasmine.so'
