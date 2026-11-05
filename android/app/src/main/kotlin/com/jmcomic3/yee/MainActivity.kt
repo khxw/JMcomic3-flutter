@@ -41,12 +41,15 @@ class MainActivity : FlutterActivity() {
         private const val STORAGE_PERMISSION_REQUEST = 7413
         private const val ALL_FILES_SETTINGS_REQUEST = 7414
         private const val UNKNOWN_SOURCES_REQUEST = 7415
+        private const val CREATE_DOCUMENT_REQUEST = 7416
     }
 
     private val uiThreadHandler = Handler(Looper.getMainLooper())
     private val pool =
         Executors.newCachedThreadPool { runnable -> Thread(runnable).also { it.isDaemon = true } }
     private var pendingDirectoryResult: MethodChannel.Result? = null
+    private var pendingCreateDocumentResult: MethodChannel.Result? = null
+    private var pendingCreateDocumentContent: String? = null
     private var pendingInstallResult: MethodChannel.Result? = null
     private var pendingInstallPath: String? = null
 
@@ -105,6 +108,22 @@ class MainActivity : FlutterActivity() {
                 val url = call.argument<String>("url")?.trim() ?: ""
                 uiThreadHandler.post {
                     openExternalUrl(url, result)
+                }
+                return
+            }
+            "saveTextDocument" -> {
+                val args = call.arguments as? Map<*, *>
+                    ?: run {
+                        result.error("invalid_args", "Missing document arguments", null)
+                        return
+                    }
+                uiThreadHandler.post {
+                    saveTextDocument(
+                        fileName = args["file_name"]?.toString() ?: "backup.json",
+                        content = args["content"]?.toString() ?: "",
+                        mimeType = args["mime_type"]?.toString() ?: "application/json",
+                        result = result,
+                    )
                 }
                 return
             }
@@ -198,6 +217,34 @@ class MainActivity : FlutterActivity() {
                         contentResolver.update(uri, contentValues, null, null)
                     }
                 }
+        }
+    }
+
+    private fun saveTextDocument(
+        fileName: String,
+        content: String,
+        mimeType: String,
+        result: MethodChannel.Result,
+    ) {
+        if (pendingCreateDocumentResult != null) {
+            result.error("document_picker_busy", "A document picker is already open.", null)
+            return
+        }
+        pendingCreateDocumentResult = result
+        pendingCreateDocumentContent = content
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = mimeType
+            putExtra(Intent.EXTRA_TITLE, fileName)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(intent, CREATE_DOCUMENT_REQUEST)
+        } catch (error: Exception) {
+            pendingCreateDocumentResult = null
+            pendingCreateDocumentContent = null
+            result.error("document_picker_unavailable", error.message, null)
         }
     }
 
@@ -429,6 +476,27 @@ class MainActivity : FlutterActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == CREATE_DOCUMENT_REQUEST) {
+            val result = pendingCreateDocumentResult
+            val content = pendingCreateDocumentContent
+            pendingCreateDocumentResult = null
+            pendingCreateDocumentContent = null
+            if (result == null) return
+            val uri = data?.data
+            if (resultCode != Activity.RESULT_OK || uri == null || content == null) {
+                result.success(null)
+                return
+            }
+            try {
+                contentResolver.openOutputStream(uri, "wt")?.use { stream ->
+                    stream.write(content.toByteArray(Charsets.UTF_8))
+                } ?: throw IllegalStateException("Unable to open the selected document")
+                result.success(uri.toString())
+            } catch (error: Exception) {
+                result.error("document_write_failed", error.message, null)
+            }
+            return
+        }
         if (requestCode == UNKNOWN_SOURCES_REQUEST) {
             val installResult = pendingInstallResult
             val installPath = pendingInstallPath

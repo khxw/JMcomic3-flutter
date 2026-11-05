@@ -1327,6 +1327,19 @@ class Methods {
     return _channel.invokeMethod<String>("androidPickDownloadDirectory");
   }
 
+  Future<String?> saveTextDocument({
+    required String fileName,
+    required String content,
+    String mimeType = "application/json",
+  }) {
+    if (!Platform.isAndroid) return Future<String?>.value(null);
+    return _channel.invokeMethod<String>("saveTextDocument", {
+      "file_name": fileName,
+      "content": content,
+      "mime_type": mimeType,
+    });
+  }
+
   Future<bool> openExternalUrl(String url) async {
     if (!Platform.isAndroid) return false;
     return await _channel.invokeMethod<bool>(

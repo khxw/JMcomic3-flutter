@@ -280,22 +280,18 @@ Future<void> exportOfflineBookshelfBackup(BuildContext context) async {
         '${two(now.hour)}${two(now.minute)}${two(now.second)}.json';
     final bytes = Uint8List.fromList(utf8.encode(content));
     if (Platform.isAndroid) {
-      final directory = await FilesystemPicker.open(
-        title: context.l10n.tr('选择备份保存位置'),
-        context: context,
-        rootDirectory: Directory('/storage/emulated/0'),
-        fsType: FilesystemType.folder,
-        folderIconColor: Colors.teal,
+      final uri = await methods.saveTextDocument(
+        fileName: fileName,
+        content: content,
+        mimeType: 'application/json',
       );
-      if (directory == null || !context.mounted) return;
-      final file = File('$directory/$fileName');
-      await file.writeAsBytes(bytes, flush: true);
+      if (uri == null || !context.mounted) return;
       if (context.mounted) {
         defaultToast(
           context,
           context.l10n.tr(
-            '离线书架和阅读进度备份已导出：${file.path}',
-            en: 'Offline bookshelf backup exported: ${file.path}',
+            '离线书架和阅读进度备份已导出',
+            en: 'Offline bookshelf and reading progress exported',
           ),
         );
       }
