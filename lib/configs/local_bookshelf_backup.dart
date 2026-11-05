@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:filesystem_picker/filesystem_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/local_bookshelf.dart';
@@ -11,7 +12,7 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 
 const _backupFormat = 'jmcomic3-offline-bookshelf';
 const _backupVersion = 2;
-const _maxBackupBytes = 5 * 1024 * 1024;
+const _maxBackupBytes = 32 * 1024 * 1024;
 
 class OfflineReadingProgress {
   final int comicId;
@@ -72,7 +73,10 @@ class OfflineBookshelfBackupData {
         final item = LocalBookshelfItem.fromJson(
           Map<String, dynamic>.from(entry),
         );
-        if (item.comic.id > 0) items.add(item);
+        if (item.comic.id > 0 &&
+            !items.any((existing) => existing.comic.id == item.comic.id)) {
+          items.add(item);
+        }
       }
       return OfflineBookshelfBackupData(
         items: items,
@@ -80,11 +84,12 @@ class OfflineBookshelfBackupData {
         readingProgress: readingProgress,
       );
     }
-    if (decoded is! Map ||
-        decoded['format'] != _backupFormat ||
-        (decoded['version'] is num &&
-            (decoded['version'] as num).toInt() > _backupVersion)) {
+    if (decoded is! Map || decoded['format'] != _backupFormat) {
       throw const FormatException('Unsupported bookshelf backup');
+    }
+    final version = OfflineReadingProgress._toInt(decoded['version']);
+    if (version > _backupVersion) {
+      throw const FormatException('Unsupported bookshelf backup version');
     }
     final rawItems = decoded['items'];
     if (rawItems is List) {
@@ -92,18 +97,32 @@ class OfflineBookshelfBackupData {
         final item = LocalBookshelfItem.fromJson(
           Map<String, dynamic>.from(entry),
         );
-        if (item.comic.id > 0) items.add(item);
+        if (item.comic.id > 0 &&
+            !items.any((existing) => existing.comic.id == item.comic.id)) {
+          items.add(item);
+        }
       }
     }
     final rawGroups = decoded['groups'];
     if (rawGroups is List) {
       for (final value in rawGroups) {
         final group = '$value'.trim();
-        if (group.isNotEmpty) groups.add(group);
+        if (group.isNotEmpty &&
+            !groups.any(
+              (existing) => existing.toLowerCase() == group.toLowerCase(),
+            )) {
+          groups.add(group);
+        }
       }
     }
     for (final item in items) {
-      if (item.group.trim().isNotEmpty) groups.add(item.group.trim());
+      final group = item.group.trim();
+      if (group.isNotEmpty &&
+          !groups.any(
+            (existing) => existing.toLowerCase() == group.toLowerCase(),
+          )) {
+        groups.add(group);
+      }
     }
     final rawProgress = decoded['reading_progress'];
     if (rawProgress is List) {
@@ -127,12 +146,14 @@ class OfflineBookshelfImportResult {
   final int skipped;
   final int groupsAdded;
   final int progressRestored;
+  final int progressFailed;
 
   const OfflineBookshelfImportResult({
     required this.added,
     required this.skipped,
     required this.groupsAdded,
     required this.progressRestored,
+    this.progressFailed = 0,
   });
 }
 
@@ -147,7 +168,13 @@ Future<String> encodeOfflineBookshelfBackup() async {
         (offset + batchSize).clamp(0, localBookshelfItems.length).toInt();
     final batch = localBookshelfItems.sublist(offset, end);
     final logs = await Future.wait(
-      batch.map((item) => methods.findViewLog(item.comic.id)),
+      batch.map((item) async {
+        try {
+          return await methods.findViewLog(item.comic.id);
+        } catch (_) {
+          return null;
+        }
+      }),
     );
     for (var index = 0; index < logs.length; index++) {
       final log = logs[index];
@@ -213,6 +240,7 @@ Future<OfflineBookshelfImportResult> importOfflineBookshelfBackup(
     await saveLocalBookshelf();
   }
   var progressRestored = 0;
+  var progressFailed = 0;
   for (final progress in backup.readingProgress) {
     if (!existingIds.contains(progress.comicId)) continue;
     final current = await methods.findViewLog(progress.comicId);
@@ -221,18 +249,24 @@ Future<OfflineBookshelfImportResult> importOfflineBookshelfBackup(
         progress.viewedAt <= 0 ||
         progress.viewedAt > current.lastViewTime;
     if (!shouldRestore) continue;
-    await methods.updateViewLog(
-      progress.comicId,
-      progress.chapterId,
-      progress.page,
-    );
-    progressRestored++;
+    try {
+      await methods.updateViewLog(
+        progress.comicId,
+        progress.chapterId,
+        progress.page,
+        viewedAt: progress.viewedAt,
+      );
+      progressRestored++;
+    } catch (_) {
+      progressFailed++;
+    }
   }
   return OfflineBookshelfImportResult(
     added: added,
     skipped: skipped,
     groupsAdded: localBookshelfGroups.length - groupsBefore,
     progressRestored: progressRestored,
+    progressFailed: progressFailed,
   );
 }
 
@@ -244,14 +278,43 @@ Future<void> exportOfflineBookshelfBackup(BuildContext context) async {
     final fileName =
         'JMComic3-bookshelf-${now.year}${two(now.month)}${two(now.day)}-'
         '${two(now.hour)}${two(now.minute)}${two(now.second)}.json';
+    final bytes = Uint8List.fromList(utf8.encode(content));
+    if (Platform.isAndroid) {
+      final directory = await FilesystemPicker.open(
+        title: context.l10n.tr('选择备份保存位置'),
+        context: context,
+        rootDirectory: Directory('/storage/emulated/0'),
+        fsType: FilesystemType.folder,
+        folderIconColor: Colors.teal,
+      );
+      if (directory == null || !context.mounted) return;
+      final file = File('$directory/$fileName');
+      await file.writeAsBytes(bytes, flush: true);
+      if (context.mounted) {
+        defaultToast(
+          context,
+          context.l10n.tr(
+            '离线书架和阅读进度备份已导出：${file.path}',
+            en: 'Offline bookshelf backup exported: ${file.path}',
+          ),
+        );
+      }
+      return;
+    }
     final path = await FilePicker.platform.saveFile(
       dialogTitle: context.l10n.tr('导出离线书架备份'),
       fileName: fileName,
       type: FileType.custom,
       allowedExtensions: const ['json'],
-      bytes: Uint8List.fromList(utf8.encode(content)),
+      bytes: bytes,
     );
     if (path == null || !context.mounted) return;
+    if (!path.startsWith('content://')) {
+      final file = File(path);
+      if (!await file.exists() || await file.length() == 0) {
+        await file.writeAsBytes(bytes, flush: true);
+      }
+    }
     defaultToast(
       context,
       context.l10n.tr(
@@ -273,24 +336,41 @@ Future<void> importOfflineBookshelfBackupFromFile(
   BuildContext context,
 ) async {
   try {
-    final selected = await FilePicker.platform.pickFiles(
-      dialogTitle: context.l10n.tr('导入离线书架备份'),
-      type: FileType.custom,
-      allowedExtensions: const ['json'],
-      allowMultiple: false,
-      withData: true,
-    );
-    if (selected == null || selected.files.isEmpty || !context.mounted) return;
-    final file = selected.files.single;
-    final bytes = file.bytes ??
-        (file.path == null ? null : await File(file.path!).readAsBytes());
+    Uint8List? bytes;
+    if (Platform.isAndroid) {
+      final selectedPath = await FilesystemPicker.open(
+        title: context.l10n.tr('选择离线书架备份'),
+        context: context,
+        rootDirectory: Directory('/storage/emulated/0'),
+        fsType: FilesystemType.file,
+        allowedExtensions: const ['.json'],
+        fileTileSelectMode: FileTileSelectMode.wholeTile,
+      );
+      if (selectedPath == null || !context.mounted) return;
+      bytes = await File(selectedPath).readAsBytes();
+    } else {
+      final selected = await FilePicker.platform.pickFiles(
+        dialogTitle: context.l10n.tr('导入离线书架备份'),
+        type: FileType.custom,
+        allowedExtensions: const ['json'],
+        allowMultiple: false,
+        withData: true,
+      );
+      if (selected == null || selected.files.isEmpty || !context.mounted) {
+        return;
+      }
+      final file = selected.files.single;
+      bytes = file.bytes ??
+          (file.path == null ? null : await File(file.path!).readAsBytes());
+    }
     if (bytes == null) {
       throw const FormatException('Unable to read backup file');
     }
     if (bytes.length > _maxBackupBytes) {
       throw const FormatException('Backup file is too large');
     }
-    final backup = OfflineBookshelfBackupData.parse(utf8.decode(bytes));
+    final text = utf8.decode(bytes).replaceFirst(RegExp(r'^\uFEFF'), '');
+    final backup = OfflineBookshelfBackupData.parse(text);
     if (!context.mounted) return;
     final confirmed = await confirmDialog(
       context,
@@ -310,9 +390,11 @@ Future<void> importOfflineBookshelfBackupFromFile(
       context,
       context.l10n.tr(
         '导入完成：新增 ${result.added} 本，跳过 ${result.skipped} 本，'
-        '恢复 ${result.progressRestored} 条阅读进度',
+        '恢复 ${result.progressRestored} 条阅读进度'
+        '${result.progressFailed > 0 ? '，${result.progressFailed} 条恢复失败' : ''}',
         en: 'Import complete: ${result.added} added, ${result.skipped} skipped, '
-            '${result.progressRestored} reading positions restored',
+            '${result.progressRestored} reading positions restored'
+            '${result.progressFailed > 0 ? ', ${result.progressFailed} failed' : ''}',
       ),
     );
   } catch (error) {

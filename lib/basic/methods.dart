@@ -744,11 +744,17 @@ class Methods {
     );
   }
 
-  Future updateViewLog(int id, int lastViewChapterId, int lastViewPage) {
+  Future updateViewLog(
+    int id,
+    int lastViewChapterId,
+    int lastViewPage, {
+    int viewedAt = 0,
+  }) {
     return _invoke("update_view_log", {
       "id": id,
       "last_view_chapter_id": lastViewChapterId,
       "last_view_page": lastViewPage,
+      if (viewedAt > 0) "viewed_at": viewedAt,
     });
   }
 

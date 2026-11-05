@@ -149,10 +149,12 @@ void main() {
 
     expect(result.added, 1);
     expect(result.progressRestored, 1);
+    expect(result.progressFailed, 0);
     expect(localBookshelfContains(7), isTrue);
     expect(updates, hasLength(1));
     expect(updates.single['id'], 7);
     expect(updates.single['last_view_chapter_id'], 77);
     expect(updates.single['last_view_page'], 12);
+    expect(updates.single['viewed_at'], 1700000000000);
   });
 }
