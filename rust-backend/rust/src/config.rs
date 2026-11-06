@@ -1,3 +1,4 @@
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::time::Duration;
 
 use crate::error::{BackendError, BackendResult};
@@ -52,7 +53,7 @@ impl JmClientConfig {
     }
 }
 
-fn normalize_host(raw: &str) -> BackendResult<String> {
+pub(crate) fn normalize_host(raw: &str) -> BackendResult<String> {
     let mut value = raw.trim();
     if let Some(index) = value.find("://") {
         value = &value[index + 3..];
@@ -66,10 +67,69 @@ fn normalize_host(raw: &str) -> BackendResult<String> {
         value = &value[index + 1..];
     }
     let value = value.trim();
-    if value.is_empty() || value.chars().any(char::is_whitespace) {
+    if !is_valid_host_authority(value) {
         return Err(BackendError::Config("invalid host".into()));
     }
     Ok(value.to_string())
+}
+
+fn is_valid_host_authority(value: &str) -> bool {
+    if value.is_empty() || value.len() > 260 {
+        return false;
+    }
+    let (host, port) = if let Some(rest) = value.strip_prefix('[') {
+        let Some(end) = rest.find(']') else {
+            return false;
+        };
+        let host = &rest[..end];
+        let suffix = &rest[end + 1..];
+        if suffix.is_empty() {
+            (host, None)
+        } else if let Some(port) = suffix.strip_prefix(':') {
+            (host, Some(port))
+        } else {
+            return false;
+        }
+    } else if let Some((host, port)) = value.rsplit_once(':') {
+        if host.contains(':') {
+            return false;
+        }
+        (host, Some(port))
+    } else {
+        (value, None)
+    };
+    if let Some(port) = port {
+        if port.is_empty()
+            || !port.chars().all(|character| character.is_ascii_digit())
+            || port.parse::<u16>().is_err()
+        {
+            return false;
+        }
+    }
+    if host.eq_ignore_ascii_case("localhost")
+        || host.parse::<Ipv4Addr>().is_ok()
+        || host.parse::<Ipv6Addr>().is_ok()
+    {
+        return true;
+    }
+    if !host.contains('.') || host.len() > 253 {
+        return false;
+    }
+    host.split('.').all(|label| {
+        !label.is_empty()
+            && label.len() <= 63
+            && label
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric() || character == '-')
+            && label
+                .chars()
+                .next()
+                .is_some_and(|character| character.is_ascii_alphanumeric())
+            && label
+                .chars()
+                .last()
+                .is_some_and(|character| character.is_ascii_alphanumeric())
+    })
 }
 
 #[cfg(test)]
@@ -88,5 +148,19 @@ mod tests {
 
         assert_eq!(config.api_host, "api.example.com:9443");
         assert_eq!(config.image_host, "cdn.example.com");
+    }
+
+    #[test]
+    fn host_validation_rejects_tokens_and_invalid_ports() {
+        let malformed = format!(
+            "X+{}",
+            "bnzYIcwF6C7Rd3T7njPErjfPO12gw6b1UQbMx53J7eJnjoOOhKBOjz085QJ2PESutvUIqkJ3UVzPW4o7WbmCbSsN2AQANumvn8tOnTbM0EvvHfFaiMo0ZgXsDGe4QytJpsAZ"
+        );
+        assert!(normalize_host(&malformed).is_err());
+        assert!(normalize_host("api.example.com:70000").is_err());
+        assert_eq!(
+            normalize_host("api.example.com:9443").unwrap(),
+            "api.example.com:9443"
+        );
     }
 }

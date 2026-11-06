@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use serde_json::{json, Value};
 use tokio::runtime::Runtime;
 
+use crate::config::normalize_host;
 use crate::contract::{InvokeRequest, InvokeResponse};
 use crate::download::{album_dir, chapter_dir, manager_shared, DownloadControl, DownloadManager};
 use crate::export::{export_album, ExportFormat};
@@ -143,14 +144,16 @@ fn reset_client() -> Result<(), String> {
 }
 
 fn client_from_store(store: &PropertyStore) -> BackendResult<JmClient> {
-    let mut config = JmClientConfig::default();
+    let defaults = JmClientConfig::default();
+    let mut config = defaults.clone();
     let api_host = store.load("api_host")?;
     if !api_host.trim().is_empty() {
-        config.api_host = api_host;
+        config.api_host = normalize_host(&api_host).unwrap_or_else(|_| defaults.api_host.clone());
     }
     let cdn_host = store.load("cdn_host")?;
     if !cdn_host.trim().is_empty() {
-        config.image_host = cdn_host;
+        config.image_host =
+            normalize_host(&cdn_host).unwrap_or_else(|_| defaults.image_host.clone());
     }
     let proxy = store.load("proxy")?;
     if !proxy.trim().is_empty() {
@@ -1625,8 +1628,12 @@ fn collect_host_strings(value: &Value, depth: usize, output: &mut Vec<String>) {
             }
         }
         Value::Object(values) => {
-            for value in values.values() {
-                collect_host_strings(value, depth + 1, output);
+            for key in [
+                "hosts", "servers", "domains", "host", "server", "list", "items", "data", "nodes",
+            ] {
+                if let Some(value) = values.get(key) {
+                    collect_host_strings(value, depth + 1, output);
+                }
             }
         }
         Value::Null | Value::Bool(_) | Value::Number(_) => {}
@@ -1747,7 +1754,7 @@ mod tests {
     #[test]
     fn api_host_lists_accept_json_plain_text_and_duplicates() {
         let json = parse_api_hosts(
-            r#"{"servers":[" https://api.example.com/path ","api.example.com","bad host"]}"#,
+            r#"{"servers":[" https://api.example.com/path ","api.example.com","bad host"],"signature":"X+not-a-host.example.com"}"#,
         );
         assert_eq!(json, ["api.example.com"]);
 

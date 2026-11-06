@@ -5,6 +5,10 @@ final RegExp _networkHostCandidateStart = RegExp(
   caseSensitive: false,
 );
 final RegExp _networkHostHardSeparator = RegExp(r'[\r\n;]+');
+final RegExp _networkHostAuthority = RegExp(
+  r'^(?:\[[0-9A-Fa-f:.]+\](?::\d{1,5})?|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?::\d{1,5})?|localhost(?::\d{1,5})?|(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?)$',
+  caseSensitive: false,
+);
 
 /// 将 API/CDN 分流输入归一化为后端实际需要的 `host[:port]`。
 ///
@@ -36,7 +40,27 @@ String normalizeNetworkHostCandidate(
     value = value.substring(userInfoIndex + 1);
   }
   value = value.trim();
-  return value.isEmpty ? fallback : value;
+  return _isValidNetworkHostAuthority(value) ? value : fallback;
+}
+
+bool _isValidNetworkHostAuthority(String value) {
+  if (value.isEmpty ||
+      value.length > 260 ||
+      !_networkHostAuthority.hasMatch(value)) {
+    return false;
+  }
+  final parsed = Uri.tryParse('https://$value');
+  if (parsed == null ||
+      parsed.host.isEmpty ||
+      parsed.path.isNotEmpty ||
+      parsed.hasQuery ||
+      parsed.hasFragment) {
+    return false;
+  }
+  if (parsed.hasPort && (parsed.port <= 0 || parsed.port > 65535)) {
+    return false;
+  }
+  return true;
 }
 
 /// 将源站/缓存里的“候选 host 文本”收敛为可展示和测速的 host 列表。

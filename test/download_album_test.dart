@@ -1410,6 +1410,10 @@ void main() {
       ),
       ['cdn-query.example.com', 'cdn-next.example.com'],
     );
+    const malformedToken =
+        'X+bnzYIcwF6C7Rd3T7njPErjfPO12gw6b1UQbMx53J7eJnjoOOhKBOjz085QJ2PESutvUIqkJ3UVzPW4o7WbmCbSsN2AQANumvn8tOnTbM0EvvHfFaiMo0ZgXsDGe4QytJpsAZ';
+    expect(normalizeNetworkHostCandidate(malformedToken), '');
+    expect(normalizeNetworkHostCandidateList(malformedToken), isEmpty);
   });
 
   test('download export selection toggles and restores by live ids', () {
