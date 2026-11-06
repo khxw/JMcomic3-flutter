@@ -340,6 +340,39 @@ class _ComicCommentItem extends StatefulWidget {
 
 class _ComicCommentItemState extends State<_ComicCommentItem> {
   var likeLoading = false;
+  var liked = false;
+
+  Future<void> _likeComment() async {
+    if (likeLoading || liked) return;
+    if (!await ensureJwtAccess(
+      context,
+      feature: context.l10n.tr("评论点赞", en: "Like comment"),
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      likeLoading = true;
+    });
+    try {
+      await methods.likeComment(widget.comment.CID);
+      if (!mounted) return;
+      setState(() {
+        likeLoading = false;
+        liked = true;
+      });
+    } catch (error, stackTrace) {
+      debugPrient("$error\n$stackTrace");
+      if (!mounted) return;
+      setState(() {
+        likeLoading = false;
+      });
+      defaultToast(
+        context,
+        context.l10n.tr("点赞失败：$error", en: "Failed to like comment: $error"),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -429,19 +462,14 @@ class _ComicCommentItemState extends State<_ComicCommentItem> {
                       const SizedBox(width: 6),
                     ],
                     GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          likeLoading = true;
-                        });
-                      },
+                      onTap: _likeComment,
                       child: _CommentMetaPill(
-                        icon: likeLoading
+                        icon: liked
                             ? Icons.favorite_rounded
                             : Icons.favorite_border_rounded,
-                        label: '${comment.likes}',
-                        accent: likeLoading
-                            ? scheme.error
-                            : scheme.onSurfaceVariant,
+                        label: '${comment.likes + (liked ? 1 : 0)}',
+                        loading: likeLoading,
+                        accent: liked ? scheme.error : scheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -584,11 +612,13 @@ class _CommentMetaPill extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color accent;
+  final bool loading;
 
   const _CommentMetaPill({
     required this.icon,
     required this.label,
     required this.accent,
+    this.loading = false,
   });
 
   @override
@@ -602,7 +632,17 @@ class _CommentMetaPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: accent),
+          if (loading)
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                color: accent,
+              ),
+            )
+          else
+            Icon(icon, size: 12, color: accent),
           const SizedBox(width: 3),
           Text(
             label,

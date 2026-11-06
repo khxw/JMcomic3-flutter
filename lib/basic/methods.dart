@@ -973,6 +973,10 @@ class Methods {
     );
   }
 
+  Future<void> likeComment(int commentId) async {
+    await _invoke("like_comment", commentId);
+  }
+
   Future<String> loadUsername() {
     return _invoke("load_username", "");
   }

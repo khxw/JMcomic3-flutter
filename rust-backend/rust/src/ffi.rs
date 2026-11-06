@@ -583,6 +583,14 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
             let parent = optional_int_param(&params, "comment_id");
             result_value(state.client.comment(album_id, &comment, parent).await)
         }
+        "like_comment" => {
+            let comment_id =
+                match int_param(&params, "cid").or_else(|_| int_param(&params, "comment_id")) {
+                    Ok(id) => id,
+                    Err(error) => return InvokeResponse::error(error),
+                };
+            result_value(state.client.like_comment(comment_id).await)
+        }
         "find_view_log" => match int_param(&params, "id") {
             Ok(id) => match state.history.find_view_log(id) {
                 Ok(value) => InvokeResponse::success_value(&value.unwrap_or(Value::Null)),

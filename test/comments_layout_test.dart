@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jmcomic3/configs/login.dart' as login;
 import 'package:jmcomic3/configs/theme.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/comments_screen.dart';
@@ -54,6 +55,27 @@ Map<String, dynamic> _comment({
     'replys': replys,
   };
 }
+
+Map<String, dynamic> _selfInfo() => {
+      'uid': 42,
+      'username': 'Comment reader',
+      'email': 'reader@example.invalid',
+      'emailverified': 'yes',
+      'photo': '?v=0?v=',
+      'fname': 'Reader',
+      'gender': '',
+      'message': '',
+      'coin': 0,
+      'album_favorites': 0,
+      's': '',
+      'level_name': 'Reader',
+      'level': 1,
+      'nextLevelExp': 100,
+      'exp': '0',
+      'expPercent': 0.0,
+      'badges': <Object>[],
+      'album_favorites_max': 100,
+    };
 
 Widget _host(Widget child) {
   return MaterialApp(
@@ -160,5 +182,84 @@ void main() {
         image.dispose();
       });
     }
+  });
+
+  testWidgets('comment like uses the bridge once and updates the heart',
+      (tester) async {
+    tester.view.physicalSize = const Size(393, 852);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final requests = <Map<String, dynamic>>[];
+    final comments = [
+      _comment(
+        cid: 456,
+        nickname: '点赞测试用户',
+        content: '点击心形后应调用后端，并且不能重复提交。',
+        likes: 3,
+      ),
+    ];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request = jsonDecode(call.arguments as String) as Map;
+      requests.add(Map<String, dynamic>.from(request));
+      switch (request['method']) {
+        case 'load_property':
+          return _response('');
+        case 'pre_login':
+          return _response({
+            'pre_set': true,
+            'pre_login': true,
+            'message': '',
+            'self_info': _selfInfo(),
+          });
+        case 'favorite':
+          return _response({
+            'total': 0,
+            'count': 0,
+            'list': <Object>[],
+            'folder_list': <Object>[],
+          });
+        case 'pro_info_all':
+          return _response({
+            'pro_info_af': {'is_pro': true, 'expire': 4102444800},
+            'pro_info_pat': {'is_pro': true},
+          });
+        case 'forum':
+          return _response({'total': 1, 'list': comments});
+        case 'like_comment':
+          return _response({'status': 'ok', 'msg': ''});
+        default:
+          return _response('');
+      }
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(_channel, null));
+
+    await tester.pumpWidget(_host(const SizedBox()));
+    await login.initLogin(tester.element(find.byType(SizedBox)));
+    await tester.pumpAndSettle();
+    expect(login.loginStatus, login.LoginStatus.loginSuccess);
+
+    await tester.pumpWidget(_host(const CommentsScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.favorite_border_rounded));
+    await tester.pumpAndSettle();
+
+    final likeCalls =
+        requests.where((request) => request['method'] == 'like_comment');
+    expect(likeCalls, hasLength(1));
+    expect(likeCalls.single['params'], '456');
+    expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+    expect(find.text('4'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.favorite_rounded));
+    await tester.pumpAndSettle();
+    expect(
+      requests.where((request) => request['method'] == 'like_comment'),
+      hasLength(1),
+    );
+    expect(tester.takeException(), isNull);
   });
 }

@@ -47,7 +47,8 @@ enum ApiPath {
     Daily,
     DailyCheck,
     Forum,
-    AlbumComment,
+    Comment,
+    CommentLike,
     WeeklyInfo,
     Weekly,
     Games,
@@ -68,7 +69,8 @@ impl ApiPath {
             Self::Daily => "/daily",
             Self::DailyCheck => "/daily_chk",
             Self::Forum => "/forum",
-            Self::AlbumComment => "/ajax/album_comment",
+            Self::Comment => "/comment",
+            Self::CommentLike => "/comment/like",
             Self::WeeklyInfo => "/week",
             Self::Weekly => "/week/filter",
             Self::Games => "/games",
@@ -236,7 +238,7 @@ impl JmClient {
     }
 
     pub async fn toggle_favorite(&self, album_id: i64) -> BackendResult<Value> {
-        self.api_json(
+        self.api_write_json(
             Method::POST,
             ApiPath::Favorite,
             None,
@@ -249,7 +251,7 @@ impl JmClient {
         if folder_name.trim().is_empty() {
             return Err(BackendError::Config("folder name is empty".into()));
         }
-        self.api_json(
+        self.api_write_json(
             Method::POST,
             ApiPath::FavoriteFolder,
             None,
@@ -267,7 +269,7 @@ impl JmClient {
         if folder_id <= 0 {
             return Err(BackendError::Config("folder id must be positive".into()));
         }
-        self.api_json(
+        self.api_write_json(
             Method::POST,
             ApiPath::FavoriteFolder,
             None,
@@ -286,7 +288,7 @@ impl JmClient {
                 "folder id and name must be valid".into(),
             ));
         }
-        self.api_json(
+        self.api_write_json(
             Method::POST,
             ApiPath::FavoriteFolder,
             None,
@@ -310,7 +312,7 @@ impl JmClient {
                 "comic id must be positive and folder id must not be negative".into(),
             ));
         }
-        self.api_json(
+        self.api_write_json(
             Method::POST,
             ApiPath::FavoriteFolder,
             None,
@@ -347,7 +349,7 @@ impl JmClient {
             .ok_or_else(|| {
                 BackendError::InvalidResponse("daily response has no daily_id".into())
             })?;
-        self.api_json(
+        self.api_write_json(
             Method::POST,
             ApiPath::DailyCheck,
             None,
@@ -395,24 +397,26 @@ impl JmClient {
         if comment.trim().is_empty() {
             return Err(BackendError::Config("comment is empty".into()));
         }
-        let form = if let Some(comment_id) = parent_comment_id {
-            json!({
-                "video_id": album_id,
-                "comment": comment,
-                "comment_id": comment_id,
-                "is_reply": 1,
-                "forum_subject": 1,
-            })
-        } else {
-            json!({
-                "video_id": album_id,
-                "comment": comment,
-                "originator": "",
-                "status": "true",
-            })
-        };
-        self.api_json(Method::POST, ApiPath::AlbumComment, None, Some(form))
-            .await
+        self.api_write_json(
+            Method::POST,
+            ApiPath::Comment,
+            None,
+            Some(comment_form(album_id, comment, parent_comment_id)),
+        )
+        .await
+    }
+
+    pub async fn like_comment(&self, comment_id: i64) -> BackendResult<Value> {
+        if comment_id <= 0 {
+            return Err(BackendError::Config("comment id must be positive".into()));
+        }
+        self.api_write_json(
+            Method::POST,
+            ApiPath::CommentLike,
+            None,
+            Some(json!({ "cid": comment_id })),
+        )
+        .await
     }
 
     pub async fn weekly_info(&self) -> BackendResult<Value> {
@@ -756,6 +760,17 @@ impl JmClient {
         decode_api_body(timestamp, body)
     }
 
+    async fn api_write_json(
+        &self,
+        method: Method,
+        path: ApiPath,
+        query: Option<Value>,
+        form: Option<Value>,
+    ) -> BackendResult<Value> {
+        let value = self.api_json(method, path, query, form).await?;
+        ensure_write_action_succeeded(value)
+    }
+
     async fn send_with_retry(
         &self,
         method: Method,
@@ -829,6 +844,37 @@ impl JmClient {
             .header("tokenparam", tokenparam)
             .header(reqwest::header::USER_AGENT, &self.inner.config.user_agent))
     }
+}
+
+fn comment_form(album_id: i64, comment: &str, parent_comment_id: Option<i64>) -> Value {
+    let mut form = serde_json::Map::new();
+    form.insert("aid".into(), json!(album_id));
+    form.insert("comment".into(), json!(comment));
+    if let Some(comment_id) = parent_comment_id {
+        form.insert("comment_id".into(), json!(comment_id));
+    }
+    Value::Object(form)
+}
+
+fn ensure_write_action_succeeded(value: Value) -> BackendResult<Value> {
+    let Some(object) = value.as_object() else {
+        return Ok(value);
+    };
+    let status = object
+        .get("status")
+        .map(value_wire_string)
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    if !matches!(status.as_str(), "fail" | "error" | "false" | "0") {
+        return Ok(value);
+    }
+    let message = ["msg", "error_msg", "message"]
+        .iter()
+        .find_map(|key| object.get(*key).map(value_wire_string))
+        .filter(|message| !message.trim().is_empty())
+        .unwrap_or_else(|| "write operation failed".into());
+    Err(BackendError::Api { code: 0, message })
 }
 
 fn decode_api_body(timestamp: u64, body: String) -> BackendResult<Value> {
@@ -1377,6 +1423,35 @@ mod tests {
             favorite_folder_form("move", None, Some(8), Some(7)),
             json!({"type": "move", "folder_id": 8, "aid": 7})
         );
+    }
+
+    #[test]
+    fn comment_forms_match_the_mobile_api_contract() {
+        assert_eq!(
+            comment_form(42, "hello", None),
+            json!({"aid": 42, "comment": "hello"})
+        );
+        assert_eq!(
+            comment_form(42, "reply", Some(7)),
+            json!({"aid": 42, "comment": "reply", "comment_id": 7})
+        );
+    }
+
+    #[test]
+    fn write_responses_expose_api_failures() {
+        assert!(ensure_write_action_succeeded(json!({"status": "ok", "msg": ""})).is_ok());
+        let error = ensure_write_action_succeeded(json!({
+            "status": "fail",
+            "msg": "not logged in"
+        }))
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            BackendError::Api {
+                code: 0,
+                ref message
+            } if message == "not logged in"
+        ));
     }
 
     #[test]
