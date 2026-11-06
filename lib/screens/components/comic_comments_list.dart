@@ -340,7 +340,30 @@ class _ComicCommentItem extends StatefulWidget {
 
 class _ComicCommentItemState extends State<_ComicCommentItem> {
   var likeLoading = false;
-  var liked = false;
+  late bool liked;
+  var locallyLikedOnly = false;
+
+  @override
+  void initState() {
+    liked = widget.comment.isLiked;
+    if (!liked) {
+      _restoreLocalLike();
+    }
+    super.initState();
+  }
+
+  Future<void> _restoreLocalLike() async {
+    final likedIds = await methods.locallyLikedCommentIds();
+    if (!mounted ||
+        widget.comment.isLiked ||
+        !likedIds.contains(widget.comment.CID)) {
+      return;
+    }
+    setState(() {
+      liked = true;
+      locallyLikedOnly = true;
+    });
+  }
 
   Future<void> _likeComment() async {
     if (likeLoading || liked) return;
@@ -355,12 +378,22 @@ class _ComicCommentItemState extends State<_ComicCommentItem> {
       likeLoading = true;
     });
     try {
-      await methods.likeComment(widget.comment.CID);
+      final upstreamLimited = await methods.likeComment(widget.comment.CID);
       if (!mounted) return;
       setState(() {
         likeLoading = false;
         liked = true;
+        locallyLikedOnly = upstreamLimited;
       });
+      if (upstreamLimited) {
+        defaultToast(
+          context,
+          context.l10n.tr(
+            '已在本机点赞，当前服务端暂不支持同步',
+            en: 'Liked locally; the server does not support syncing yet',
+          ),
+        );
+      }
     } catch (error, stackTrace) {
       debugPrient("$error\n$stackTrace");
       if (!mounted) return;
@@ -467,7 +500,7 @@ class _ComicCommentItemState extends State<_ComicCommentItem> {
                         icon: liked
                             ? Icons.favorite_rounded
                             : Icons.favorite_border_rounded,
-                        label: '${comment.likes + (liked ? 1 : 0)}',
+                        label: '${comment.likes + (locallyLikedOnly ? 1 : 0)}',
                         loading: likeLoading,
                         accent: liked ? scheme.error : scheme.onSurfaceVariant,
                       ),

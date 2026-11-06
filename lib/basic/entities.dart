@@ -601,6 +601,7 @@ class Comment {
     required this.username,
     required this.nickname,
     required this.likes,
+    required this.isLiked,
     required this.gender,
     required this.updateAt,
     required this.addtime,
@@ -619,6 +620,7 @@ class Comment {
   late final String username;
   late final String nickname;
   late final int likes;
+  late final bool isLiked;
   late final String gender;
   late final String updateAt;
   late final String addtime;
@@ -637,6 +639,11 @@ class Comment {
     username = json['username'];
     nickname = json['nickname'];
     likes = json['likes'];
+    final rawLiked = json['is_liked'] ?? json['liked'];
+    isLiked = rawLiked == true ||
+        rawLiked == 1 ||
+        '$rawLiked'.trim().toLowerCase() == 'true' ||
+        '$rawLiked'.trim() == '1';
     gender = json['gender'];
     updateAt = json['update_at'];
     addtime = json['addtime'];
@@ -659,6 +666,7 @@ class Comment {
     _data['username'] = username;
     _data['nickname'] = nickname;
     _data['likes'] = likes;
+    _data['is_liked'] = isLiked;
     _data['gender'] = gender;
     _data['update_at'] = updateAt;
     _data['addtime'] = addtime;

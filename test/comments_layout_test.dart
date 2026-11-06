@@ -230,7 +230,11 @@ void main() {
         case 'forum':
           return _response({'total': 1, 'list': comments});
         case 'like_comment':
-          return _response({'status': 'ok', 'msg': ''});
+          return _response({
+            'status': 'ok',
+            'msg': '勿短時間重複留言',
+            'upstream_limited': true,
+          });
         default:
           return _response('');
       }
@@ -253,6 +257,7 @@ void main() {
     expect(likeCalls.single['params'], '456');
     expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
     expect(find.text('4'), findsOneWidget);
+    expect(find.textContaining('已在本机点赞'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.favorite_rounded));
     await tester.pumpAndSettle();
@@ -260,6 +265,8 @@ void main() {
       requests.where((request) => request['method'] == 'like_comment'),
       hasLength(1),
     );
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 }

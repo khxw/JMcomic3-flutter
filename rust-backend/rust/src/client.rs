@@ -410,13 +410,27 @@ impl JmClient {
         if comment_id <= 0 {
             return Err(BackendError::Config("comment id must be positive".into()));
         }
-        self.api_write_json(
-            Method::POST,
-            ApiPath::CommentLike,
-            None,
-            Some(json!({ "cid": comment_id })),
-        )
-        .await
+        match self
+            .api_write_json(
+                Method::POST,
+                ApiPath::CommentLike,
+                None,
+                Some(json!({ "cid": comment_id })),
+            )
+            .await
+        {
+            Ok(value) => Ok(value),
+            Err(BackendError::Api { message, .. })
+                if is_comment_like_upstream_limited(&message) =>
+            {
+                Ok(json!({
+                    "status": "ok",
+                    "msg": message,
+                    "upstream_limited": true,
+                }))
+            }
+            Err(error) => Err(error),
+        }
     }
 
     pub async fn weekly_info(&self) -> BackendResult<Value> {
@@ -877,6 +891,18 @@ fn ensure_write_action_succeeded(value: Value) -> BackendResult<Value> {
     Err(BackendError::Api { code: 0, message })
 }
 
+fn is_comment_like_upstream_limited(message: &str) -> bool {
+    let compact: String = message.chars().filter(|ch| !ch.is_whitespace()).collect();
+    [
+        "勿短時間重複留言",
+        "勿短时间重复留言",
+        "勿重複留言",
+        "勿重复留言",
+    ]
+    .iter()
+    .any(|marker| compact.contains(marker))
+}
+
 fn decode_api_body(timestamp: u64, body: String) -> BackendResult<Value> {
     let response: JmApiResponse = serde_json::from_str(&body)?;
     if response.code != 200 {
@@ -1184,6 +1210,11 @@ fn normalize_comment_value(value: &mut Value) {
         let normalized = comment.get(key).map(value_wire_string).unwrap_or_default();
         comment.insert(key.to_string(), Value::String(normalized));
     }
+    let is_liked = comment
+        .get("is_liked")
+        .or_else(|| comment.get("liked"))
+        .is_some_and(value_bool);
+    comment.insert("is_liked".into(), json!(is_liked));
     let expinfo = comment
         .entry("expinfo")
         .or_insert_with(|| Value::Object(serde_json::Map::new()));
@@ -1452,6 +1483,17 @@ mod tests {
                 ref message
             } if message == "not logged in"
         ));
+    }
+
+    #[test]
+    fn comment_like_upstream_limit_is_detected() {
+        assert!(is_comment_like_upstream_limited(
+            "勿短時間重複留言，請重新確認留言內容。"
+        ));
+        assert!(is_comment_like_upstream_limited(
+            "勿短时间重复留言，请重新确认留言内容。"
+        ));
+        assert!(!is_comment_like_upstream_limited("网络连接失败"));
     }
 
     #[test]

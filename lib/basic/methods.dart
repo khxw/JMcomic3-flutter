@@ -49,6 +49,8 @@ class Methods {
       "startup_cache_comics_v1_";
   static const String _albumPersistentCacheKeyPrefix =
       "startup_cache_album_v1_";
+  static const String _locallyLikedCommentIdsProperty =
+      "locally_liked_comment_ids_v1";
   static const int _downloadThreadFallback = 3;
 
   static final Map<String, _CacheEntry<String>> _categoriesCache = {};
@@ -59,6 +61,7 @@ class Methods {
   static final Map<String, Future<String>> _comicsInflight = {};
   static final Map<String, Future<String>> _albumInflight = {};
   static final Map<String, Future<String>> _coverInflight = {};
+  static Set<int>? _locallyLikedCommentIdsCache;
 
   void _clearApiResponseCaches() {
     _categoriesCache.clear();
@@ -973,8 +976,47 @@ class Methods {
     );
   }
 
-  Future<void> likeComment(int commentId) async {
-    await _invoke("like_comment", commentId);
+  Future<bool> likeComment(int commentId) async {
+    final response = decodeMapResponse(
+      await _invoke("like_comment", commentId),
+      "like_comment",
+    );
+    await markCommentLiked(commentId);
+    return response['upstream_limited'] == true;
+  }
+
+  Future<Set<int>> locallyLikedCommentIds() async {
+    final cached = _locallyLikedCommentIdsCache;
+    if (cached != null) return cached;
+    final values = <int>{};
+    try {
+      final raw = await loadProperty(_locallyLikedCommentIdsProperty);
+      if (raw.trim().isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is Iterable) {
+          for (final value in decoded) {
+            final id = value is int ? value : int.tryParse('$value');
+            if (id != null && id > 0) values.add(id);
+          }
+        }
+      }
+    } catch (error) {
+      debugPrient("locally liked comments read failed: ${error.runtimeType}");
+    }
+    _locallyLikedCommentIdsCache = values;
+    return values;
+  }
+
+  Future<void> markCommentLiked(int commentId) async {
+    if (commentId <= 0) return;
+    final values = Set<int>.from(await locallyLikedCommentIds());
+    if (!values.add(commentId)) return;
+    _locallyLikedCommentIdsCache = values;
+    final sorted = values.toList()..sort();
+    await saveProperty(
+      _locallyLikedCommentIdsProperty,
+      jsonEncode(sorted),
+    );
   }
 
   Future<String> loadUsername() {
