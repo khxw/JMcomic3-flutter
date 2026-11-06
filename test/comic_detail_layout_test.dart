@@ -78,6 +78,7 @@ AlbumResponse _album({
   List<String> tags = _tags,
   List<Series>? series,
   bool favorite = false,
+  int? updateAt = 1791442800,
 }) =>
     AlbumResponse(
       id: id,
@@ -107,7 +108,7 @@ AlbumResponse _album({
       ],
       liked: false,
       isFavorite: favorite,
-      updateAt: 1791442800,
+      updateAt: updateAt,
       addtime: 1788764400,
     );
 
@@ -267,6 +268,7 @@ class _Fixture {
           'series_id': album.id,
           'is_favorite': false,
           'liked': false,
+          'addtime': 1791442800,
         });
       case 'set_favorite':
         if (favoriteGate != null) await favoriteGate!.future;
@@ -442,9 +444,7 @@ Future<_Fixture> _prepare(
   await initNoAnimation();
   await initDownloadThreadCount();
   await _previewFonts(tester);
-  if (_saveScreenshots) {
-    await tester.runAsync(fixture.createCover);
-  }
+  await tester.runAsync(fixture.createCover);
   await tester.pumpWidget(_host(const Scaffold(
     body: SizedBox(key: ValueKey('detail-login-context')),
   )));
@@ -470,7 +470,12 @@ Future<void> _mount(
     dark: dark,
     locale: locale,
   ));
-  await tester.pumpAndSettle();
+  for (var attempt = 0; attempt < 24; attempt++) {
+    await tester.runAsync(
+      () async => Future<void>.delayed(const Duration(milliseconds: 5)),
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+  }
 }
 
 Finder _key(String name) => find.byKey(ValueKey('comic-detail-$name'));
@@ -523,6 +528,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('detail reading target', () {
+    test('uses the newest sorted chapter to resolve a missing update time', () {
+      expect(comicDetailUpdateChapterId(_album()), _secondChapterId);
+      expect(
+        comicDetailUpdateChapterId(_album(series: [])),
+        _albumId,
+      );
+    });
+
     test('new readers start at the first sorted chapter without reordering it',
         () {
       final album = _album();
@@ -561,6 +574,21 @@ void main() {
       expect(comicDetailReadingTarget(album, _viewLog()),
           (chapterId: _albumId, page: 0, continuing: false));
     });
+  });
+
+  testWidgets('detail restores update time and clock when album omits it',
+      (tester) async {
+    final fixture = await _prepare(tester);
+    fixture.album = _album(updateAt: null);
+    await _mount(tester, fixture);
+
+    expect(find.byIcon(Icons.schedule_outlined), findsOneWidget);
+    expect(find.textContaining('Updated 2026-'), findsOneWidget);
+    expect(
+      fixture.calls('chapter').single['params'],
+      '$_secondChapterId',
+    );
+    expect(tester.takeException(), isNull);
   });
 
   for (final layout in [

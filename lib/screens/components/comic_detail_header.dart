@@ -11,12 +11,14 @@ import 'images.dart';
 class ComicDetailHeader extends StatefulWidget {
   final AlbumResponse album;
   final ComicBasic? simple;
+  final int? resolvedUpdateAt;
   final ValueChanged<String> onSearch;
 
   const ComicDetailHeader({
     super.key,
     required this.album,
     this.simple,
+    this.resolvedUpdateAt,
     required this.onSearch,
   });
 
@@ -55,7 +57,9 @@ class _ComicDetailHeaderState extends State<ComicDetailHeader> {
     final authorColor =
         dark ? const Color(0xFFC4B5FD) : const Color(0xFF6D48AD);
     final workColor = dark ? const Color(0xFFF4CE83) : const Color(0xFF97651C);
-    final updated = _formatTimestamp(album.updateAt ?? widget.simple?.updateAt);
+    final updated = _formatTimestamp(
+      widget.resolvedUpdateAt ?? album.updateAt ?? widget.simple?.updateAt,
+    );
     final published = _formatTimestamp(album.addtime ?? widget.simple?.addtime);
     final displayJmcode = currentDisplayJmcode();
 

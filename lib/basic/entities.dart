@@ -531,6 +531,7 @@ class ChapterResponse {
     required this.seriesId,
     required this.isFavorite,
     required this.liked,
+    this.addtime,
     this.offlineImages,
   });
 
@@ -542,6 +543,7 @@ class ChapterResponse {
   late final int seriesId;
   late final bool isFavorite;
   late final bool liked;
+  late final int? addtime;
 
   /// Optional local metadata supplied by an offline owner.  It is deliberately
   /// not serialized as part of the legacy chapter wire response.
@@ -556,6 +558,7 @@ class ChapterResponse {
     seriesId = json['series_id'];
     isFavorite = json['is_favorite'];
     liked = json['liked'];
+    addtime = _toNullableInt(json['addtime']);
     offlineImages = null;
   }
 
@@ -569,6 +572,7 @@ class ChapterResponse {
     _data['series_id'] = seriesId;
     _data['is_favorite'] = isFavorite;
     _data['liked'] = liked;
+    if (addtime != null) _data['addtime'] = addtime;
     return _data;
   }
 }

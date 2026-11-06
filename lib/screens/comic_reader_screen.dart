@@ -15,6 +15,7 @@ import 'package:jmcomic3/basic/log.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/configs/reader_controller_type.dart';
 import 'package:jmcomic3/configs/reader_direction.dart';
+import 'package:jmcomic3/configs/reader_preload.dart';
 import 'package:jmcomic3/configs/reader_slider_position.dart';
 import 'package:jmcomic3/configs/reader_type.dart';
 import 'package:jmcomic3/configs/two_page_direction.dart';
@@ -627,16 +628,31 @@ abstract class _ComicReaderState extends State<_ComicReader>
 
   void _preloadAround(int page) {
     final revision = ++_preloadRevision;
-    final count = _paired ? 4 : 3;
+    final indices = readerPreloadIndices(
+      current: page,
+      total: _pages.length,
+      pages: currentReaderPreloadPages,
+      paired: _paired,
+    );
+    if (indices.isEmpty) return;
+
     Future<void> run() async {
-      for (var index = page;
-          index < min(page + count, widget.chapter.images.length);
-          index++) {
-        if (!mounted || revision != _preloadRevision) return;
-        final provider = _readerPageProvider(index);
-        await precacheImage(provider, context, onError: (_, __) {});
-        if (!mounted) {
-          imageCache.evict(provider, includeLive: true);
+      for (var offset = 0; offset < indices.length; offset += 2) {
+        final chunk = indices.sublist(
+          offset,
+          min(offset + 2, indices.length),
+        );
+        await Future.wait(
+          chunk.map((index) async {
+            if (!mounted || revision != _preloadRevision) return;
+            final provider = _readerPageProvider(index);
+            await precacheImage(provider, context, onError: (_, __) {});
+            if (!mounted) {
+              imageCache.evict(provider, includeLive: true);
+            }
+          }),
+        );
+        if (!mounted || revision != _preloadRevision) {
           return;
         }
       }

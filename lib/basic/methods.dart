@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:jmcomic3/basic/log.dart';
 
+import 'async_semaphore.dart';
 import 'method_response_decoder.dart';
 import 'entities.dart';
 import 'page_image_batch.dart';
@@ -41,6 +42,10 @@ class Methods {
     "jm_page_image",
     "jm_page_image_batch",
     "jm_photo_image",
+  };
+  static const Set<String> _readerImageBridgeMethods = {
+    "jm_page_image",
+    "jm_page_image_batch",
   };
   static const Set<String> _readApiMethods = {
     "comics",
@@ -81,6 +86,7 @@ class Methods {
   static final Map<String, Future<String>> _comicsInflight = {};
   static final Map<String, Future<String>> _albumInflight = {};
   static final Map<String, Future<String>> _coverInflight = {};
+  static final AsyncSemaphore _readerImageSemaphore = AsyncSemaphore(4);
   static Set<int>? _locallyLikedCommentIdsCache;
   static Future<bool>? _loginRefreshInflight;
   static Future<bool> Function()? apiHostRecoveryHandler;
@@ -276,6 +282,13 @@ class Methods {
   }
 
   Future<String> _invoke(String method, dynamic params) async {
+    if (_readerImageBridgeMethods.contains(method)) {
+      return _readerImageSemaphore.run(() => _invokeNow(method, params));
+    }
+    return _invokeNow(method, params);
+  }
+
+  Future<String> _invokeNow(String method, dynamic params) async {
     final shouldDebug = _downloadDebugMethods.contains(method);
     if (shouldDebug) {
       debugPrient(

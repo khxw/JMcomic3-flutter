@@ -191,8 +191,8 @@ class _SettingPanelState extends State<_SettingPanel> {
           const SizedBox(height: 4),
           Text(
             context.l10n.tr(
-              '调整阅读方向和操作方式',
-              en: 'Adjust reading direction and controls',
+              '调整阅读方向、操作方式与图片预加载',
+              en: 'Adjust direction, controls and image preloading',
             ),
             style: theme.textTheme.bodySmall?.copyWith(
               color: Colors.white.withValues(alpha: .58),
@@ -201,7 +201,7 @@ class _SettingPanelState extends State<_SettingPanel> {
           const SizedBox(height: 14),
           Expanded(
             child: GridView.count(
-              physics: const NeverScrollableScrollPhysics(),
+              physics: const BouncingScrollPhysics(),
               crossAxisCount: 2,
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
@@ -240,6 +240,18 @@ class _SettingPanelState extends State<_SettingPanel> {
                   value: currentReaderSliderPositionName(context),
                   onPressed: () async {
                     await chooseReaderSliderPosition(context);
+                    if (mounted) setState(() {});
+                  },
+                ),
+                _settingCard(
+                  icon: Icons.layers_rounded,
+                  label: context.l10n.tr('图片预加载', en: 'Image preload'),
+                  value: readerPreloadPagesName(
+                    context,
+                    currentReaderPreloadPages,
+                  ),
+                  onPressed: () async {
+                    await chooseReaderPreloadPages(context);
                     if (mounted) setState(() {});
                   },
                 ),

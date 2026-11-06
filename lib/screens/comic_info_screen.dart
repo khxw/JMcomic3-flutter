@@ -32,6 +32,20 @@ ComicBasic? effectiveComicInfoSimple(ComicBasic? simple, int comicId) {
   return simple;
 }
 
+int comicDetailUpdateChapterId(AlbumResponse album) {
+  if (album.series.isEmpty) return album.id;
+  var latest = album.series.first;
+  var latestSort = int.tryParse(latest.sort.trim()) ?? -1;
+  for (final chapter in album.series.skip(1)) {
+    final sort = int.tryParse(chapter.sort.trim()) ?? -1;
+    if (sort > latestSort) {
+      latest = chapter;
+      latestSort = sort;
+    }
+  }
+  return latest.id;
+}
+
 ({int chapterId, int page, bool continuing}) comicDetailReadingTarget(
     AlbumResponse album, ViewLog? viewLog) {
   final canResume = viewLog != null &&
@@ -71,6 +85,7 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> {
   bool _inBookshelf = false;
   bool _accountFavoriteLoading = false;
   bool _accountFavorite = false;
+  int? _resolvedUpdateAt;
   late Future<AlbumResponse> _albumFuture = _loadAlbum();
   late Future<ViewLog?> _viewFuture = _loadViewLog();
 
@@ -89,8 +104,31 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> {
     if (!_accountFavoriteLoading) {
       _accountFavorite = album.isFavorite;
     }
+    final knownUpdateAt = album.updateAt ?? widget.simple?.updateAt;
+    if (knownUpdateAt == null || knownUpdateAt <= 0) {
+      unawaited(_resolveUpdateAt(album));
+    }
     unawaited(_syncBookshelf(bookshelfFuture, album.id));
     return album;
+  }
+
+  Future<void> _resolveUpdateAt(AlbumResponse album) async {
+    try {
+      final chapter = await methods.chapter(
+        comicDetailUpdateChapterId(album),
+      );
+      final addtime = chapter.addtime;
+      if (!mounted ||
+          widget.comicId != album.id ||
+          addtime == null ||
+          addtime <= 0) {
+        return;
+      }
+      setState(() => _resolvedUpdateAt = addtime);
+    } catch (_) {
+      // The update timestamp is supplementary metadata. Keep the detail page
+      // usable when the chapter lookup fails.
+    }
   }
 
   Future<void> _syncBookshelf(Future<void> future, int comicId) async {
@@ -117,6 +155,7 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> {
       _bookshelfLoading = true;
       _accountFavoriteLoading = false;
       _accountFavorite = false;
+      _resolvedUpdateAt = null;
       _albumFuture = _loadAlbum();
       _viewFuture = _loadViewLog();
     }
@@ -481,6 +520,7 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> {
                     album: album,
                     simple:
                         effectiveComicInfoSimple(widget.simple, widget.comicId),
+                    resolvedUpdateAt: _resolvedUpdateAt,
                     onSearch: _search,
                   ),
                   _ComicDetailDirectory(

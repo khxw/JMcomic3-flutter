@@ -14,6 +14,7 @@ import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/configs/no_animation.dart';
 import 'package:jmcomic3/configs/reader_controller_type.dart';
 import 'package:jmcomic3/configs/reader_direction.dart';
+import 'package:jmcomic3/configs/reader_preload.dart';
 import 'package:jmcomic3/configs/reader_slider_position.dart';
 import 'package:jmcomic3/configs/reader_type.dart';
 import 'package:jmcomic3/configs/two_page_direction.dart';
@@ -36,6 +37,7 @@ void main() {
   final viewLogs = <int>[];
   final imageRequests = <String>[];
   Completer<void>? imageGate;
+  var testPreloadPages = 0;
   var direction = ReaderDirection.leftToRight;
   var controlMode = ReaderControllerType.controller;
 
@@ -67,6 +69,7 @@ void main() {
     viewLogs.clear();
     imageRequests.clear();
     imageGate = null;
+    testPreloadPages = 0;
     controlMode = ReaderControllerType.controller;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
@@ -81,6 +84,7 @@ void main() {
           response = switch (params) {
             'reader_controller_type' => controlMode.toString(),
             'readerDirection' => direction.toString(),
+            'reader_preload_pages' => '$testPreloadPages',
             'reader_slider_position' => 'ReaderSliderPosition.bottom',
             _ => '',
           };
@@ -111,13 +115,32 @@ void main() {
         .setMockMethodCallHandler(const MethodChannel('methods'), null);
   });
 
+  Future<void> pumpReader(
+    WidgetTester tester, {
+    int realAttempts = 24,
+    int delayMilliseconds = 5,
+  }) async {
+    for (var attempt = 0; attempt < realAttempts; attempt++) {
+      await tester.runAsync(
+        () async => Future<void>.delayed(
+          Duration(milliseconds: delayMilliseconds),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+  }
+
   Future<GlobalKey> mountReader(
       WidgetTester tester, ReaderType type, ReaderDirection readDirection,
       {int pageCount = 10,
       int startIndex = 0,
+      int preloadDistance = 0,
       ThemeData? theme,
       ValueChanged<int>? onUnmount}) async {
     direction = readDirection;
+    testPreloadPages = preloadDistance;
+    await initReaderPreload();
+    expect(currentReaderPreloadPages, preloadDistance);
     await initReaderControllerType();
     await initReaderDirection();
     await initReaderType();
@@ -162,9 +185,7 @@ void main() {
                 startIndex: startIndex,
               )),
             ))));
-    await tester.runAsync(
-        () async => Future<void>.delayed(const Duration(milliseconds: 80)));
-    await tester.pumpAndSettle();
+    await pumpReader(tester);
     return key;
   }
 
@@ -172,7 +193,7 @@ void main() {
     await tester.tapAt(point);
     await tester.pump(const Duration(milliseconds: 50));
     await tester.tapAt(point);
-    await tester.pumpAndSettle();
+    await pumpReader(tester);
   }
 
   Finder firstPage() => find.byKey(const ValueKey('reader-page-81234-0'));
@@ -400,7 +421,7 @@ void main() {
               ? const Offset(-80, 0)
               : const Offset(80, 0),
           const Duration(milliseconds: 200));
-      await tester.pumpAndSettle();
+      await pumpReader(tester, realAttempts: 8);
       final delta = (tester.getRect(firstPage()).left - before.left).abs();
       expect(delta, greaterThan(10));
       expect(delta, lessThan(150));
@@ -417,7 +438,7 @@ void main() {
           Offset(original.width + viewport.width / 3, 0),
       };
       await tester.dragFrom(viewport.center, scroll);
-      await tester.pumpAndSettle();
+      await pumpReader(tester);
       expect(comicReaderProgressForTest(key).current, greaterThan(0));
       await readerCheckpoint?.call(
           'reader-continuous-${readDirection.name}-restored', tester);
@@ -511,7 +532,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 90));
         expect(comicReaderProgressForTest(key).slider, 4);
       }
-      await tester.pumpAndSettle();
+      await pumpReader(tester);
       expect(comicReaderProgressForTest(key),
           (current: 4, slider: 4, jumpTarget: null));
       expect(tester.takeException(), isNull);
@@ -525,20 +546,51 @@ void main() {
         (tester) async {
       final key = await mountReader(tester, type, ReaderDirection.topToBottom);
       jumpComicReaderForTest(key, 7, animation: false);
-      await tester.pumpAndSettle();
+      await pumpReader(tester);
       expect(comicReaderProgressForTest(key),
           (current: 7, slider: 7, jumpTarget: null));
       jumpComicReaderForTest(key, 2);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 120));
       expect(comicReaderProgressForTest(key).slider, 2);
-      await tester.pumpAndSettle();
+      await pumpReader(tester);
       expect(comicReaderProgressForTest(key).current, 2);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
     });
   }
+
+  testWidgets('reader preloads pages before and after the current page',
+      (tester) async {
+    await mountReader(
+      tester,
+      ReaderType.gallery,
+      ReaderDirection.leftToRight,
+      startIndex: 5,
+      preloadDistance: 2,
+    );
+    await tester.runAsync(() async {
+      for (var attempt = 0; attempt < 80; attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        if ({'6.png', '4.png', '7.png', '3.png'}
+            .every(imageRequests.contains)) {
+          break;
+        }
+      }
+    });
+    await tester.pump();
+
+    expect(
+      imageRequests,
+      containsAll(<String>['6.png', '4.png', '7.png', '3.png']),
+    );
+    expect(imageRequests, isNot(contains('8.png')));
+    expect(imageRequests, isNot(contains('2.png')));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
 
   testWidgets('exit during an animated jump persists the actual visible page',
       (tester) async {
@@ -649,7 +701,7 @@ void main() {
     expect(status.live || status.keepAlive || status.pending, isTrue);
 
     jumpComicReaderForTest(readerKey, 5, animation: false);
-    await tester.pumpAndSettle();
+    await pumpReader(tester);
     status = imageCache.statusForKey(providerKey);
     expect(status.live || status.keepAlive || status.pending, isTrue);
 
