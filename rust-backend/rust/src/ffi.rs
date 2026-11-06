@@ -1283,6 +1283,12 @@ async fn pre_login_response(state: &BackendState) -> InvokeResponse {
         first_non_empty_property(&state.store, &["remember_login_username", "load_username"]);
     let password =
         first_non_empty_property(&state.store, &["remember_login_password", "load_password"]);
+    let guest_mode = state
+        .store
+        .load("guest_mode")
+        .unwrap_or_default()
+        .trim()
+        .eq_ignore_ascii_case("true");
     let pre_set =
         !cookie.trim().is_empty() || !username.trim().is_empty() || !password.trim().is_empty();
     if !pre_set {
@@ -1293,52 +1299,68 @@ async fn pre_login_response(state: &BackendState) -> InvokeResponse {
             "self_info": null,
         }));
     }
+
+    let mut auto_login_error = None;
+    if !guest_mode && !username.trim().is_empty() && !password.is_empty() {
+        match state.client.login(&username, &password).await {
+            Ok(self_info) => {
+                preserve_login_credentials(state, &username);
+                return InvokeResponse::success_value(&json!({
+                    "pre_set": true,
+                    "pre_login": true,
+                    "message": "",
+                    "self_info": self_info,
+                }));
+            }
+            Err(error) => auto_login_error = Some(error.to_string()),
+        }
+    }
+
     if !cookie.trim().is_empty() {
         state
             .client
             .add_cookie_header(&cookie, &state.client.api_base_url());
-    }
-    let profile_error = match state.client.user_profile().await {
-        Ok(self_info) => {
-            return InvokeResponse::success_value(&json!({
-                "pre_set": true,
-                "pre_login": true,
-                "message": "",
-                "self_info": self_info,
-            }));
+        match state.client.user_profile().await {
+            Ok(self_info) => {
+                return InvokeResponse::success_value(&json!({
+                    "pre_set": true,
+                    "pre_login": true,
+                    "message": "",
+                    "self_info": self_info,
+                }));
+            }
+            Err(error) if auto_login_error.is_none() => {
+                auto_login_error = Some(error.to_string());
+            }
+            Err(_) => {}
         }
-        Err(error) => error.to_string(),
-    };
-    if username.trim().is_empty() || password.is_empty() {
-        clear_rejected_session(state, &profile_error);
+    }
+
+    if let Some(message) = auto_login_error {
+        clear_rejected_session(state, &message);
         return InvokeResponse::success_value(&json!({
             "pre_set": true,
             "pre_login": false,
-            "message": profile_error,
+            "message": message,
             "self_info": null,
         }));
     }
-    match state.client.login(&username, &password).await {
-        Ok(self_info) => {
-            preserve_login_credentials(state, &username);
-            InvokeResponse::success_value(&json!({
-                "pre_set": true,
-                "pre_login": true,
-                "message": "",
-                "self_info": self_info,
-            }))
-        }
-        Err(error) => {
-            let message = error.to_string();
-            clear_rejected_session(state, &message);
-            InvokeResponse::success_value(&json!({
-                "pre_set": true,
-                "pre_login": false,
-                "message": message,
-                "self_info": null,
-            }))
-        }
+
+    if guest_mode || username.trim().is_empty() || password.is_empty() {
+        return InvokeResponse::success_value(&json!({
+            "pre_set": true,
+            "pre_login": false,
+            "message": "",
+            "self_info": null,
+        }));
     }
+
+    InvokeResponse::success_value(&json!({
+        "pre_set": true,
+        "pre_login": false,
+        "message": "",
+        "self_info": null,
+    }))
 }
 
 fn first_non_empty_property(store: &PropertyStore, keys: &[&str]) -> String {
