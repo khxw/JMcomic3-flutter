@@ -814,12 +814,21 @@ fn decode_api_body(timestamp: u64, body: String) -> BackendResult<Value> {
             },
         });
     }
-    let encrypted = response
-        .data
-        .as_str()
-        .ok_or_else(|| BackendError::InvalidResponse("API data is not a string".into()))?;
-    let decrypted = decrypt_api_data(timestamp, encrypted)?;
-    Ok(serde_json::from_str(&decrypted)?)
+    let Some(payload) = response.data.as_str() else {
+        // Some endpoints, including daily check-in, return their result as a
+        // direct JSON object or array instead of an encrypted string.
+        return Ok(response.data);
+    };
+    match decrypt_api_data(timestamp, payload) {
+        Ok(decrypted) => match serde_json::from_str(&decrypted) {
+            Ok(value) => Ok(value),
+            Err(_) => Ok(Value::String(decrypted)),
+        },
+        Err(_) => match serde_json::from_str(payload) {
+            Ok(value) => Ok(value),
+            Err(_) => Ok(Value::String(payload.to_string())),
+        },
+    }
 }
 
 fn normalize_album_value(mut value: Value) -> Value {
@@ -1194,6 +1203,20 @@ mod tests {
                 ref message
             } if message == "forbidden"
         ));
+    }
+
+    #[test]
+    fn api_body_accepts_direct_json_and_plaintext_data() {
+        let direct = decode_api_body(
+            1,
+            r#"{"code":200,"data":{"status":"ok"},"error_msg":""}"#.into(),
+        )
+        .unwrap();
+        assert_eq!(direct["status"], "ok");
+
+        let plaintext =
+            decode_api_body(1, r#"{"code":200,"data":"签到成功","error_msg":""}"#.into()).unwrap();
+        assert_eq!(plaintext, "签到成功");
     }
 
     #[test]
