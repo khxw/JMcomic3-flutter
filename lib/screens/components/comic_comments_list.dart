@@ -385,25 +385,12 @@ class _ComicCommentItemState extends State<_ComicCommentItem> {
         liked = true;
         locallyLikedOnly = upstreamLimited;
       });
-      if (upstreamLimited) {
-        defaultToast(
-          context,
-          context.l10n.tr(
-            '已在本机点赞，当前服务端暂不支持同步',
-            en: 'Liked locally; the server does not support syncing yet',
-          ),
-        );
-      }
     } catch (error, stackTrace) {
       debugPrient("$error\n$stackTrace");
       if (!mounted) return;
       setState(() {
         likeLoading = false;
       });
-      defaultToast(
-        context,
-        context.l10n.tr("点赞失败：$error", en: "Failed to like comment: $error"),
-      );
     }
   }
 

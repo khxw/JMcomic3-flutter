@@ -495,6 +495,7 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
             let password = string_param(&params, "password").unwrap_or_default();
             login_response(&state, &username, &password).await
         }
+        "refresh_login" => refresh_login_response(&state).await,
         "logout" => {
             for key in ["cookie", "last_login_username", "load_username"] {
                 let _ = state.store.save(key, "");
@@ -1425,6 +1426,35 @@ async fn login_response(state: &BackendState, username: &str, password: &str) ->
             let _ = state.store.save("load_username", username);
             let _ = state.store.save("last_login_username", username);
             InvokeResponse::success_value(&self_info)
+        }
+        Err(error) => InvokeResponse::error(error.to_string()),
+    }
+}
+
+async fn refresh_login_response(state: &BackendState) -> InvokeResponse {
+    let guest_mode = state
+        .store
+        .load("guest_mode")
+        .unwrap_or_default()
+        .trim()
+        .eq_ignore_ascii_case("true");
+    if guest_mode {
+        return InvokeResponse::success_value(&json!({"refreshed": false}));
+    }
+    let username =
+        first_non_empty_property(&state.store, &["remember_login_username", "load_username"]);
+    let password =
+        first_non_empty_property(&state.store, &["remember_login_password", "load_password"]);
+    if username.trim().is_empty() || password.is_empty() {
+        return InvokeResponse::success_value(&json!({"refreshed": false}));
+    }
+    match state.client.login(&username, &password).await {
+        Ok(self_info) => {
+            preserve_login_credentials(state, &username);
+            InvokeResponse::success_value(&json!({
+                "refreshed": true,
+                "self_info": self_info,
+            }))
         }
         Err(error) => InvokeResponse::error(error.to_string()),
     }

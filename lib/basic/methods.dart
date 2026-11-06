@@ -62,6 +62,7 @@ class Methods {
   static final Map<String, Future<String>> _albumInflight = {};
   static final Map<String, Future<String>> _coverInflight = {};
   static Set<int>? _locallyLikedCommentIdsCache;
+  static Future<bool>? _loginRefreshInflight;
 
   void _clearApiResponseCaches() {
     _categoriesCache.clear();
@@ -258,8 +259,14 @@ class Methods {
         "[download-api:req] method=$method params=${_briefSafe(params)}",
       );
     }
-    final resp = await _invokeRaw(method, params);
-    final response = _Response.fromJson(jsonDecode(_stripJsonBom(resp)));
+    var response = _decodeInvokeResponse(await _invokeRaw(method, params));
+    if (response.errorMessage.isNotEmpty &&
+        method != "login" &&
+        method != "refresh_login" &&
+        _isAuthenticationError(response.errorMessage) &&
+        await _refreshLoginSession()) {
+      response = _decodeInvokeResponse(await _invokeRaw(method, params));
+    }
 
     if (response.errorMessage.isNotEmpty) {
       if (shouldDebug) {
@@ -282,6 +289,54 @@ class Methods {
     // response_data is the second JSON boundary. A BOM here would otherwise
     // break scalar parsers (and list/object decoders) downstream.
     return _stripJsonBom(response.responseData);
+  }
+
+  _Response _decodeInvokeResponse(String response) {
+    return _Response.fromJson(jsonDecode(_stripJsonBom(response)));
+  }
+
+  bool _isAuthenticationError(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains("401") ||
+        lower.contains("unauthorized") ||
+        lower.contains("not logged in") ||
+        lower.contains("login required") ||
+        lower.contains("please log in") ||
+        lower.contains("please sign in") ||
+        lower.contains("login expired") ||
+        message.contains("请先登录") ||
+        message.contains("請先登錄") ||
+        message.contains("登录已过期") ||
+        message.contains("登錄已過期") ||
+        message.contains("尚未登录") ||
+        message.contains("未登录");
+  }
+
+  Future<bool> _refreshLoginSession() async {
+    final running = _loginRefreshInflight;
+    if (running != null) return running;
+    final future = _performLoginRefresh();
+    _loginRefreshInflight = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_loginRefreshInflight, future)) {
+        _loginRefreshInflight = null;
+      }
+    }
+  }
+
+  Future<bool> _performLoginRefresh() async {
+    try {
+      final response =
+          _decodeInvokeResponse(await _invokeRaw("refresh_login", ""));
+      if (response.errorMessage.isNotEmpty) return false;
+      final decoded = jsonDecode(_stripJsonBom(response.responseData));
+      return decoded is Map && decoded["refreshed"] == true;
+    } catch (error) {
+      debugPrient("automatic login refresh failed: ${error.runtimeType}");
+      return false;
+    }
   }
 
   String _brief(dynamic value) {

@@ -257,7 +257,6 @@ void main() {
     expect(likeCalls.single['params'], '456');
     expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
     expect(find.text('4'), findsOneWidget);
-    expect(find.textContaining('已在本机点赞'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.favorite_rounded));
     await tester.pumpAndSettle();
@@ -265,8 +264,6 @@ void main() {
       requests.where((request) => request['method'] == 'like_comment'),
       hasLength(1),
     );
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 }
