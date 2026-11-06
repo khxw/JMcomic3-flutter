@@ -67,7 +67,7 @@ Future<bool> autoSelectCdnHost() async {
     _cdnList,
     methods.pingCdn,
     timeout: _automaticProbeTimeout,
-    returnOnFirstSuccess: true,
+    returnOnFirstSuccess: false,
   );
   if (fastest == null) return false;
   if (fastest.host.toLowerCase() == _cdnHost.toLowerCase()) {

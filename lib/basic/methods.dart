@@ -63,6 +63,7 @@ class Methods {
   static final Map<String, Future<String>> _coverInflight = {};
   static Set<int>? _locallyLikedCommentIdsCache;
   static Future<bool>? _loginRefreshInflight;
+  static Future<bool> Function()? apiHostRecoveryHandler;
 
   void _clearApiResponseCaches() {
     _categoriesCache.clear();
@@ -260,12 +261,26 @@ class Methods {
       );
     }
     var response = _decodeInvokeResponse(await _invokeRaw(method, params));
-    if (response.errorMessage.isNotEmpty &&
-        method != "login" &&
-        method != "refresh_login" &&
-        _isAuthenticationError(response.errorMessage) &&
-        await _refreshLoginSession()) {
-      response = _decodeInvokeResponse(await _invokeRaw(method, params));
+    var loginRetried = false;
+    var hostRotations = 0;
+    while (response.errorMessage.isNotEmpty) {
+      if (!loginRetried &&
+          method != "login" &&
+          method != "refresh_login" &&
+          _isAuthenticationError(response.errorMessage) &&
+          await _refreshLoginSession()) {
+        loginRetried = true;
+        response = _decodeInvokeResponse(await _invokeRaw(method, params));
+        continue;
+      }
+      if (hostRotations < 3 &&
+          _isInvalidApiResponse(response.errorMessage) &&
+          await _rotateApiHost()) {
+        hostRotations++;
+        response = _decodeInvokeResponse(await _invokeRaw(method, params));
+        continue;
+      }
+      break;
     }
 
     if (response.errorMessage.isNotEmpty) {
@@ -314,6 +329,24 @@ class Methods {
         message.contains("登錄已過期") ||
         message.contains("尚未登录") ||
         message.contains("未登录");
+  }
+
+  bool _isInvalidApiResponse(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains("json error") ||
+        lower.contains("expected value at line") ||
+        lower.contains("invalid api response");
+  }
+
+  Future<bool> _rotateApiHost() async {
+    final handler = apiHostRecoveryHandler;
+    if (handler == null) return false;
+    try {
+      return await handler();
+    } catch (error) {
+      debugPrient("API host rotation failed: ${error.runtimeType}");
+      return false;
+    }
   }
 
   Future<bool> _refreshLoginSession() async {

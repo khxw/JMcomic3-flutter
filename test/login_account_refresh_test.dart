@@ -83,7 +83,7 @@ void main() {
     });
 
     await enterGuestMode();
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(const MaterialApp(
       locale: const Locale('en'),
       localizationsDelegates: const [AppLocalizations.delegate],
       supportedLocales: AppLocalizations.supportedLocales,
@@ -144,6 +144,47 @@ void main() {
     expect(favorite.folderList, isEmpty);
     expect(favoriteCalls, 2);
     expect(refreshCalls, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('invalid JSON switches API route and retries the request',
+      (tester) async {
+    var favoriteCalls = 0;
+    var rotations = 0;
+    native.Methods.apiHostRecoveryHandler = () async {
+      rotations++;
+      return true;
+    };
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      if (request['method'] == 'favorite') {
+        favoriteCalls++;
+        if (favoriteCalls == 1) {
+          return _errorResponse(
+              'JSON error: expected value at line 1 column 1');
+        }
+        return _response({
+          'total': 0,
+          'count': 0,
+          'list': <Object>[],
+          'folder_list': <Object>[],
+        });
+      }
+      return _response('');
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+      native.Methods.apiHostRecoveryHandler = null;
+    });
+
+    final favorite = await native.methods.favorite();
+
+    expect(favorite.folderList, isEmpty);
+    expect(favoriteCalls, 2);
+    expect(rotations, 1);
     expect(tester.takeException(), isNull);
   });
 }

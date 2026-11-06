@@ -90,5 +90,10 @@ void main() {
     expect(currentCdnHostName, 'cdn-msp3.jmapiproxy2.cc');
     expect(savedApiHosts.last, 'fast-api.example.com');
     expect(savedCdnHosts.last, 'cdn-msp3.jmapiproxy2.cc');
+
+    final rotated = await rotateApiHostAfterInvalidResponse();
+    expect(rotated, isTrue);
+    expect(currentApiHostName, isNot('fast-api.example.com'));
+    expect(savedApiHosts.last, currentApiHostName);
   });
 }

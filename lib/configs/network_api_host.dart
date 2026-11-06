@@ -23,6 +23,7 @@ String _apiHost = _defaultApiHost;
 List<String> _apiList = [];
 
 Future<void> initApiHost() async {
+  Methods.apiHostRecoveryHandler = rotateApiHostAfterInvalidResponse;
   _apiList = [];
   _mergeApiList(_fallbackApiHosts);
   final hostListFuture = methods.loadApiHostList();
@@ -42,6 +43,30 @@ Future<void> initApiHost() async {
     await methods.saveApiHost(_apiHost);
   }
   await autoSelectApiHost();
+}
+
+Future<bool> rotateApiHostAfterInvalidResponse() async {
+  if (_apiList.isEmpty) return false;
+  final current = _apiHost.toLowerCase();
+  final currentIndex =
+      _apiList.indexWhere((host) => host.toLowerCase() == current);
+  final start = currentIndex >= 0 ? currentIndex + 1 : 0;
+  for (var offset = 0; offset < _apiList.length; offset++) {
+    final candidate = _apiList[(start + offset) % _apiList.length];
+    if (candidate.toLowerCase() == current) continue;
+    try {
+      await methods.saveApiHost(candidate);
+      _apiHost = candidate;
+      _mergeApiList([candidate]);
+      debugPrient("API route switched after invalid response: $candidate");
+      return true;
+    } catch (error) {
+      debugPrient(
+        "API route switch failed for $candidate: ${error.runtimeType}",
+      );
+    }
+  }
+  return false;
 }
 
 String get currentApiHostName => (_apiHost);
@@ -66,7 +91,7 @@ Future<bool> autoSelectApiHost() async {
     _apiList,
     methods.ping,
     timeout: _automaticProbeTimeout,
-    returnOnFirstSuccess: true,
+    returnOnFirstSuccess: false,
   );
   if (fastest == null) return false;
   if (fastest.host.toLowerCase() == _apiHost.toLowerCase()) {
