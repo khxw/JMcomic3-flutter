@@ -359,15 +359,6 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
       destination.path,
       expectedSha256: latestApkSha256(),
     );
-    if (context.mounted) {
-      defaultToast(
-        context,
-        context.l10n.tr(
-          '更新已下载，正在打开系统安装器',
-          en: 'Update downloaded. Opening the system installer.',
-        ),
-      );
-    }
   } catch (error) {
     await closeProgress();
     if (context.mounted) {
