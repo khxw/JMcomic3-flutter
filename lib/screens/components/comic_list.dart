@@ -252,7 +252,7 @@ class _ComicListState extends State<ComicList> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _pushToComicInfo(comic),
-      onLongPress: _longPressCallback(index),
+      onLongPressStart: _longPressCallback(index),
       child: currentPagerViewMode == PagerViewMode.titleAndCover
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -313,7 +313,7 @@ class _ComicListState extends State<ComicList> {
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _pushToComicInfo(widget.data[index]),
-        onLongPress: _longPressCallback(index),
+        onLongPressStart: _longPressCallback(index),
         child: ComicInfoCard(widget.data[index]),
       );
     }
@@ -360,13 +360,24 @@ class _ComicListState extends State<ComicList> {
     );
   }
 
-  GestureLongPressCallback? _longPressCallback(int index) {
+  GestureLongPressStartCallback? _longPressCallback(int index) {
     if (widget.longPressMenuItems != null &&
         widget.longPressMenuItems!.isNotEmpty) {
-      return () {
+      return (details) {
+        final overlay = Overlay.of(context).context.findRenderObject();
+        if (overlay is! RenderBox) return;
+        final position = RelativeRect.fromRect(
+          Rect.fromLTWH(
+            details.globalPosition.dx,
+            details.globalPosition.dy,
+            0,
+            0,
+          ),
+          Offset.zero & overlay.size,
+        );
         showMenu(
           context: context,
-          position: const RelativeRect.fromLTRB(0, 0, 0, 0),
+          position: position,
           items: widget.longPressMenuItems!
               .map((e) => PopupMenuItem(
                     child: Text(e.title),

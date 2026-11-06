@@ -240,10 +240,17 @@ void main() {
       ],
     )));
     await tester.pump();
+    final anchor = tester.getCenter(find.text(comic.name));
     await tester.longPress(find.text(comic.name));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    final menuRect = tester.getRect(find.text('Favorite'));
+    expect(menuRect.left, greaterThan(0));
+    expect(menuRect.top, greaterThan(0));
+    expect((menuRect.center - anchor).distance, lessThan(300));
     await tester.tap(find.text('Favorite'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
     expect(selected, same(comic));
     expect(tester.takeException(), isNull);
   });
