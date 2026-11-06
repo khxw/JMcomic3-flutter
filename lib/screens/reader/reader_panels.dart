@@ -255,6 +255,18 @@ class _SettingPanelState extends State<_SettingPanel> {
                     if (mounted) setState(() {});
                   },
                 ),
+                _settingCard(
+                  icon: Icons.arrow_forward_rounded,
+                  label: context.l10n.tr('预加载方向', en: 'Preload direction'),
+                  value: readerPreloadModeName(
+                    context,
+                    currentReaderPreloadForwardOnly,
+                  ),
+                  onPressed: () async {
+                    await chooseReaderPreloadMode(context);
+                    if (mounted) setState(() {});
+                  },
+                ),
               ],
             ),
           ),

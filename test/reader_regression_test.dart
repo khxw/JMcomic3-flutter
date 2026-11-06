@@ -38,6 +38,7 @@ void main() {
   final imageRequests = <String>[];
   Completer<void>? imageGate;
   var testPreloadPages = 0;
+  var testPreloadForwardOnly = false;
   var direction = ReaderDirection.leftToRight;
   var controlMode = ReaderControllerType.controller;
 
@@ -70,6 +71,7 @@ void main() {
     imageRequests.clear();
     imageGate = null;
     testPreloadPages = 0;
+    testPreloadForwardOnly = false;
     controlMode = ReaderControllerType.controller;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
@@ -85,6 +87,7 @@ void main() {
             'reader_controller_type' => controlMode.toString(),
             'readerDirection' => direction.toString(),
             'reader_preload_pages' => '$testPreloadPages',
+            'reader_preload_forward_only' => '$testPreloadForwardOnly',
             'reader_slider_position' => 'ReaderSliderPosition.bottom',
             _ => '',
           };
@@ -135,12 +138,15 @@ void main() {
       {int pageCount = 10,
       int startIndex = 0,
       int preloadDistance = 0,
+      bool preloadForwardOnly = false,
       ThemeData? theme,
       ValueChanged<int>? onUnmount}) async {
     direction = readDirection;
     testPreloadPages = preloadDistance;
+    testPreloadForwardOnly = preloadForwardOnly;
     await initReaderPreload();
     expect(currentReaderPreloadPages, preloadDistance);
+    expect(currentReaderPreloadForwardOnly, preloadForwardOnly);
     await initReaderControllerType();
     await initReaderDirection();
     await initReaderType();
@@ -587,6 +593,31 @@ void main() {
     );
     expect(imageRequests, isNot(contains('8.png')));
     expect(imageRequests, isNot(contains('2.png')));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('reader can preload only upcoming pages', (tester) async {
+    await mountReader(
+      tester,
+      ReaderType.gallery,
+      ReaderDirection.leftToRight,
+      startIndex: 5,
+      preloadDistance: 2,
+      preloadForwardOnly: true,
+    );
+    await tester.runAsync(() async {
+      for (var attempt = 0; attempt < 80; attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        if ({'6.png', '7.png'}.every(imageRequests.contains)) break;
+      }
+    });
+    await tester.pump();
+
+    expect(imageRequests, containsAll(<String>['6.png', '7.png']));
+    expect(imageRequests, isNot(contains('4.png')));
+    expect(imageRequests, isNot(contains('3.png')));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();

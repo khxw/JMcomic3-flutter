@@ -10,6 +10,14 @@ void main() {
     expect(parseReaderPreloadPages('invalid'), 2);
   });
 
+  test('reader preload direction defaults to both ways', () {
+    expect(parseReaderPreloadForwardOnly(''), isFalse);
+    expect(parseReaderPreloadForwardOnly('false'), isFalse);
+    expect(parseReaderPreloadForwardOnly('true'), isTrue);
+    expect(parseReaderPreloadForwardOnly('1'), isTrue);
+    expect(parseReaderPreloadForwardOnly('forward'), isTrue);
+  });
+
   test('reader preload warms pages before and after the current page', () {
     expect(
       readerPreloadIndices(
@@ -46,6 +54,29 @@ void main() {
         paired: false,
       ),
       isEmpty,
+    );
+  });
+
+  test('reader preload can warm forward pages only', () {
+    expect(
+      readerPreloadIndices(
+        current: 5,
+        total: 20,
+        pages: 2,
+        paired: false,
+        forwardOnly: true,
+      ),
+      [6, 7],
+    );
+    expect(
+      readerPreloadIndices(
+        current: 4,
+        total: 20,
+        pages: 2,
+        paired: true,
+        forwardOnly: true,
+      ),
+      [6, 8],
     );
   });
 }

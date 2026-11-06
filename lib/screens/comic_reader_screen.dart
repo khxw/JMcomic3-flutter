@@ -633,6 +633,7 @@ abstract class _ComicReaderState extends State<_ComicReader>
       total: _pages.length,
       pages: currentReaderPreloadPages,
       paired: _paired,
+      forwardOnly: currentReaderPreloadForwardOnly,
     );
     if (indices.isEmpty) return;
 
