@@ -95,5 +95,11 @@ void main() {
     expect(rotated, isTrue);
     expect(currentApiHostName, isNot('fast-api.example.com'));
     expect(savedApiHosts.last, currentApiHostName);
+
+    final previousCdnHost = currentCdnHostName;
+    final cdnRotated = await rotateCdnHostAfterFailure();
+    expect(cdnRotated, isTrue);
+    expect(currentCdnHostName, isNot(previousCdnHost));
+    expect(savedCdnHosts.last, currentCdnHostName);
   });
 }

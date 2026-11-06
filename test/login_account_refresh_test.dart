@@ -84,10 +84,10 @@ void main() {
 
     await enterGuestMode();
     await tester.pumpWidget(const MaterialApp(
-      locale: const Locale('en'),
-      localizationsDelegates: const [AppLocalizations.delegate],
+      locale: Locale('en'),
+      localizationsDelegates: [AppLocalizations.delegate],
       supportedLocales: AppLocalizations.supportedLocales,
-      home: const UserScreen(),
+      home: UserScreen(),
     ));
     await tester.pumpAndSettle();
 
@@ -184,6 +184,40 @@ void main() {
 
     expect(favorite.folderList, isEmpty);
     expect(favoriteCalls, 2);
+    expect(rotations, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('image HTTP failures switch CDN route and retry', (tester) async {
+    var imageCalls = 0;
+    var rotations = 0;
+    native.Methods.cdnHostRecoveryHandler = () async {
+      rotations++;
+      return true;
+    };
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      if (request['method'] == 'jm_page_image') {
+        imageCalls++;
+        if (imageCalls == 1) {
+          return _errorResponse('HTTP 500:');
+        }
+        return _response('/cache/page.webp');
+      }
+      return _response('');
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+      native.Methods.cdnHostRecoveryHandler = null;
+    });
+
+    final path = await native.methods.jmPageImage(42, '001.webp');
+
+    expect(path, '/cache/page.webp');
+    expect(imageCalls, 2);
     expect(rotations, 1);
     expect(tester.takeException(), isNull);
   });

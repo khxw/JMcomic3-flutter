@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/commons.dart';
+import 'package:jmcomic3/basic/log.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/configs/network_host.dart';
 import 'package:jmcomic3/configs/network_ping.dart';
@@ -33,6 +34,7 @@ const _builtinCdnHosts = <String>[
 List<String> _cdnList = [];
 
 Future<void> initCdnHost() async {
+  Methods.cdnHostRecoveryHandler = rotateCdnHostAfterFailure;
   _cdnList = [];
   _mergeCdnList([
     _defaultCdnHost,
@@ -47,6 +49,30 @@ Future<void> initCdnHost() async {
     await methods.saveCdnHost(_cdnHost);
   }
   await autoSelectCdnHost();
+}
+
+Future<bool> rotateCdnHostAfterFailure() async {
+  if (_cdnList.isEmpty) return false;
+  final current = _cdnHost.toLowerCase();
+  final currentIndex =
+      _cdnList.indexWhere((host) => host.toLowerCase() == current);
+  final start = currentIndex >= 0 ? currentIndex + 1 : 0;
+  for (var offset = 0; offset < _cdnList.length; offset++) {
+    final candidate = _cdnList[(start + offset) % _cdnList.length];
+    if (candidate.toLowerCase() == current) continue;
+    try {
+      await methods.saveCdnHost(candidate);
+      _cdnHost = candidate;
+      _mergeCdnList([candidate]);
+      debugPrient("CDN route switched after image failure: $candidate");
+      return true;
+    } catch (error) {
+      debugPrient(
+        "CDN route switch failed for $candidate: ${error.runtimeType}",
+      );
+    }
+  }
+  return false;
 }
 
 Future chooseCdnHost(BuildContext context) async {

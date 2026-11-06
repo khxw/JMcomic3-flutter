@@ -890,40 +890,27 @@ class _JMPageImageState extends State<JMPageImage> {
   }
 
   Future<String> _init({bool forceRefresh = false}) async {
-    final generation = _generation;
-    final id = widget.id;
-    final imageName = widget.imageName;
-    final pageIndex = widget.pageIndex;
-    final localOnly = widget.localOnly;
-    final onTrueSize = widget.onTrueSize;
-    final suppliedPath = widget.localPath?.trim();
-    if ((suppliedPath == null || suppliedPath.isEmpty) && localOnly) {
-      throw StateError('local image unavailable');
-    }
-    final _path = suppliedPath == null || suppliedPath.isEmpty
-        ? await _cachedPageImagePath(
-            id,
-            imageName,
-            forceRefresh: forceRefresh,
-          )
-        : await _validateLocalImagePath(suppliedPath);
-    // A newer widget/reload may have replaced this request while the path was
-    // loading. Do not start a force-refresh size lookup from the stale
-    // request, since it could evict the newer size Future for the same key.
-    if (!mounted ||
-        generation != _generation ||
-        widget.id != id ||
-        widget.imageName != imageName ||
-        widget.pageIndex != pageIndex ||
-        widget.localOnly != localOnly ||
-        widget.localPath?.trim() != suppliedPath) {
-      return _path;
-    }
-    if (onTrueSize != null) {
-      // Check again immediately before the size bridge call. The path Future
-      // can complete while a newer widget/reload is being installed; without
-      // this second guard the stale request would still perform I/O and could
-      // populate the size cache for a page that is no longer mounted.
+    try {
+      final generation = _generation;
+      final id = widget.id;
+      final imageName = widget.imageName;
+      final pageIndex = widget.pageIndex;
+      final localOnly = widget.localOnly;
+      final onTrueSize = widget.onTrueSize;
+      final suppliedPath = widget.localPath?.trim();
+      if ((suppliedPath == null || suppliedPath.isEmpty) && localOnly) {
+        throw StateError('local image unavailable');
+      }
+      final _path = suppliedPath == null || suppliedPath.isEmpty
+          ? await _cachedPageImagePath(
+              id,
+              imageName,
+              forceRefresh: forceRefresh,
+            )
+          : await _validateLocalImagePath(suppliedPath);
+      // A newer widget/reload may have replaced this request while the path was
+      // loading. Do not start a force-refresh size lookup from the stale
+      // request, since it could evict the newer size Future for the same key.
       if (!mounted ||
           generation != _generation ||
           widget.id != id ||
@@ -933,25 +920,48 @@ class _JMPageImageState extends State<JMPageImage> {
           widget.localPath?.trim() != suppliedPath) {
         return _path;
       }
-      final size = await _cachedPageImageTrueSize(
-        id,
-        imageName,
-        _path,
-        forceRefresh: forceRefresh,
-      );
-      // Do not let an old request publish into a reused State whose widget
-      // identity has changed while the request was in flight.
-      if (mounted &&
-          generation == _generation &&
-          widget.id == id &&
-          widget.imageName == imageName &&
-          widget.pageIndex == pageIndex &&
-          widget.localOnly == localOnly &&
-          widget.localPath?.trim() == suppliedPath) {
-        onTrueSize(size);
+      if (onTrueSize != null) {
+        // Check again immediately before the size bridge call. The path Future
+        // can complete while a newer widget/reload is being installed; without
+        // this second guard the stale request would still perform I/O and could
+        // populate the size cache for a page that is no longer mounted.
+        if (!mounted ||
+            generation != _generation ||
+            widget.id != id ||
+            widget.imageName != imageName ||
+            widget.pageIndex != pageIndex ||
+            widget.localOnly != localOnly ||
+            widget.localPath?.trim() != suppliedPath) {
+          return _path;
+        }
+        final size = await _cachedPageImageTrueSize(
+          id,
+          imageName,
+          _path,
+          forceRefresh: forceRefresh,
+        );
+        // Do not let an old request publish into a reused State whose widget
+        // identity has changed while the request was in flight.
+        if (mounted &&
+            generation == _generation &&
+            widget.id == id &&
+            widget.imageName == imageName &&
+            widget.pageIndex == pageIndex &&
+            widget.localOnly == localOnly &&
+            widget.localPath?.trim() == suppliedPath) {
+          onTrueSize(size);
+        }
       }
+      return _path;
+    } catch (error, stackTrace) {
+      debugPrient(
+        'page image load failed chapter=${widget.id} '
+        'page=${widget.pageIndex ?? -1} image=${widget.imageName} '
+        'local=${widget.localOnly}: $error',
+      );
+      debugPrient('page image load stack: $stackTrace');
+      rethrow;
     }
-    return _path;
   }
 
   void _reload() {
@@ -1026,8 +1036,6 @@ Widget pathFutureImage(
       future: future,
       builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
         if (snapshot.hasError) {
-          debugPrient("image load failed: ${snapshot.error.runtimeType}");
-          debugPrient("image load stack: ${snapshot.stackTrace?.runtimeType}");
           if (offlineOnly) {
             return buildOfflineImageUnavailable(
               context,
@@ -1063,7 +1071,6 @@ Widget pathFutureImage(
           );
         }
         if (snapshot.connectionState == ConnectionState.done) {
-          debugPrient("image load failed: invalid result");
           if (offlineOnly) {
             return buildOfflineImageUnavailable(
               context,
@@ -1389,8 +1396,8 @@ Widget buildFile(
     width: width,
     height: height,
     errorBuilder: (a, b, c) {
-      debugPrient("image decode failed: ${b.runtimeType}");
-      debugPrient("image decode stack: ${c.runtimeType}");
+      debugPrient("image decode failed: $b");
+      debugPrient("image decode stack: $c");
       onDecodeError?.call();
       return buildError(
         context,

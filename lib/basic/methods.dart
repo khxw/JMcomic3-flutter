@@ -35,6 +35,13 @@ class Methods {
     "jm_photo_image",
     "image_size",
   };
+  static const Set<String> _imageBridgeMethods = {
+    "jm_3x4_cover",
+    "jm_square_cover",
+    "jm_page_image",
+    "jm_page_image_batch",
+    "jm_photo_image",
+  };
   static const Duration _categoriesCacheTtl = Duration(minutes: 10);
   static const Duration _comicsCacheTtl = Duration(minutes: 5);
   static const Duration _albumCacheTtl = Duration(minutes: 10);
@@ -64,6 +71,7 @@ class Methods {
   static Set<int>? _locallyLikedCommentIdsCache;
   static Future<bool>? _loginRefreshInflight;
   static Future<bool> Function()? apiHostRecoveryHandler;
+  static Future<bool> Function()? cdnHostRecoveryHandler;
 
   void _clearApiResponseCaches() {
     _categoriesCache.clear();
@@ -263,6 +271,7 @@ class Methods {
     var response = _decodeInvokeResponse(await _invokeRaw(method, params));
     var loginRetried = false;
     var hostRotations = 0;
+    var cdnRotations = 0;
     while (response.errorMessage.isNotEmpty) {
       if (!loginRetried &&
           method != "login" &&
@@ -277,6 +286,14 @@ class Methods {
           _isInvalidApiResponse(response.errorMessage) &&
           await _rotateApiHost()) {
         hostRotations++;
+        response = _decodeInvokeResponse(await _invokeRaw(method, params));
+        continue;
+      }
+      if (cdnRotations < 3 &&
+          _imageBridgeMethods.contains(method) &&
+          _isImageRequestError(response.errorMessage) &&
+          await _rotateCdnHost()) {
+        cdnRotations++;
         response = _decodeInvokeResponse(await _invokeRaw(method, params));
         continue;
       }
@@ -338,6 +355,15 @@ class Methods {
         lower.contains("invalid api response");
   }
 
+  bool _isImageRequestError(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains("http 4") ||
+        lower.contains("http 5") ||
+        lower.contains("network") ||
+        lower.contains("timeout") ||
+        lower.contains("error sending request");
+  }
+
   Future<bool> _rotateApiHost() async {
     final handler = apiHostRecoveryHandler;
     if (handler == null) return false;
@@ -345,6 +371,17 @@ class Methods {
       return await handler();
     } catch (error) {
       debugPrient("API host rotation failed: ${error.runtimeType}");
+      return false;
+    }
+  }
+
+  Future<bool> _rotateCdnHost() async {
+    final handler = cdnHostRecoveryHandler;
+    if (handler == null) return false;
+    try {
+      return await handler();
+    } catch (error) {
+      debugPrient("CDN host rotation failed: ${error.runtimeType}");
       return false;
     }
   }
