@@ -390,7 +390,22 @@ class _WeekContentState extends State<WeekContent> {
   }
 
   List<WeekType> _buildDisplayTypes(List<WeekType> types) {
-    return types.reversed.toList(growable: false);
+    return types.reversed
+        .where((type) => !_isKoreanType(type))
+        .toList(growable: false);
+  }
+
+  bool _isKoreanType(WeekType type) {
+    final id = type.id.trim().toLowerCase();
+    final title = type.title.trim().toLowerCase();
+    return id == 'hanman' ||
+        id == 'han' ||
+        id == 'kr' ||
+        title.contains('韩漫') ||
+        title.contains('韩国') ||
+        title.contains('韓國') ||
+        title.contains('korean') ||
+        title.contains('korea');
   }
 
   String _typeLabel(WeekType type) {
