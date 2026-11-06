@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:filesystem_picker/filesystem_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
@@ -336,18 +335,6 @@ class _DownloadImportScreenState extends State<DownloadImportScreen> {
   }
 
   Future<String?> _chooseImportFilePath() async {
-    if (Platform.isAndroid) {
-      return FilesystemPicker.open(
-        title: context.l10n.tr('选择文件', en: 'Select file'),
-        context: context,
-        rootDirectory: Directory("/storage/emulated/0"),
-        fsType: FilesystemType.file,
-        folderIconColor: Colors.teal,
-        allowedExtensions: ['.zip', '.jmi'],
-        fileTileSelectMode: FileTileSelectMode.wholeTile,
-      );
-    }
-
     final files = await FilePicker.platform.pickFiles(
       dialogTitle: context.l10n.tr('选择要导入的文件', en: 'Choose file to import'),
       allowMultiple: false,
