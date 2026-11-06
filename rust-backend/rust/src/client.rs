@@ -13,6 +13,26 @@ use crate::models::{JmApiResponse, SearchSort};
 const APP_TOKEN_SECRET: &str = "18comicAPP";
 const APP_TOKEN_SECRET_2: &str = "18comicAPPContent";
 
+fn favorite_folder_form(
+    action: &str,
+    folder_name: Option<&str>,
+    folder_id: Option<i64>,
+    album_id: Option<i64>,
+) -> Value {
+    let mut form = serde_json::Map::new();
+    form.insert("type".into(), json!(action));
+    if let Some(folder_name) = folder_name {
+        form.insert("folder_name".into(), json!(folder_name));
+    }
+    if let Some(folder_id) = folder_id {
+        form.insert("folder_id".into(), json!(folder_id));
+    }
+    if let Some(album_id) = album_id {
+        form.insert("aid".into(), json!(album_id));
+    }
+    Value::Object(form)
+}
+
 #[derive(Debug, Clone, Copy)]
 enum ApiPath {
     Login,
@@ -233,7 +253,12 @@ impl JmClient {
             Method::POST,
             ApiPath::FavoriteFolder,
             None,
-            Some(json!({ "folder_name": folder_name.trim() })),
+            Some(favorite_folder_form(
+                "add",
+                Some(folder_name.trim()),
+                None,
+                None,
+            )),
         )
         .await
     }
@@ -246,7 +271,7 @@ impl JmClient {
             Method::POST,
             ApiPath::FavoriteFolder,
             None,
-            Some(json!({ "folder_id": folder_id })),
+            Some(favorite_folder_form("del", None, Some(folder_id), None)),
         )
         .await
     }
@@ -265,10 +290,12 @@ impl JmClient {
             Method::POST,
             ApiPath::FavoriteFolder,
             None,
-            Some(json!({
-                "folder_id": folder_id,
-                "folder_name": folder_name.trim(),
-            })),
+            Some(favorite_folder_form(
+                "edit",
+                Some(folder_name.trim()),
+                Some(folder_id),
+                None,
+            )),
         )
         .await
     }
@@ -287,10 +314,12 @@ impl JmClient {
             Method::POST,
             ApiPath::FavoriteFolder,
             None,
-            Some(json!({
-                "aid": comic_id,
-                "folder_id": folder_id,
-            })),
+            Some(favorite_folder_form(
+                "move",
+                None,
+                Some(folder_id),
+                Some(comic_id),
+            )),
         )
         .await
     }
@@ -1328,6 +1357,26 @@ mod tests {
         assert_eq!(favorite["total"], 2);
         assert_eq!(favorite["folder_list"][0]["FID"], 8);
         assert_eq!(favorite["folder_list"][0]["UID"], 9);
+    }
+
+    #[test]
+    fn favorite_folder_forms_include_required_action_type() {
+        assert_eq!(
+            favorite_folder_form("add", Some("new folder"), None, None),
+            json!({"type": "add", "folder_name": "new folder"})
+        );
+        assert_eq!(
+            favorite_folder_form("edit", Some("renamed"), Some(8), None),
+            json!({"type": "edit", "folder_name": "renamed", "folder_id": 8})
+        );
+        assert_eq!(
+            favorite_folder_form("del", None, Some(8), None),
+            json!({"type": "del", "folder_id": 8})
+        );
+        assert_eq!(
+            favorite_folder_form("move", None, Some(8), Some(7)),
+            json!({"type": "move", "folder_id": 8, "aid": 7})
+        );
     }
 
     #[test]
