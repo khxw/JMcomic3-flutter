@@ -42,6 +42,19 @@ class Methods {
     "jm_page_image_batch",
     "jm_photo_image",
   };
+  static const Set<String> _readApiMethods = {
+    "comics",
+    "comic_search",
+    "album",
+    "chapter",
+    "forum",
+    "favorites",
+    "favorite",
+    "games",
+    "week",
+    "week_filter",
+    "daily",
+  };
   static const Duration _categoriesCacheTtl = Duration(minutes: 10);
   static const Duration _comicsCacheTtl = Duration(minutes: 5);
   static const Duration _albumCacheTtl = Duration(minutes: 10);
@@ -285,7 +298,7 @@ class Methods {
         continue;
       }
       if (hostRotations < 3 &&
-          _isInvalidApiResponse(response.errorMessage) &&
+          _shouldRotateApiHost(method, response.errorMessage) &&
           await _rotateApiHost()) {
         hostRotations++;
         response = _decodeInvokeResponse(await _invokeRaw(method, params));
@@ -356,6 +369,16 @@ class Methods {
     return lower.contains("json error") ||
         lower.contains("expected value at line") ||
         lower.contains("invalid api response");
+  }
+
+  bool _shouldRotateApiHost(String method, String message) {
+    if (_isInvalidApiResponse(message)) return true;
+    if (!_readApiMethods.contains(method)) return false;
+    final lower = message.toLowerCase();
+    return lower.contains("http 5") ||
+        lower.contains("network") ||
+        lower.contains("timeout") ||
+        lower.contains("error sending request");
   }
 
   bool _isImageRequestError(String message) {

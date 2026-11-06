@@ -221,4 +221,38 @@ void main() {
     expect(rotations, 1);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('read API HTTP 500 switches route and retries', (tester) async {
+    var dailyCalls = 0;
+    var rotations = 0;
+    native.Methods.apiHostRecoveryHandler = () async {
+      rotations++;
+      return true;
+    };
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      if (request['method'] == 'daily') {
+        dailyCalls++;
+        if (dailyCalls == 1) {
+          return _errorResponse('HTTP 500:');
+        }
+        return _response('Signed in');
+      }
+      return _response('');
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+      native.Methods.apiHostRecoveryHandler = null;
+    });
+
+    final result = await native.methods.daily(42);
+
+    expect(result, 'Signed in');
+    expect(dailyCalls, 2);
+    expect(rotations, 1);
+    expect(tester.takeException(), isNull);
+  });
 }
