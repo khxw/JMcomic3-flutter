@@ -32,9 +32,10 @@ const _builtinCdnHosts = <String>[
 ];
 
 List<String> _cdnList = [];
+Future<bool>? _cdnRotationInflight;
 
 Future<void> initCdnHost() async {
-  Methods.cdnHostRecoveryHandler = rotateCdnHostAfterFailure;
+  Methods.cdnHostRecoveryHandler = _rotateCdnHostForRequest;
   _cdnList = [];
   _mergeCdnList([
     _defaultCdnHost,
@@ -52,6 +53,29 @@ Future<void> initCdnHost() async {
 }
 
 Future<bool> rotateCdnHostAfterFailure() async {
+  return _rotateCdnHostForRequest(Methods.cdnRouteVersion);
+}
+
+Future<bool> _rotateCdnHostForRequest(int observedVersion) async {
+  if (Methods.cdnRouteVersion != observedVersion) {
+    return true;
+  }
+  final running = _cdnRotationInflight;
+  if (running != null) {
+    return running;
+  }
+  final future = _performCdnRotation();
+  _cdnRotationInflight = future;
+  try {
+    return await future;
+  } finally {
+    if (identical(_cdnRotationInflight, future)) {
+      _cdnRotationInflight = null;
+    }
+  }
+}
+
+Future<bool> _performCdnRotation() async {
   if (_cdnList.isEmpty) return false;
   final current = _cdnHost.toLowerCase();
   final currentIndex =
@@ -63,6 +87,7 @@ Future<bool> rotateCdnHostAfterFailure() async {
     try {
       await methods.saveCdnHost(candidate);
       _cdnHost = candidate;
+      Methods.cdnRouteVersion++;
       _mergeCdnList([candidate]);
       debugPrient("CDN route switched after image failure: $candidate");
       return true;
@@ -80,6 +105,7 @@ Future chooseCdnHost(BuildContext context) async {
   if (choose != null) {
     _cdnHost = normalizeNetworkHostCandidate(choose, fallback: _defaultCdnHost);
     await methods.saveCdnHost(_cdnHost);
+    Methods.cdnRouteVersion++;
     _mergeCdnList([_cdnHost]);
   }
 }
@@ -105,6 +131,7 @@ Future<bool> autoSelectCdnHost() async {
     return false;
   }
   _cdnHost = fastest.host;
+  Methods.cdnRouteVersion++;
   _mergeCdnList([_cdnHost]);
   return true;
 }

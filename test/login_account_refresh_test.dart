@@ -191,7 +191,7 @@ void main() {
   testWidgets('image HTTP failures switch CDN route and retry', (tester) async {
     var imageCalls = 0;
     var rotations = 0;
-    native.Methods.cdnHostRecoveryHandler = () async {
+    native.Methods.cdnHostRecoveryHandler = (_) async {
       rotations++;
       return true;
     };

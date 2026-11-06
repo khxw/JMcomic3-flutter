@@ -101,5 +101,16 @@ void main() {
     expect(cdnRotated, isTrue);
     expect(currentCdnHostName, isNot(previousCdnHost));
     expect(savedCdnHosts.last, currentCdnHostName);
+
+    final savedBeforeConcurrentFailures = savedCdnHosts.length;
+    final concurrentRotations = await Future.wait([
+      rotateCdnHostAfterFailure(),
+      rotateCdnHostAfterFailure(),
+    ]);
+    expect(concurrentRotations, [true, true]);
+    expect(
+      savedCdnHosts.length - savedBeforeConcurrentFailures,
+      1,
+    );
   });
 }

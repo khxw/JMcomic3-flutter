@@ -71,7 +71,8 @@ class Methods {
   static Set<int>? _locallyLikedCommentIdsCache;
   static Future<bool>? _loginRefreshInflight;
   static Future<bool> Function()? apiHostRecoveryHandler;
-  static Future<bool> Function()? cdnHostRecoveryHandler;
+  static Future<bool> Function(int observedVersion)? cdnHostRecoveryHandler;
+  static int cdnRouteVersion = 0;
 
   void _clearApiResponseCaches() {
     _categoriesCache.clear();
@@ -272,6 +273,7 @@ class Methods {
     var loginRetried = false;
     var hostRotations = 0;
     var cdnRotations = 0;
+    var observedCdnRouteVersion = cdnRouteVersion;
     while (response.errorMessage.isNotEmpty) {
       if (!loginRetried &&
           method != "login" &&
@@ -292,8 +294,9 @@ class Methods {
       if (cdnRotations < 3 &&
           _imageBridgeMethods.contains(method) &&
           _isImageRequestError(response.errorMessage) &&
-          await _rotateCdnHost()) {
+          await _rotateCdnHost(observedCdnRouteVersion)) {
         cdnRotations++;
+        observedCdnRouteVersion = cdnRouteVersion;
         response = _decodeInvokeResponse(await _invokeRaw(method, params));
         continue;
       }
@@ -375,11 +378,11 @@ class Methods {
     }
   }
 
-  Future<bool> _rotateCdnHost() async {
+  Future<bool> _rotateCdnHost(int observedVersion) async {
     final handler = cdnHostRecoveryHandler;
     if (handler == null) return false;
     try {
-      return await handler();
+      return await handler(observedVersion);
     } catch (error) {
       debugPrient("CDN host rotation failed: ${error.runtimeType}");
       return false;
