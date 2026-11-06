@@ -269,6 +269,10 @@ class Methods {
     }
 
     if (response.errorMessage.isNotEmpty) {
+      AppLog.add(
+        '[api] $method failed: ${response.errorMessage}',
+        level: AppLogLevel.error,
+      );
       if (shouldDebug) {
         debugPrient(
           "[download-api:err] method=$method errorClass=${_errorClass(response.errorMessage)}",

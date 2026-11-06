@@ -37,6 +37,7 @@ import '../configs/disable_recommend_content.dart';
 import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
 import 'init_screen.dart';
+import 'runtime_log_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -271,6 +272,27 @@ class _SettingsState extends State<SettingsScreen> {
                     usingRightClickPopSetting(),
                     authenticationSetting(),
                     ignoreVewLogSetting(),
+                    const Divider(height: 1),
+                    ListTile(
+                      key: const ValueKey('settings-runtime-logs'),
+                      leading: const Icon(Icons.receipt_long_outlined),
+                      title: Text(
+                        l10n.tr('运行日志', en: 'Runtime logs'),
+                      ),
+                      subtitle: Text(
+                        l10n.tr(
+                          '查看、复制或导出本次运行记录',
+                          en: 'View, copy or export this session',
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const RuntimeLogScreen(),
+                          ),
+                        );
+                      },
+                    ),
                     const Divider(height: 1),
                     userAgreementSetting(context),
                     if (!updatesTemporarilyDisabled && hasProAccess) ...[

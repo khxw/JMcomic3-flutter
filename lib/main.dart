@@ -6,10 +6,13 @@ import 'package:jmcomic3/screens/components/compose_ui.dart';
 import 'package:jmcomic3/screens/components/mouse_and_touch_scroll_behavior.dart';
 import 'package:jmcomic3/screens/init_screen.dart';
 import 'basic/desktop.dart';
+import 'basic/log.dart';
 import 'basic/navigator.dart';
 import 'configs/theme.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  initializeAppLogging();
   runApp(const Jenny());
 }
 
