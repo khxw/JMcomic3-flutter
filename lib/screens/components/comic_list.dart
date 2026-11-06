@@ -252,7 +252,9 @@ class _ComicListState extends State<ComicList> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _pushToComicInfo(comic),
-      onLongPressStart: _longPressCallback(index),
+      onLongPressStart: currentPagerViewMode == PagerViewMode.info
+          ? _longPressCallback(index)
+          : (_) {},
       child: currentPagerViewMode == PagerViewMode.titleAndCover
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

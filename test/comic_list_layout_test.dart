@@ -8,6 +8,7 @@ import 'package:jmcomic3/basic/entities.dart';
 import 'package:jmcomic3/configs/pager_column_number.dart';
 import 'package:jmcomic3/configs/pager_cover_rate.dart';
 import 'package:jmcomic3/configs/pager_view_mode.dart';
+import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/comic_info_card.dart';
 import 'package:jmcomic3/screens/components/comic_list.dart';
 import 'package:jmcomic3/screens/components/images.dart';
@@ -60,6 +61,9 @@ Future<void> _initPreferences(
 Widget _host(Widget child,
     {double width = 720, double textScale = 1, double screenWidth = 1000}) {
   return MaterialApp(
+    locale: const Locale('en'),
+    localizationsDelegates: const [AppLocalizations.delegate],
+    supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       body: Align(
         alignment: Alignment.topLeft,
@@ -224,8 +228,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('long pressing a caption keeps its comic action attached',
-      (tester) async {
+  testWidgets('only the cover opens the comic long press menu', (tester) async {
     await _initPreferences(
       PagerViewMode.titleAndCover,
       PagerCoverRate.rateSquare,
@@ -240,14 +243,15 @@ void main() {
       ],
     )));
     await tester.pump();
-    final anchor = tester.getCenter(find.text(comic.name));
     await tester.longPress(find.text(comic.name));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
-    final menuRect = tester.getRect(find.text('Favorite'));
-    expect(menuRect.left, greaterThan(0));
-    expect(menuRect.top, greaterThan(0));
-    expect((menuRect.center - anchor).distance, lessThan(300));
+    expect(find.text('Favorite'), findsNothing);
+
+    await tester.longPress(find.byType(JMSquareCover));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.text('Favorite'), findsOneWidget);
     await tester.tap(find.text('Favorite'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
