@@ -16,7 +16,7 @@ GitHub 中仅保留手动诊断 CI。正式包在固定本地环境生成，再�
 ## 发布步骤
 
 1. 同步 `main`，确认工作区干净，建立收尾分支。
-2. 使用 `scripts/update_version.ps1 -Version 1.8.2+131` 同步 `pubspec.yaml`、
+2. 使用 `scripts/update_version.ps1 -Version 1.8.78+207` 同步 `pubspec.yaml`、
    `lib/assets/version.txt`、`ci/version.code.txt` 和本地 Android 版本；更新
    `ci/version.info.txt`、README 和 CHANGELOG 的实际内容。
 3. 核对 `rust-backend/rust` 源码、`Cargo.lock` 和提交的 JNI 动态库；按
