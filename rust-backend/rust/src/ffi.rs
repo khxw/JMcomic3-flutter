@@ -1478,31 +1478,55 @@ async fn page_image_batch(state: &BackendState, params: &Value) -> InvokeRespons
     let Some(pages) = pages else {
         return InvokeResponse::error("pages must be an array");
     };
-    let mut items = Vec::with_capacity(pages.len());
-    for page in pages {
-        let id = int_param(page, "id").unwrap_or(0);
-        let image_name = string_param(page, "image_name").unwrap_or_default();
-        if id <= 0 || image_name.trim().is_empty() {
-            items.push(json!({"id": id.max(1), "error": "invalid_request"}));
-            continue;
+    let requests = pages
+        .iter()
+        .map(|page| {
+            (
+                int_param(page, "id").unwrap_or(0),
+                string_param(page, "image_name").unwrap_or_default(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut items = vec![Value::Null; requests.len()];
+    for (chunk_index, chunk) in requests.chunks(4).enumerate() {
+        let mut tasks = tokio::task::JoinSet::new();
+        for (local_index, (id, image_name)) in chunk.iter().cloned().enumerate() {
+            let index = chunk_index * 4 + local_index;
+            if id <= 0 || image_name.trim().is_empty() {
+                items[index] = json!({"id": id.max(1), "error": "invalid_request"});
+                continue;
+            }
+            let client = state.client.clone();
+            let media = state.media.clone();
+            tasks.spawn(async move {
+                let item = match media.page_image(&client, id, &image_name).await {
+                    Ok(path) => match media.image_size(&path) {
+                        Ok((width, height)) => json!({
+                            "id": id,
+                            "path": path,
+                            "width": width,
+                            "height": height,
+                        }),
+                        Err(error) => json!({
+                            "id": id,
+                            "error": error.to_string(),
+                        }),
+                    },
+                    Err(error) => json!({
+                        "id": id,
+                        "error": error.to_string(),
+                    }),
+                };
+                (index, item)
+            });
         }
-        match state.media.page_image(&state.client, id, &image_name).await {
-            Ok(path) => match state.media.image_size(&path) {
-                Ok((width, height)) => items.push(json!({
-                    "id": id,
-                    "path": path,
-                    "width": width,
-                    "height": height,
-                })),
-                Err(error) => items.push(json!({
-                    "id": id,
-                    "error": error.to_string(),
-                })),
-            },
-            Err(error) => items.push(json!({
-                "id": id,
-                "error": error.to_string(),
-            })),
+        while let Some(result) = tasks.join_next().await {
+            match result {
+                Ok((index, item)) => items[index] = item,
+                Err(error) => {
+                    return InvokeResponse::error(format!("image batch worker: {error}"));
+                }
+            }
         }
     }
     InvokeResponse::success_value(&json!({

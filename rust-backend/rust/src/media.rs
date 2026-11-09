@@ -1,10 +1,13 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
 use image::imageops::crop_imm;
 use image::{ImageFormat, RgbImage};
+use tokio::sync::{Mutex as AsyncMutex, OnceCell};
 
 use crate::client::JmClient;
 use crate::crypto::md5_hex;
@@ -13,6 +16,7 @@ use crate::error::{BackendError, BackendResult};
 const COVER_CACHE_MAX_BYTES: u64 = 48 * 1024 * 1024;
 const COVER_CACHE_MAX_AGE: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 const COVER_PRUNE_INTERVAL: usize = 64;
+const SCRAMBLE_ID_CACHE_MAX_ENTRIES: usize = 512;
 
 pub struct MediaCache {
     root: PathBuf,
@@ -20,6 +24,8 @@ pub struct MediaCache {
     chapters: PathBuf,
     photos: PathBuf,
     cover_writes: AtomicUsize,
+    fetch_locks: Mutex<HashMap<String, Arc<AsyncMutex<()>>>>,
+    scramble_ids: Mutex<HashMap<i64, Arc<OnceCell<i64>>>>,
 }
 
 impl MediaCache {
@@ -37,6 +43,8 @@ impl MediaCache {
             chapters,
             photos,
             cover_writes: AtomicUsize::new(0),
+            fetch_locks: Mutex::new(HashMap::new()),
+            scramble_ids: Mutex::new(HashMap::new()),
         })
     }
 
@@ -55,8 +63,32 @@ impl MediaCache {
                 "chapter id and image name must be valid".into(),
             ));
         }
-        let safe_name = safe_component(&image_name);
-        let extension = extension_for_name(&safe_name);
+        let safe_name = safe_component(image_name);
+        if let Some(path) = self.cached_page_path(chapter_id, &safe_name) {
+            return Ok(path);
+        }
+        let lock_key = format!("page:{chapter_id}:{safe_name}");
+        let lock = self.fetch_lock(&lock_key)?;
+        let guard = lock.lock().await;
+        let result = self
+            .page_image_uncached(client, chapter_id, image_name, &safe_name)
+            .await;
+        drop(guard);
+        self.release_fetch_lock(&lock_key, &lock);
+        result
+    }
+
+    async fn page_image_uncached(
+        &self,
+        client: &JmClient,
+        chapter_id: i64,
+        image_name: &str,
+        safe_name: &str,
+    ) -> BackendResult<String> {
+        if let Some(path) = self.cached_page_path(chapter_id, safe_name) {
+            return Ok(path);
+        }
+        let extension = extension_for_name(safe_name);
         let chapter_dir = self.chapters.join(chapter_id.to_string());
         fs::create_dir_all(&chapter_dir)?;
         let stem = Path::new(&safe_name)
@@ -66,7 +98,7 @@ impl MediaCache {
 
         if extension == "gif" {
             let target = chapter_dir.join(format!("{stem}.gif"));
-            if target.exists() {
+            if is_nonempty_file(&target) {
                 return Ok(path_string(&target));
             }
             let bytes = client.page_image_bytes(chapter_id, image_name).await?;
@@ -75,13 +107,13 @@ impl MediaCache {
         }
 
         let (scramble_id, bytes) = tokio::try_join!(
-            client.scramble_id(chapter_id),
+            self.scramble_id(client, chapter_id),
             client.page_image_bytes(chapter_id, image_name)
         )?;
         let block_num = calculate_block_num(scramble_id, chapter_id, stem);
         if block_num == 0 {
-            let target = chapter_dir.join(&safe_name);
-            if target.exists() {
+            let target = chapter_dir.join(safe_name);
+            if is_nonempty_file(&target) {
                 return Ok(path_string(&target));
             }
             write_atomic(&target, &bytes)?;
@@ -89,7 +121,7 @@ impl MediaCache {
         }
 
         let target = chapter_dir.join(format!("{stem}.png"));
-        if target.exists() {
+        if is_nonempty_file(&target) {
             return Ok(path_string(&target));
         }
         let decoded = decode_scrambled_image(bytes, block_num).await?;
@@ -111,19 +143,31 @@ impl MediaCache {
         let extension = extension_for_name(&safe_name);
         let suffix = if square { "square" } else { "3x4" };
         let target = self.covers.join(format!("{album_id}_{suffix}.{extension}"));
-        if target.exists() {
+        if is_nonempty_file(&target) {
             return Ok(path_string(&target));
         }
-        let bytes = client.cover_image_bytes(&image_name).await?;
-        write_atomic(&target, &bytes)?;
-        let writes = self.cover_writes.fetch_add(1, Ordering::Relaxed) + 1;
-        if writes % COVER_PRUNE_INTERVAL == 0 {
-            let covers = self.covers.clone();
-            let _ = tokio::task::spawn_blocking(move || {
-                prune_cover_cache(&covers, COVER_CACHE_MAX_BYTES, COVER_CACHE_MAX_AGE)
-            });
+        let lock_key = format!("cover:{album_id}:{suffix}");
+        let lock = self.fetch_lock(&lock_key)?;
+        let guard = lock.lock().await;
+        let result = async {
+            if is_nonempty_file(&target) {
+                return Ok(path_string(&target));
+            }
+            let bytes = client.cover_image_bytes(&image_name).await?;
+            write_atomic(&target, &bytes)?;
+            let writes = self.cover_writes.fetch_add(1, Ordering::Relaxed) + 1;
+            if writes.is_multiple_of(COVER_PRUNE_INTERVAL) {
+                let covers = self.covers.clone();
+                drop(tokio::task::spawn_blocking(move || {
+                    prune_cover_cache(&covers, COVER_CACHE_MAX_BYTES, COVER_CACHE_MAX_AGE)
+                }));
+            }
+            Ok(path_string(&target))
         }
-        Ok(path_string(&target))
+        .await;
+        drop(guard);
+        self.release_fetch_lock(&lock_key, &lock);
+        result
     }
 
     pub async fn photo_image(&self, client: &JmClient, image_name: &str) -> BackendResult<String> {
@@ -132,12 +176,98 @@ impl MediaCache {
         }
         let safe_name = safe_component(image_name);
         let target = self.photos.join(&safe_name);
-        if target.exists() {
+        if is_nonempty_file(&target) {
             return Ok(path_string(&target));
         }
-        let bytes = client.photo_image_bytes(image_name).await?;
-        write_atomic(&target, &bytes)?;
-        Ok(path_string(&target))
+        let lock_key = format!("photo:{safe_name}");
+        let lock = self.fetch_lock(&lock_key)?;
+        let guard = lock.lock().await;
+        let result = async {
+            if is_nonempty_file(&target) {
+                return Ok(path_string(&target));
+            }
+            let bytes = client.photo_image_bytes(image_name).await?;
+            write_atomic(&target, &bytes)?;
+            Ok(path_string(&target))
+        }
+        .await;
+        drop(guard);
+        self.release_fetch_lock(&lock_key, &lock);
+        result
+    }
+
+    fn cached_page_path(&self, chapter_id: i64, safe_name: &str) -> Option<String> {
+        let chapter_dir = self.chapters.join(chapter_id.to_string());
+        let stem = Path::new(safe_name)
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or("image");
+        let decoded = chapter_dir.join(format!("{stem}.png"));
+        if is_nonempty_file(&decoded) {
+            return Some(path_string(&decoded));
+        }
+        let original = chapter_dir.join(safe_name);
+        if original != decoded && is_nonempty_file(&original) {
+            return Some(path_string(&original));
+        }
+        None
+    }
+
+    fn fetch_lock(&self, key: &str) -> BackendResult<Arc<AsyncMutex<()>>> {
+        let mut locks = self
+            .fetch_locks
+            .lock()
+            .map_err(|_| BackendError::Config("media lock map poisoned".into()))?;
+        Ok(locks
+            .entry(key.to_string())
+            .or_insert_with(|| Arc::new(AsyncMutex::new(())))
+            .clone())
+    }
+
+    fn release_fetch_lock(&self, key: &str, lock: &Arc<AsyncMutex<()>>) {
+        if Arc::strong_count(lock) != 2 {
+            return;
+        }
+        let Ok(mut locks) = self.fetch_locks.lock() else {
+            return;
+        };
+        if locks
+            .get(key)
+            .is_some_and(|current| Arc::ptr_eq(current, lock))
+        {
+            locks.remove(key);
+        }
+    }
+
+    async fn scramble_id(&self, client: &JmClient, chapter_id: i64) -> BackendResult<i64> {
+        let cell = {
+            let mut cache = self
+                .scramble_ids
+                .lock()
+                .map_err(|_| BackendError::Config("scramble cache poisoned".into()))?;
+            if cache.len() >= SCRAMBLE_ID_CACHE_MAX_ENTRIES && !cache.contains_key(&chapter_id) {
+                cache.clear();
+            }
+            cache
+                .entry(chapter_id)
+                .or_insert_with(|| Arc::new(OnceCell::new()))
+                .clone()
+        };
+        let result = cell
+            .get_or_try_init(|| async { client.scramble_id(chapter_id).await })
+            .await
+            .copied();
+        if result.is_err() {
+            if let Ok(mut cache) = self.scramble_ids.lock() {
+                if cache
+                    .get(&chapter_id)
+                    .is_some_and(|current| Arc::ptr_eq(current, &cell))
+                {
+                    cache.remove(&chapter_id);
+                }
+            }
+        }
+        result
     }
 
     pub fn image_size(&self, path: &str) -> BackendResult<(u32, u32)> {
@@ -155,6 +285,14 @@ impl MediaCache {
             }
             fs::create_dir_all(directory)?;
         }
+        self.fetch_locks
+            .lock()
+            .map_err(|_| BackendError::Config("media lock map poisoned".into()))?
+            .clear();
+        self.scramble_ids
+            .lock()
+            .map_err(|_| BackendError::Config("scramble cache poisoned".into()))?
+            .clear();
         Ok(())
     }
 }
@@ -217,6 +355,12 @@ pub fn stitch_image(source: &RgbImage, block_num: u32) -> RgbImage {
         image::imageops::replace(&mut stitched, &block, 0, i64::from(target_y_start));
     }
     stitched
+}
+
+fn is_nonempty_file(path: &Path) -> bool {
+    fs::metadata(path)
+        .map(|metadata| metadata.is_file() && metadata.len() > 0)
+        .unwrap_or(false)
 }
 
 fn safe_component(value: &str) -> String {
@@ -331,6 +475,52 @@ mod tests {
     fn album_cover_names_match_jm_routes() {
         assert_eq!(cover_image_name(123, false), "123_3x4.jpg");
         assert_eq!(cover_image_name(123, true), "123.jpg");
+    }
+
+    #[test]
+    fn cached_pages_are_resolved_before_any_network_request() {
+        let root = std::env::temp_dir().join(format!(
+            "jmcomic3-media-cache-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or(Duration::ZERO)
+                .as_nanos()
+        ));
+        let cache = MediaCache::open(&root).unwrap();
+        let chapter = cache.chapters.join("123");
+        fs::create_dir_all(&chapter).unwrap();
+        fs::write(chapter.join("00001.png"), b"decoded").unwrap();
+
+        let cached = cache
+            .cached_page_path(123, "00001.webp")
+            .expect("decoded page should be a cache hit");
+        assert!(cached.ends_with("00001.png"));
+        assert!(cache.cached_page_path(123, "00002.webp").is_none());
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn media_fetch_locks_are_shared_and_released() {
+        let root = std::env::temp_dir().join(format!(
+            "jmcomic3-media-locks-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or(Duration::ZERO)
+                .as_nanos()
+        ));
+        let cache = MediaCache::open(&root).unwrap();
+        let first = cache.fetch_lock("page:1:image.webp").unwrap();
+        let second = cache.fetch_lock("page:1:image.webp").unwrap();
+        assert!(Arc::ptr_eq(&first, &second));
+
+        drop(second);
+        cache.release_fetch_lock("page:1:image.webp", &first);
+        assert!(cache.fetch_locks.lock().unwrap().is_empty());
+
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

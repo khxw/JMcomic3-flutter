@@ -4,12 +4,14 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::error::{BackendError, BackendResult};
+
+const PROGRESS_SAVE_INTERVAL: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DownloadChapterRecord {
@@ -82,6 +84,7 @@ pub struct DownloadManager {
     root: Mutex<PathBuf>,
     records: Mutex<Vec<DownloadAlbumRecord>>,
     save_lock: Mutex<()>,
+    progress_save_at: Mutex<Option<Instant>>,
     legacy_backup_pending: Mutex<bool>,
     controls: Mutex<HashMap<i64, Arc<DownloadControl>>>,
 }
@@ -111,6 +114,7 @@ impl DownloadManager {
             root: Mutex::new(download_root),
             records: Mutex::new(records),
             save_lock: Mutex::new(()),
+            progress_save_at: Mutex::new(None),
             legacy_backup_pending: Mutex::new(legacy_backup_pending),
             controls: Mutex::new(HashMap::new()),
         })
@@ -477,7 +481,20 @@ impl DownloadManager {
             record.updated_at = unix_timestamp();
         }
         drop(records);
-        self.save()
+        let mut last_save = self
+            .progress_save_at
+            .lock()
+            .map_err(|_| BackendError::Config("download progress lock poisoned".into()))?;
+        if status == 0
+            && last_save
+                .as_ref()
+                .is_some_and(|saved_at| saved_at.elapsed() < PROGRESS_SAVE_INTERVAL)
+        {
+            return Ok(());
+        }
+        self.save()?;
+        *last_save = Some(Instant::now());
+        Ok(())
     }
 
     pub fn mark_running(
@@ -1047,6 +1064,42 @@ mod tests {
             DownloadManager::open(&root.join("mirror-app"), root.join("mirror-files")).unwrap();
         mirrored.apply_snapshot(&snapshot, false).unwrap();
         assert_eq!(mirrored.get(10).unwrap().unwrap().chapters[0].id, 11);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn progress_saves_are_coalesced_but_status_changes_flush_immediately() {
+        let root = test_root("download-progress-throttle");
+        let app_data = root.join("app");
+        let files = root.join("files");
+        let manager = DownloadManager::open(&app_data, files).unwrap();
+        manager
+            .create(&json!({
+                "album": {
+                    "id": 15,
+                    "name": "throttle",
+                    "author": [],
+                    "tags": [],
+                    "works": [],
+                    "description": "",
+                },
+                "chapters": [{"id": 16, "name": "chapter", "sort": "1"}],
+            }))
+            .unwrap();
+
+        manager.set_progress(15, 10, 1, 0).unwrap();
+        manager.set_progress(15, 10, 5, 0).unwrap();
+        assert_eq!(manager.get(15).unwrap().unwrap().dled_image_count, 5);
+        let persisted = fs::read_to_string(app_data.join("downloads.json")).unwrap();
+        let value: Value = serde_json::from_str(&persisted).unwrap();
+        assert_eq!(value[0]["dled_image_count"], 1);
+
+        manager.set_progress(15, 10, 5, 1).unwrap();
+        let persisted = fs::read_to_string(app_data.join("downloads.json")).unwrap();
+        let value: Value = serde_json::from_str(&persisted).unwrap();
+        assert_eq!(value[0]["dled_image_count"], 5);
+        assert_eq!(value[0]["dl_status"], 1);
+
         fs::remove_dir_all(root).unwrap();
     }
 
