@@ -37,6 +37,7 @@ void main() {
   final viewLogs = <int>[];
   final imageRequests = <String>[];
   Completer<void>? imageGate;
+  var temporaryCacheClears = 0;
   var testPreloadPages = 0;
   var testPreloadForwardOnly = false;
   var direction = ReaderDirection.leftToRight;
@@ -70,6 +71,7 @@ void main() {
     viewLogs.clear();
     imageRequests.clear();
     imageGate = null;
+    temporaryCacheClears = 0;
     testPreloadPages = 0;
     testPreloadForwardOnly = false;
     controlMode = ReaderControllerType.controller;
@@ -105,6 +107,8 @@ void main() {
         } else if (name == 'update_view_log') {
           viewLogs.add((jsonDecode(params)
               as Map<String, dynamic>)['last_view_page'] as int);
+        } else if (name == 'clear_reader_page_cache') {
+          temporaryCacheClears++;
         } else {
           throw StateError('Unexpected reader method: $name');
         }
@@ -740,6 +744,24 @@ void main() {
     await tester.pump();
     expect(imageCache.statusForKey(providerKey).keepAlive, isFalse);
     expect(imageCache.statusForKey(providerKey).live, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reader clears temporary disk pages after disposal',
+      (tester) async {
+    await mountReader(
+      tester,
+      ReaderType.gallery,
+      ReaderDirection.leftToRight,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.runAsync(
+      () async => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump();
+
+    expect(temporaryCacheClears, 1);
     expect(tester.takeException(), isNull);
   });
 }

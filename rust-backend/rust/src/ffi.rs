@@ -357,6 +357,10 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
             Ok(()) => InvokeResponse::success_text(""),
             Err(error) => InvokeResponse::error(error.to_string()),
         },
+        "clear_reader_page_cache" => match state.media.clear_reader_pages() {
+            Ok(()) => InvokeResponse::success_text(""),
+            Err(error) => InvokeResponse::error(error.to_string()),
+        },
         "image_cache_days" => {
             let offset_minutes = int_param(&params, "offset_minutes").unwrap_or(0) as i32;
             match state.media.day_summaries(offset_minutes) {
@@ -911,7 +915,12 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
                 Err(error) => return InvokeResponse::error(error),
             };
             let image_name = string_param(&params, "image_name").unwrap_or_default();
-            result_text(state.media.page_image(&state.client, id, &image_name).await)
+            result_text(
+                state
+                    .media
+                    .reader_page_image(&state.client, id, &image_name)
+                    .await,
+            )
         }
         "jm_photo_image" => {
             let image_name = string_value(&params).unwrap_or_default();
@@ -1086,6 +1095,7 @@ async fn download_album(
                     .ok_or_else(|| "downloaded image has no file name".to_string())?;
                 let destination = destination_dir.join(file_name);
                 link_or_copy(&source, &destination)?;
+                let _ = std::fs::remove_file(&source);
                 downloaded += 1;
                 state
                     .downloads
@@ -1581,7 +1591,7 @@ async fn page_image_batch(state: &BackendState, params: &Value) -> InvokeRespons
             let client = state.client.clone();
             let media = state.media.clone();
             tasks.spawn(async move {
-                let item = match media.page_image(&client, id, &image_name).await {
+                let item = match media.reader_page_image(&client, id, &image_name).await {
                     Ok(path) => match media.image_size(&path) {
                         Ok((width, height)) => json!({
                             "id": id,

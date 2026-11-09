@@ -768,7 +768,16 @@ abstract class _ComicReaderState extends State<_ComicReader>
 
     // Image cache eviction is synchronous and can be expensive for long
     // chapters. Keep it off the route-pop first frame.
-    WidgetsBinding.instance.addPostFrameCallback((_) => release());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      release();
+      unawaited(
+        methods.clearReaderPageCache().catchError((Object error) {
+          debugPrient(
+            'reader temporary cache cleanup failed: ${error.runtimeType}',
+          );
+        }),
+      );
+    });
     super.dispose();
   }
 

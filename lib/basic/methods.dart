@@ -953,6 +953,10 @@ class Methods {
     return rsp;
   }
 
+  Future clearReaderPageCache() async {
+    return _invoke("clear_reader_page_cache", "");
+  }
+
   Future<Map<String, dynamic>> imageCacheDays() async {
     return _decodeMapResponse(
       await _invoke("image_cache_days", {

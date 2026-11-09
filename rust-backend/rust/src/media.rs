@@ -37,6 +37,7 @@ pub struct MediaCache {
     root: PathBuf,
     covers: PathBuf,
     chapters: PathBuf,
+    reader_pages: PathBuf,
     photos: PathBuf,
     cover_writes: AtomicUsize,
     fetch_locks: Mutex<HashMap<String, Arc<AsyncMutex<()>>>>,
@@ -48,14 +49,17 @@ impl MediaCache {
     pub fn open(root: &Path) -> BackendResult<Self> {
         let covers = root.join("covers");
         let chapters = root.join("pages");
+        let reader_pages = root.join("reader_pages");
         let photos = root.join("photos");
         fs::create_dir_all(&covers)?;
-        fs::create_dir_all(&chapters)?;
+        reset_cache_directory(&chapters)?;
+        reset_cache_directory(&reader_pages)?;
         fs::create_dir_all(&photos)?;
         Ok(Self {
             root: root.to_path_buf(),
             covers,
             chapters,
+            reader_pages,
             photos,
             cover_writes: AtomicUsize::new(0),
             fetch_locks: Mutex::new(HashMap::new()),
@@ -85,20 +89,42 @@ impl MediaCache {
         chapter_id: i64,
         image_name: &str,
     ) -> BackendResult<String> {
+        self.page_image_in(client, chapter_id, image_name, &self.chapters, "page")
+            .await
+    }
+
+    pub async fn reader_page_image(
+        &self,
+        client: &JmClient,
+        chapter_id: i64,
+        image_name: &str,
+    ) -> BackendResult<String> {
+        self.page_image_in(client, chapter_id, image_name, &self.reader_pages, "reader")
+            .await
+    }
+
+    async fn page_image_in(
+        &self,
+        client: &JmClient,
+        chapter_id: i64,
+        image_name: &str,
+        pages_root: &Path,
+        lock_prefix: &str,
+    ) -> BackendResult<String> {
         if chapter_id <= 0 || image_name.trim().is_empty() {
             return Err(BackendError::Config(
                 "chapter id and image name must be valid".into(),
             ));
         }
         let safe_name = safe_component(image_name);
-        if let Some(path) = self.cached_page_path(chapter_id, &safe_name) {
+        if let Some(path) = self.cached_page_path(pages_root, chapter_id, &safe_name) {
             return Ok(path);
         }
-        let lock_key = format!("page:{chapter_id}:{safe_name}");
+        let lock_key = format!("{lock_prefix}:{chapter_id}:{safe_name}");
         let lock = self.fetch_lock(&lock_key)?;
         let guard = lock.lock().await;
         let result = self
-            .page_image_uncached(client, chapter_id, image_name, &safe_name)
+            .page_image_uncached(client, chapter_id, image_name, &safe_name, pages_root)
             .await;
         drop(guard);
         self.release_fetch_lock(&lock_key, &lock);
@@ -111,12 +137,13 @@ impl MediaCache {
         chapter_id: i64,
         image_name: &str,
         safe_name: &str,
+        pages_root: &Path,
     ) -> BackendResult<String> {
-        if let Some(path) = self.cached_page_path(chapter_id, safe_name) {
+        if let Some(path) = self.cached_page_path(pages_root, chapter_id, safe_name) {
             return Ok(path);
         }
         let extension = extension_for_name(safe_name);
-        let chapter_dir = self.chapters.join(chapter_id.to_string());
+        let chapter_dir = pages_root.join(chapter_id.to_string());
         fs::create_dir_all(&chapter_dir)?;
         let stem = Path::new(&safe_name)
             .file_stem()
@@ -223,8 +250,13 @@ impl MediaCache {
         result
     }
 
-    fn cached_page_path(&self, chapter_id: i64, safe_name: &str) -> Option<String> {
-        let chapter_dir = self.chapters.join(chapter_id.to_string());
+    fn cached_page_path(
+        &self,
+        pages_root: &Path,
+        chapter_id: i64,
+        safe_name: &str,
+    ) -> Option<String> {
+        let chapter_dir = pages_root.join(chapter_id.to_string());
         let stem = Path::new(safe_name)
             .file_stem()
             .and_then(|value| value.to_str())
@@ -338,7 +370,12 @@ impl MediaCache {
     pub fn day_summaries(&self, offset_minutes: i32) -> BackendResult<Vec<MediaCacheDay>> {
         let offset_minutes = offset_minutes.clamp(-24 * 60, 24 * 60);
         let mut days = BTreeMap::<String, (u64, u64)>::new();
-        for directory in [&self.covers, &self.chapters, &self.photos] {
+        for directory in [
+            &self.covers,
+            &self.chapters,
+            &self.reader_pages,
+            &self.photos,
+        ] {
             collect_cache_days(directory, offset_minutes, &mut days)?;
         }
         Ok(days
@@ -356,7 +393,12 @@ impl MediaCache {
         let offset_minutes = offset_minutes.clamp(-24 * 60, 24 * 60);
         let mut deleted_files = 0_u64;
         let mut deleted_bytes = 0_u64;
-        for directory in [&self.covers, &self.chapters, &self.photos] {
+        for directory in [
+            &self.covers,
+            &self.chapters,
+            &self.reader_pages,
+            &self.photos,
+        ] {
             clear_cache_directory(
                 directory,
                 dates,
@@ -373,8 +415,22 @@ impl MediaCache {
         Ok((deleted_files, deleted_bytes))
     }
 
+    pub fn clear_reader_pages(&self) -> BackendResult<()> {
+        reset_cache_directory(&self.reader_pages)?;
+        self.image_sizes
+            .lock()
+            .map_err(|_| BackendError::Config("image size cache poisoned".into()))?
+            .clear();
+        Ok(())
+    }
+
     pub fn clear(&self) -> BackendResult<()> {
-        for directory in [&self.covers, &self.chapters, &self.photos] {
+        for directory in [
+            &self.covers,
+            &self.chapters,
+            &self.reader_pages,
+            &self.photos,
+        ] {
             if directory.exists() {
                 fs::remove_dir_all(directory)?;
             }
@@ -466,6 +522,14 @@ fn is_nonempty_file(path: &Path) -> bool {
     fs::metadata(path)
         .map(|metadata| metadata.is_file() && metadata.len() > 0)
         .unwrap_or(false)
+}
+
+fn reset_cache_directory(path: &Path) -> BackendResult<()> {
+    if path.exists() {
+        fs::remove_dir_all(path)?;
+    }
+    fs::create_dir_all(path)?;
+    Ok(())
 }
 
 fn collect_cache_days(
@@ -721,11 +785,40 @@ mod tests {
         fs::write(chapter.join("00001.png"), b"decoded").unwrap();
 
         let cached = cache
-            .cached_page_path(123, "00001.webp")
+            .cached_page_path(&cache.chapters, 123, "00001.webp")
             .expect("decoded page should be a cache hit");
         assert!(cached.ends_with("00001.png"));
-        assert!(cache.cached_page_path(123, "00002.webp").is_none());
+        assert!(cache
+            .cached_page_path(&cache.chapters, 123, "00002.webp")
+            .is_none());
 
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn reader_page_cleanup_keeps_persistent_caches_and_downloads() {
+        let root = std::env::temp_dir().join(format!(
+            "jmcomic3-reader-temp-cache-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or(Duration::ZERO)
+                .as_nanos()
+        ));
+        let cache = MediaCache::open(&root).unwrap();
+        let reader_chapter = cache.reader_pages.join("456");
+        let download_chapter = cache.chapters.join("456");
+        fs::create_dir_all(&reader_chapter).unwrap();
+        fs::create_dir_all(&download_chapter).unwrap();
+        fs::write(reader_chapter.join("page.png"), b"reader").unwrap();
+        fs::write(download_chapter.join("page.png"), b"download").unwrap();
+        fs::write(cache.covers.join("cover.jpg"), b"cover").unwrap();
+
+        cache.clear_reader_pages().unwrap();
+
+        assert!(!reader_chapter.exists());
+        assert!(download_chapter.join("page.png").is_file());
+        assert!(cache.covers.join("cover.jpg").is_file());
         fs::remove_dir_all(root).unwrap();
     }
 
