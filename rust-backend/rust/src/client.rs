@@ -95,7 +95,11 @@ impl JmClient {
         let cookie_jar = Arc::new(Jar::default());
         let mut builder = Client::builder()
             .cookie_provider(cookie_jar.clone())
-            .timeout(config.request_timeout);
+            .timeout(config.request_timeout)
+            .connect_timeout(Duration::from_secs(10).min(config.request_timeout))
+            .tcp_keepalive(Duration::from_secs(30))
+            .pool_idle_timeout(Duration::from_secs(90))
+            .pool_max_idle_per_host(16);
         if let Some(proxy_url) = config.proxy_url.as_deref() {
             let proxy = reqwest::Proxy::all(proxy_url).map_err(|error| {
                 BackendError::Config(format!("invalid proxy `{proxy_url}`: {error}"))

@@ -16,6 +16,7 @@ struct StoreFile {
 pub struct PropertyStore {
     path: PathBuf,
     data: Mutex<StoreFile>,
+    save_lock: Mutex<()>,
 }
 
 impl PropertyStore {
@@ -35,6 +36,7 @@ impl PropertyStore {
         Ok(Self {
             path,
             data: Mutex::new(data),
+            save_lock: Mutex::new(()),
         })
     }
 
@@ -53,46 +55,47 @@ impl PropertyStore {
         if key.trim().is_empty() {
             return Err(BackendError::Config("property key is empty".into()));
         }
-        let mut data = self
-            .data
+        let _save_guard = self
+            .save_lock
             .lock()
-            .map_err(|_| BackendError::Config("property store lock poisoned".into()))?;
-        data.properties.insert(key.to_string(), value.to_string());
-        let encoded = serde_json::to_vec_pretty(&*data)?;
-        let temporary = self.path.with_extension("json.tmp");
-        fs::write(&temporary, encoded)?;
-        if self.path.exists() {
-            fs::remove_file(&self.path)?;
-        }
-        fs::rename(temporary, &self.path)?;
-        Ok(())
+            .map_err(|_| BackendError::Config("property save lock poisoned".into()))?;
+        let snapshot = {
+            let mut data = self
+                .data
+                .lock()
+                .map_err(|_| BackendError::Config("property store lock poisoned".into()))?;
+            data.properties.insert(key.to_string(), value.to_string());
+            data.clone()
+        };
+        self.persist(&snapshot)
     }
 
     pub fn merge_missing_values(
         &self,
         values: &BTreeMap<String, serde_json::Value>,
     ) -> BackendResult<usize> {
-        let mut data = self
-            .data
+        let _save_guard = self
+            .save_lock
             .lock()
-            .map_err(|_| BackendError::Config("property store lock poisoned".into()))?;
-        let mut inserted = 0;
-        for (key, value) in values {
-            if key.trim().is_empty() || data.properties.contains_key(key) {
-                continue;
+            .map_err(|_| BackendError::Config("property save lock poisoned".into()))?;
+        let (inserted, snapshot) = {
+            let mut data = self
+                .data
+                .lock()
+                .map_err(|_| BackendError::Config("property store lock poisoned".into()))?;
+            let mut inserted = 0;
+            for (key, value) in values {
+                if key.trim().is_empty() || data.properties.contains_key(key) {
+                    continue;
+                }
+                data.properties
+                    .insert(key.clone(), value_to_string(value.clone()));
+                inserted += 1;
             }
-            data.properties
-                .insert(key.clone(), value_to_string(value.clone()));
-            inserted += 1;
-        }
+            (inserted, data.clone())
+        };
         if inserted > 0 {
-            let encoded = serde_json::to_vec_pretty(&*data)?;
-            let temporary = self.path.with_extension("json.tmp");
-            fs::write(&temporary, encoded)?;
-            if self.path.exists() {
-                fs::remove_file(&self.path)?;
-            }
-            fs::rename(temporary, &self.path)?;
+            self.persist(&snapshot)?;
         }
         Ok(inserted)
     }
@@ -118,21 +121,32 @@ impl PropertyStore {
             .unwrap_or(snapshot)
             .as_object()
             .ok_or_else(|| BackendError::Config("WebDAV properties are invalid".into()))?;
-        let mut data = self
-            .data
+        let _save_guard = self
+            .save_lock
             .lock()
-            .map_err(|_| BackendError::Config("property store lock poisoned".into()))?;
-        if replace {
-            data.properties.retain(|key, _| is_sensitive_property(key));
-        }
-        for (key, value) in incoming {
-            if key.trim().is_empty() || is_sensitive_property(key) {
-                continue;
+            .map_err(|_| BackendError::Config("property save lock poisoned".into()))?;
+        let snapshot = {
+            let mut data = self
+                .data
+                .lock()
+                .map_err(|_| BackendError::Config("property store lock poisoned".into()))?;
+            if replace {
+                data.properties.retain(|key, _| is_sensitive_property(key));
             }
-            data.properties
-                .insert(key.clone(), value_to_string(value.clone()));
-        }
-        let encoded = serde_json::to_vec_pretty(&*data)?;
+            for (key, value) in incoming {
+                if key.trim().is_empty() || is_sensitive_property(key) {
+                    continue;
+                }
+                data.properties
+                    .insert(key.clone(), value_to_string(value.clone()));
+            }
+            data.clone()
+        };
+        self.persist(&snapshot)
+    }
+
+    fn persist(&self, data: &StoreFile) -> BackendResult<()> {
+        let encoded = serde_json::to_vec_pretty(data)?;
         let temporary = self.path.with_extension("json.tmp");
         fs::write(&temporary, encoded)?;
         if self.path.exists() {
