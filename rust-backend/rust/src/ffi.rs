@@ -357,6 +357,49 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
             Ok(()) => InvokeResponse::success_text(""),
             Err(error) => InvokeResponse::error(error.to_string()),
         },
+        "image_cache_days" => {
+            let offset_minutes = int_param(&params, "offset_minutes").unwrap_or(0) as i32;
+            match state.media.day_summaries(offset_minutes) {
+                Ok(days) => InvokeResponse::success_value(&json!({
+                    "days": days.into_iter().map(|day| json!({
+                        "date": day.date,
+                        "files": day.files,
+                        "bytes": day.bytes,
+                    })).collect::<Vec<_>>(),
+                })),
+                Err(error) => InvokeResponse::error(error.to_string()),
+            }
+        }
+        "clear_image_cache_days" => {
+            let dates = params
+                .get("dates")
+                .and_then(Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::trim)
+                        .filter(|value| {
+                            value.len() == 10
+                                && value.as_bytes().get(4) == Some(&b'-')
+                                && value.as_bytes().get(7) == Some(&b'-')
+                        })
+                        .map(str::to_string)
+                        .collect::<HashSet<_>>()
+                })
+                .unwrap_or_default();
+            if dates.is_empty() {
+                return InvokeResponse::error("no cache dates selected");
+            }
+            let offset_minutes = int_param(&params, "offset_minutes").unwrap_or(0) as i32;
+            match state.media.clear_days(&dates, offset_minutes) {
+                Ok((deleted_files, deleted_bytes)) => InvokeResponse::success_value(&json!({
+                    "deleted_files": deleted_files,
+                    "deleted_bytes": deleted_bytes,
+                })),
+                Err(error) => InvokeResponse::error(error.to_string()),
+            }
+        }
         "getHomeDir" => InvokeResponse::success_text(path_text(
             state.media.root().parent().unwrap_or(state.media.root()),
         )),

@@ -13,6 +13,8 @@ import 'package:jmcomic3/configs/pager_view_mode.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 
+import '../image_cache_cleanup_screen.dart';
+
 class BrowserBottomSheetAction extends StatelessWidget {
   const BrowserBottomSheetAction({super.key});
 
@@ -270,6 +272,20 @@ class _BrowserBottomSheetState extends State<_BrowserBottomSheet> {
                             : context.l10n.tr('清理缓存', en: 'Clean cache'),
                         value: context.l10n.tr('立即执行', en: 'Run now'),
                         onPressed: _cleaning ? null : _runManualClean,
+                      ),
+                      _ActionTile(
+                        width: width,
+                        actionKey: const ValueKey('browser-menu-clean-date'),
+                        icon: Icons.date_range_rounded,
+                        title: context.l10n.tr('按日期清理', en: 'Clean by date'),
+                        value: context.l10n.tr('选择日期', en: 'Choose dates'),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const ImageCacheCleanupScreen(),
+                            ),
+                          );
+                        },
                       ),
                       _ActionTile(
                         width: width,

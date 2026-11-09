@@ -953,6 +953,29 @@ class Methods {
     return rsp;
   }
 
+  Future<Map<String, dynamic>> imageCacheDays() async {
+    return _decodeMapResponse(
+      await _invoke("image_cache_days", {
+        "offset_minutes": DateTime.now().timeZoneOffset.inMinutes,
+      }),
+      "image_cache_days",
+      nullAsEmpty: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> clearImageCacheDays(List<String> dates) async {
+    final response = _decodeMapResponse(
+      await _invoke("clear_image_cache_days", {
+        "dates": dates,
+        "offset_minutes": DateTime.now().timeZoneOffset.inMinutes,
+      }),
+      "clear_image_cache_days",
+      nullAsEmpty: true,
+    );
+    _clearResponseCaches();
+    return response;
+  }
+
   Future<String> jm3x4Cover(int comicId) {
     return _loadCachedString(
       cacheKey: "3x4|$comicId",

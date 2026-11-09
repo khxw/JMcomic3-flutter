@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -24,6 +24,13 @@ struct CachedImageSize {
     modified: Option<SystemTime>,
     width: u32,
     height: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct MediaCacheDay {
+    pub date: String,
+    pub files: u64,
+    pub bytes: u64,
 }
 
 pub struct MediaCache {
@@ -328,6 +335,44 @@ impl MediaCache {
         Ok((width, height))
     }
 
+    pub fn day_summaries(&self, offset_minutes: i32) -> BackendResult<Vec<MediaCacheDay>> {
+        let offset_minutes = offset_minutes.clamp(-24 * 60, 24 * 60);
+        let mut days = BTreeMap::<String, (u64, u64)>::new();
+        for directory in [&self.covers, &self.chapters, &self.photos] {
+            collect_cache_days(directory, offset_minutes, &mut days)?;
+        }
+        Ok(days
+            .into_iter()
+            .rev()
+            .map(|(date, (files, bytes))| MediaCacheDay { date, files, bytes })
+            .collect())
+    }
+
+    pub fn clear_days(
+        &self,
+        dates: &HashSet<String>,
+        offset_minutes: i32,
+    ) -> BackendResult<(u64, u64)> {
+        let offset_minutes = offset_minutes.clamp(-24 * 60, 24 * 60);
+        let mut deleted_files = 0_u64;
+        let mut deleted_bytes = 0_u64;
+        for directory in [&self.covers, &self.chapters, &self.photos] {
+            clear_cache_directory(
+                directory,
+                dates,
+                offset_minutes,
+                false,
+                &mut deleted_files,
+                &mut deleted_bytes,
+            )?;
+        }
+        self.image_sizes
+            .lock()
+            .map_err(|_| BackendError::Config("image size cache poisoned".into()))?
+            .clear();
+        Ok((deleted_files, deleted_bytes))
+    }
+
     pub fn clear(&self) -> BackendResult<()> {
         for directory in [&self.covers, &self.chapters, &self.photos] {
             if directory.exists() {
@@ -421,6 +466,129 @@ fn is_nonempty_file(path: &Path) -> bool {
     fs::metadata(path)
         .map(|metadata| metadata.is_file() && metadata.len() > 0)
         .unwrap_or(false)
+}
+
+fn collect_cache_days(
+    directory: &Path,
+    offset_minutes: i32,
+    days: &mut BTreeMap<String, (u64, u64)>,
+) -> BackendResult<()> {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return Ok(());
+    };
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(_) => continue,
+        };
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(_) => continue,
+        };
+        if file_type.is_dir() {
+            collect_cache_days(&entry.path(), offset_minutes, days)?;
+            continue;
+        }
+        if !file_type.is_file() {
+            continue;
+        }
+        let metadata = match entry.metadata() {
+            Ok(metadata) => metadata,
+            Err(_) => continue,
+        };
+        let modified = match metadata.modified() {
+            Ok(modified) => modified,
+            Err(_) => continue,
+        };
+        let date = local_date_from_system_time(modified, offset_minutes);
+        let value = days.entry(date).or_insert((0, 0));
+        value.0 += 1;
+        value.1 += metadata.len();
+    }
+    Ok(())
+}
+
+fn clear_cache_directory(
+    directory: &Path,
+    dates: &HashSet<String>,
+    offset_minutes: i32,
+    remove_if_empty: bool,
+    deleted_files: &mut u64,
+    deleted_bytes: &mut u64,
+) -> BackendResult<()> {
+    if !directory.is_dir() {
+        return Ok(());
+    }
+    let entries = fs::read_dir(directory)?;
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(_) => continue,
+        };
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(_) => continue,
+        };
+        let path = entry.path();
+        if file_type.is_dir() {
+            clear_cache_directory(
+                &path,
+                dates,
+                offset_minutes,
+                true,
+                deleted_files,
+                deleted_bytes,
+            )?;
+            continue;
+        }
+        if !file_type.is_file() {
+            continue;
+        }
+        let metadata = match entry.metadata() {
+            Ok(metadata) => metadata,
+            Err(_) => continue,
+        };
+        let modified = match metadata.modified() {
+            Ok(modified) => modified,
+            Err(_) => continue,
+        };
+        let date = local_date_from_system_time(modified, offset_minutes);
+        if dates.contains(&date) && fs::remove_file(&path).is_ok() {
+            *deleted_files += 1;
+            *deleted_bytes += metadata.len();
+        }
+    }
+    if remove_if_empty && fs::read_dir(directory)?.next().is_none() {
+        let _ = fs::remove_dir(directory);
+    }
+    Ok(())
+}
+
+fn local_date_from_system_time(time: SystemTime, offset_minutes: i32) -> String {
+    let seconds = match time.duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(duration) => duration.as_secs() as i64,
+        Err(error) => -(error.duration().as_secs() as i64),
+    };
+    local_date_from_timestamp(seconds, offset_minutes)
+}
+
+fn local_date_from_timestamp(timestamp: i64, offset_minutes: i32) -> String {
+    let local_seconds = timestamp.saturating_add(i64::from(offset_minutes) * 60);
+    let days = local_seconds.div_euclid(86_400);
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let day_of_era = z - era * 146_097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let mut year = year_of_era + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_prime = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_prime + 2) / 5 + 1;
+    let month = month_prime + if month_prime < 10 { 3 } else { -9 };
+    if month <= 2 {
+        year += 1;
+    }
+    format!("{year:04}-{month:02}-{day:02}")
 }
 
 fn safe_component(value: &str) -> String {
@@ -605,6 +773,50 @@ mod tests {
             .save(&path)
             .unwrap();
         assert_eq!(cache.image_size(path.to_str().unwrap()).unwrap(), (4, 5));
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn cache_days_use_the_requested_timezone_offset() {
+        assert_eq!(local_date_from_timestamp(0, 8 * 60), "1970-01-01");
+        assert_eq!(
+            local_date_from_timestamp(1_704_038_400, 8 * 60),
+            "2024-01-01"
+        );
+        assert_eq!(
+            local_date_from_timestamp(1_704_038_399, 8 * 60),
+            "2023-12-31"
+        );
+    }
+
+    #[test]
+    fn date_cleanup_only_removes_matching_image_cache_files() {
+        let root = std::env::temp_dir().join(format!(
+            "jmcomic3-image-date-clean-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or(Duration::ZERO)
+                .as_nanos()
+        ));
+        let cache = MediaCache::open(&root).unwrap();
+        let chapter = cache.chapters.join("123");
+        fs::create_dir_all(&chapter).unwrap();
+        fs::write(chapter.join("page.png"), b"page").unwrap();
+        fs::write(cache.covers.join("cover.jpg"), b"cover").unwrap();
+        let date = local_date_from_system_time(SystemTime::now(), 8 * 60);
+        let days = cache.day_summaries(8 * 60).unwrap();
+        let today = days.iter().find(|day| day.date == date).unwrap();
+        assert_eq!(today.files, 2);
+
+        let (files, bytes) = cache.clear_days(&HashSet::from([date]), 8 * 60).unwrap();
+        assert_eq!(files, 2);
+        assert_eq!(bytes, 9);
+        assert!(!chapter.exists());
+        assert!(cache.covers.is_dir());
+        assert!(cache.chapters.is_dir());
+        assert!(cache.photos.is_dir());
 
         fs::remove_dir_all(root).unwrap();
     }
