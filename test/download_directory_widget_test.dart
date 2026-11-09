@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jmcomic3/configs/download_and_export_to.dart';
@@ -41,9 +44,9 @@ void main() {
     );
     expect(find.text('Custom download directory'), findsOneWidget);
     expect(find.text('Current'), findsOneWidget);
-    expect(find.text('App storage'), findsOneWidget);
+    expect(find.text('Default directory'), findsOneWidget);
     expect(
-      find.text('New downloads are also saved to this folder'),
+      find.text('New downloads are saved directly to this directory'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -58,9 +61,9 @@ void main() {
 
     expect(find.text('Custom download directory'), findsOneWidget);
     expect(find.text('Current'), findsOneWidget);
-    expect(find.text('App storage'), findsOneWidget);
+    expect(find.text('Default directory'), findsOneWidget);
     expect(
-      find.text('New downloads are also saved to this folder'),
+      find.text('New downloads are saved directly to this directory'),
       findsNothing,
     );
     expect(
@@ -70,6 +73,45 @@ void main() {
           )
           .height,
       lessThan(90),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('default download setting shows the effective backend path',
+      (tester) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('methods'),
+      (call) async {
+        final request = jsonDecode(call.arguments as String) as Map;
+        final response = switch (request['method']) {
+          'get_download_directory_info' => jsonEncode({
+              'custom_path': '',
+              'effective_path': '/data/user/0/app/files/downloads',
+              'default_path': '/data/user/0/app/files/downloads',
+              'is_custom': false,
+            }),
+          'load_property' => '',
+          _ => '',
+        };
+        return jsonEncode({
+          'error_message': '',
+          'response_data': response,
+        });
+      },
+    );
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(const MethodChannel('methods'), null),
+    );
+
+    await refreshCustomDownloadDirectory();
+    await tester.pumpWidget(_host(downloadDirectorySetting(), width: 320));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('/data/user/0/app/files/downloads'),
+      findsOneWidget,
     );
     expect(tester.takeException(), isNull);
   });

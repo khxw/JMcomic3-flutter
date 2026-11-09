@@ -1623,6 +1623,14 @@ class Methods {
     return await _invoke("get_download_and_export_to", "");
   }
 
+  Future<Map<String, dynamic>> getDownloadDirectoryInfo() async {
+    return _decodeMapResponse(
+      await _invoke("get_download_directory_info", ""),
+      "get_download_directory_info",
+      nullAsEmpty: true,
+    );
+  }
+
   Future<String> getHomeDir() async {
     return await _invoke("getHomeDir", "");
   }

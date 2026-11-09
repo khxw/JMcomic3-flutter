@@ -11,6 +11,8 @@ import 'string_property.dart';
 
 const _directoryPropertyKey = "custom_download_directory_path";
 String _currentDownloadDirectory = "";
+String _effectiveDownloadDirectory = "";
+String _defaultDownloadDirectory = "";
 
 Future<String?> initDownloadAndExportTo() async {
   await refreshCustomDownloadDirectory();
@@ -18,20 +20,53 @@ Future<String?> initDownloadAndExportTo() async {
 }
 
 Future<void> refreshCustomDownloadDirectory() async {
-  var backendPath = "";
-  var savedPath = "";
+  Map<String, dynamic> info = const {};
   try {
-    backendPath = normalizeDownloadDirectoryPath(
-      await methods.getDownloadAndExportTo(),
-    );
+    info = await methods.getDownloadDirectoryInfo();
   } catch (_) {}
+  final backendCustom = normalizeDownloadDirectoryPath(info['custom_path']);
+  final backendEffective =
+      normalizeDownloadDirectoryPath(info['effective_path']);
+  final backendDefault = normalizeDownloadDirectoryPath(info['default_path']);
+  var savedPath = "";
   try {
     savedPath = normalizeDownloadDirectoryPath(
       await methods.loadProperty(_directoryPropertyKey),
     );
   } catch (_) {}
+
+  if (info.isNotEmpty) {
+    if (backendDefault.isNotEmpty) _defaultDownloadDirectory = backendDefault;
+    final markedCustom = info['is_custom'] == true ||
+        '${info['is_custom'] ?? ''}'.toLowerCase() == 'true' ||
+        '${info['is_custom'] ?? ''}' == '1';
+    _currentDownloadDirectory =
+        markedCustom && backendCustom.isNotEmpty ? backendCustom : "";
+    _effectiveDownloadDirectory = backendEffective.isNotEmpty
+        ? backendEffective
+        : (_currentDownloadDirectory.isNotEmpty
+            ? _currentDownloadDirectory
+            : _defaultDownloadDirectory);
+    if (savedPath != _currentDownloadDirectory) {
+      try {
+        await methods.saveProperty(
+          _directoryPropertyKey,
+          _currentDownloadDirectory,
+        );
+      } catch (_) {}
+    }
+    return;
+  }
+
+  var backendPath = "";
+  try {
+    backendPath = normalizeDownloadDirectoryPath(
+      await methods.getDownloadAndExportTo(),
+    );
+  } catch (_) {}
   if (backendPath.isNotEmpty) {
     _currentDownloadDirectory = backendPath;
+    _effectiveDownloadDirectory = backendPath;
     if (savedPath != backendPath) {
       try {
         await methods.saveProperty(_directoryPropertyKey, backendPath);
@@ -41,20 +76,27 @@ Future<void> refreshCustomDownloadDirectory() async {
   }
   if (savedPath.isNotEmpty) {
     _currentDownloadDirectory = savedPath;
+    _effectiveDownloadDirectory = savedPath;
     try {
       await methods.setDownloadAndExportTo(savedPath);
     } catch (_) {}
     return;
   }
   _currentDownloadDirectory = "";
+  _effectiveDownloadDirectory = "";
 }
 
 String get currentDownloadAndExportTo => _currentDownloadDirectory;
 
 bool get hasCustomDownloadDirectory => _currentDownloadDirectory.isNotEmpty;
 
+String get currentEffectiveDownloadDirectory =>
+    _effectiveDownloadDirectory.isNotEmpty
+        ? _effectiveDownloadDirectory
+        : _currentDownloadDirectory;
+
 String currentDownloadAndExportToName() {
-  return hasCustomDownloadDirectory ? _currentDownloadDirectory : "App storage";
+  return currentEffectiveDownloadDirectory;
 }
 
 String normalizeDownloadDirectoryPath(Object? raw) {
@@ -64,11 +106,25 @@ String normalizeDownloadDirectoryPath(Object? raw) {
 Future<bool> setCustomDownloadDirectory(String path) async {
   final normalized = normalizeDownloadDirectoryPath(path);
   _currentDownloadDirectory = normalized;
+  _effectiveDownloadDirectory =
+      normalized.isNotEmpty ? normalized : _defaultDownloadDirectory;
   try {
     await methods.saveProperty(_directoryPropertyKey, normalized);
   } catch (_) {}
   try {
     await methods.setDownloadAndExportTo(normalized);
+    if (normalized.isEmpty) {
+      try {
+        final info = await methods.getDownloadDirectoryInfo();
+        final effective =
+            normalizeDownloadDirectoryPath(info['effective_path']);
+        final defaultPath =
+            normalizeDownloadDirectoryPath(info['default_path']);
+        if (defaultPath.isNotEmpty) _defaultDownloadDirectory = defaultPath;
+        _effectiveDownloadDirectory =
+            effective.isNotEmpty ? effective : _defaultDownloadDirectory;
+      } catch (_) {}
+    }
     return true;
   } catch (_) {
     return false;
@@ -199,8 +255,8 @@ Future<bool> clearCustomDownloadDirectory(BuildContext context) async {
       context,
       synced
           ? context.l10n.tr(
-              "已恢复应用内部存储",
-              en: "Using app storage again",
+              "已恢复默认下载目录",
+              en: "Using the default download directory again",
             )
           : context.l10n.tr(
               "已恢复本地显示，后端同步将在下次启动时重试",
@@ -214,7 +270,7 @@ Future<bool> clearCustomDownloadDirectory(BuildContext context) async {
 Future<bool> editCustomDownloadDirectory(BuildContext context) async {
   final choose = context.l10n.tr("选择文件夹", en: "Choose folder");
   final manual = context.l10n.tr("手动输入路径", en: "Enter path manually");
-  final useDefault = context.l10n.tr("恢复应用内部存储", en: "Use app storage");
+  final useDefault = context.l10n.tr("恢复默认目录", en: "Use default directory");
   final selected = await chooseListDialog(
     context,
     values: [
@@ -288,9 +344,10 @@ Widget downloadDirectorySetting({bool compact = false}) {
     builder: (BuildContext context, void Function(void Function()) setState) {
       final l10n = context.l10n;
       final custom = hasCustomDownloadDirectory;
-      final directoryLabel = custom
-          ? _currentDownloadDirectory
-          : l10n.tr("应用内部存储", en: "App storage");
+      final effectivePath = currentEffectiveDownloadDirectory;
+      final directoryLabel = effectivePath.isNotEmpty
+          ? effectivePath
+          : l10n.tr("默认目录", en: "Default directory");
       final statusLabel =
           custom ? l10n.tr("已启用", en: "Custom") : l10n.tr("默认", en: "Default");
       final statusColor = custom
@@ -421,8 +478,8 @@ Widget downloadDirectorySetting({bool compact = false}) {
             ),
             Text(
               l10n.tr(
-                "新下载任务会同时保存到此目录",
-                en: "New downloads are also saved to this folder",
+                "新下载任务会保存到此目录",
+                en: "New downloads are saved directly to this directory",
               ),
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,

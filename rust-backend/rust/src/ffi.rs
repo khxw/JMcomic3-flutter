@@ -807,6 +807,28 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
             Ok(_) => property_response(&state, "download_and_export_to"),
             Err(error) => InvokeResponse::error(error.to_string()),
         },
+        "get_download_directory_info" => {
+            let custom = match stored_download_root(&state.store) {
+                Ok(value) => value,
+                Err(error) => return InvokeResponse::error(error.to_string()),
+            };
+            let effective = match state.downloads.root() {
+                Ok(value) => value,
+                Err(error) => return InvokeResponse::error(error.to_string()),
+            };
+            let default_root = state
+                .media
+                .root()
+                .parent()
+                .map(|root| root.join("downloads"))
+                .unwrap_or_else(|| effective.clone());
+            InvokeResponse::success_value(&json!({
+                "custom_path": custom.trim(),
+                "effective_path": path_text(&effective),
+                "default_path": path_text(&default_root),
+                "is_custom": !custom.trim().is_empty(),
+            }))
+        }
         "set_download_and_export_to" => {
             let path = string_value(&params).unwrap_or_default();
             let root = if path.trim().is_empty() {
