@@ -5,7 +5,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
-use image::imageops::crop_imm;
 use image::{ImageFormat, RgbImage};
 use tokio::sync::{Mutex as AsyncMutex, OnceCell};
 
@@ -17,6 +16,15 @@ const COVER_CACHE_MAX_BYTES: u64 = 48 * 1024 * 1024;
 const COVER_CACHE_MAX_AGE: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 const COVER_PRUNE_INTERVAL: usize = 64;
 const SCRAMBLE_ID_CACHE_MAX_ENTRIES: usize = 512;
+const IMAGE_SIZE_CACHE_MAX_ENTRIES: usize = 2048;
+
+#[derive(Clone, Copy)]
+struct CachedImageSize {
+    length: u64,
+    modified: Option<SystemTime>,
+    width: u32,
+    height: u32,
+}
 
 pub struct MediaCache {
     root: PathBuf,
@@ -26,6 +34,7 @@ pub struct MediaCache {
     cover_writes: AtomicUsize,
     fetch_locks: Mutex<HashMap<String, Arc<AsyncMutex<()>>>>,
     scramble_ids: Mutex<HashMap<i64, Arc<OnceCell<i64>>>>,
+    image_sizes: Mutex<HashMap<String, CachedImageSize>>,
 }
 
 impl MediaCache {
@@ -36,7 +45,6 @@ impl MediaCache {
         fs::create_dir_all(&covers)?;
         fs::create_dir_all(&chapters)?;
         fs::create_dir_all(&photos)?;
-        let _ = prune_cover_cache(&covers, COVER_CACHE_MAX_BYTES, COVER_CACHE_MAX_AGE);
         Ok(Self {
             root: root.to_path_buf(),
             covers,
@@ -45,11 +53,23 @@ impl MediaCache {
             cover_writes: AtomicUsize::new(0),
             fetch_locks: Mutex::new(HashMap::new()),
             scramble_ids: Mutex::new(HashMap::new()),
+            image_sizes: Mutex::new(HashMap::new()),
         })
     }
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    pub fn schedule_cover_prune(&self) {
+        let covers = self.covers.clone();
+        drop(
+            std::thread::Builder::new()
+                .name("cover-cache-prune".into())
+                .spawn(move || {
+                    let _ = prune_cover_cache(&covers, COVER_CACHE_MAX_BYTES, COVER_CACHE_MAX_AGE);
+                }),
+        );
     }
 
     pub async fn page_image(
@@ -274,8 +294,38 @@ impl MediaCache {
         if path.trim().is_empty() {
             return Err(BackendError::Config("image path is empty".into()));
         }
-        image::image_dimensions(path)
-            .map_err(|error| BackendError::InvalidResponse(format!("image size: {error}")))
+        let metadata = fs::metadata(path)?;
+        let modified = metadata.modified().ok();
+        {
+            let cache = self
+                .image_sizes
+                .lock()
+                .map_err(|_| BackendError::Config("image size cache poisoned".into()))?;
+            if let Some(cached) = cache.get(path) {
+                if cached.length == metadata.len() && cached.modified == modified {
+                    return Ok((cached.width, cached.height));
+                }
+            }
+        }
+        let (width, height) = image::image_dimensions(path)
+            .map_err(|error| BackendError::InvalidResponse(format!("image size: {error}")))?;
+        let mut cache = self
+            .image_sizes
+            .lock()
+            .map_err(|_| BackendError::Config("image size cache poisoned".into()))?;
+        if cache.len() >= IMAGE_SIZE_CACHE_MAX_ENTRIES && !cache.contains_key(path) {
+            cache.clear();
+        }
+        cache.insert(
+            path.to_string(),
+            CachedImageSize {
+                length: metadata.len(),
+                modified,
+                width,
+                height,
+            },
+        );
+        Ok((width, height))
     }
 
     pub fn clear(&self) -> BackendResult<()> {
@@ -292,6 +342,10 @@ impl MediaCache {
         self.scramble_ids
             .lock()
             .map_err(|_| BackendError::Config("scramble cache poisoned".into()))?
+            .clear();
+        self.image_sizes
+            .lock()
+            .map_err(|_| BackendError::Config("image size cache poisoned".into()))?
             .clear();
         Ok(())
     }
@@ -340,7 +394,9 @@ pub fn stitch_image(source: &RgbImage, block_num: u32) -> RgbImage {
         return source.clone();
     }
     let (width, height) = source.dimensions();
-    let mut stitched = RgbImage::new(width, height);
+    let row_bytes = width as usize * 3;
+    let source_bytes = source.as_raw();
+    let mut output = vec![0_u8; source_bytes.len()];
     let remainder_height = height % block_num;
     for index in 0..block_num {
         let mut block_height = height / block_num;
@@ -351,10 +407,14 @@ pub fn stitch_image(source: &RgbImage, block_num: u32) -> RgbImage {
         } else {
             target_y_start += remainder_height;
         }
-        let block = crop_imm(source, 0, source_y_start, width, block_height).to_image();
-        image::imageops::replace(&mut stitched, &block, 0, i64::from(target_y_start));
+        for row in 0..block_height {
+            let source_start = (source_y_start + row) as usize * row_bytes;
+            let target_start = (target_y_start + row) as usize * row_bytes;
+            output[target_start..target_start + row_bytes]
+                .copy_from_slice(&source_bytes[source_start..source_start + row_bytes]);
+        }
     }
-    stitched
+    RgbImage::from_raw(width, height, output).expect("stitched RGB buffer must match dimensions")
 }
 
 fn is_nonempty_file(path: &Path) -> bool {
@@ -519,6 +579,32 @@ mod tests {
         drop(second);
         cache.release_fetch_lock("page:1:image.webp", &first);
         assert!(cache.fetch_locks.lock().unwrap().is_empty());
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn image_dimensions_are_cached_and_invalidated_after_replacement() {
+        let root = std::env::temp_dir().join(format!(
+            "jmcomic3-image-size-cache-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or(Duration::ZERO)
+                .as_nanos()
+        ));
+        let cache = MediaCache::open(&root).unwrap();
+        let path = root.join("size.png");
+        RgbImage::from_pixel(2, 3, Rgb([1, 2, 3]))
+            .save(&path)
+            .unwrap();
+        assert_eq!(cache.image_size(path.to_str().unwrap()).unwrap(), (2, 3));
+        assert_eq!(cache.image_size(path.to_str().unwrap()).unwrap(), (2, 3));
+
+        RgbImage::from_pixel(4, 5, Rgb([4, 5, 6]))
+            .save(&path)
+            .unwrap();
+        assert_eq!(cache.image_size(path.to_str().unwrap()).unwrap(), (4, 5));
 
         fs::remove_dir_all(root).unwrap();
     }

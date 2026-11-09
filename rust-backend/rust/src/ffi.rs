@@ -71,11 +71,13 @@ impl BackendState {
             PathBuf::from(custom_download_root.trim())
         };
         let client = client_from_store(&store)?;
+        let media = Arc::new(MediaCache::open(&root.join("image_cache"))?);
+        media.schedule_cover_prune();
         Ok(Self {
             client,
             store,
             history,
-            media: Arc::new(MediaCache::open(&root.join("image_cache"))?),
+            media,
             downloads: manager_shared(root, download_root)?,
         })
     }
