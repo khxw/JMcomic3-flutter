@@ -10,7 +10,7 @@ JMComic3 并存安装。
 
 ## 当前版本
 
-**v1.8.78+207** · Android ARM64 · API 24+
+**v1.8.87+216** · Android ARM64 · API 24+
 
 - 最新发布：[GitHub Releases](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - 完整更新记录：[CHANGELOG.md](https://github.com/khxw/JMcomic3-flutter/blob/main/CHANGELOG.md)
@@ -20,7 +20,7 @@ JMComic3 并存安装。
 
 | 文件 | 用途 |
 | --- | --- |
-| `JMComic3-Mod-v1.8.78-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
+| `JMComic3-Mod-v1.8.87-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
 | `SHA256SUMS.txt` | 校验 APK 文件完整性 |
 
 当前 Fork 只发布 **Android ARM64 APK**。本仓库没有为这个修改版提供 ARM32、
@@ -45,6 +45,7 @@ Windows 或 AAB 安装包。
 - 保存实际可见页阅读进度，并在返回详情页后继续阅读。
 - 支持封面与页图解码缓存控制、分页补全及阅读器资源释放。
 - 封面缓存自动限制为约 48 MB、最长保留 30 天，不影响下载漫画和阅读记录。
+- 阅读页图片使用临时缓存，支持按日期统计和清理图片缓存。
 - 支持主题、语言、字体、刷新率、网络线路和 WebDAV 设置。
 - 启动时优先使用最先响应的 API 与图片线路，并并行预取首页内容。
 - Rust v2 后端源码位于 `rust-backend/rust/`，与 Flutter 应用在同一仓库维护。
@@ -60,13 +61,13 @@ Windows 或 AAB 安装包。
 Windows PowerShell 校验示例：
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.8.78-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.8.87-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 当前 APK SHA-256：
 
 ```text
-CD2A47D401ABAD148CA61BAB89CCA0D50CF29BDA42454FECD4DE5BF57DA20EAF
+21EB4450AC07CCE1A4DB09049CF2170DAB2C2B22FCB4B2BDA60C5300099F21CC
 ```
 
 ## 构建

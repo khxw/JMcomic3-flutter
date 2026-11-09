@@ -20,7 +20,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 ## Current release
 
-**v1.8.78+207** · Android ARM64 · API 24+
+**v1.8.87+216** · Android ARM64 · API 24+
 
 - [Latest GitHub Release](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - [Changelog](CHANGELOG.md)
@@ -30,7 +30,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 | File | Purpose |
 | --- | --- |
-| `JMComic3-Mod-v1.8.78-arm64-v8a-release.apk` | Android ARM64 devices |
+| `JMComic3-Mod-v1.8.87-arm64-v8a-release.apk` | Android ARM64 devices |
 | `SHA256SUMS.txt` | APK integrity verification |
 
 This fork currently publishes only an **Android ARM64 APK**. ARM32, Windows,
@@ -60,6 +60,7 @@ Back up bookshelf, history, and download settings before upgrading.
 - Themes, locales, fonts, display refresh modes, network routes, and WebDAV.
 - Automatic cover-cache pruning keeps covers below about 48 MB and 30 days
   without removing downloaded comics or reading data.
+- Reader pages use temporary caching, with date-based cache statistics and cleanup.
 - Startup prefers the first responsive API/image routes and prefetches home feeds
   in parallel.
 - Rust v2 backend source and the Flutter app are maintained in this repository.
@@ -75,13 +76,13 @@ Back up bookshelf, history, and download settings before upgrading.
 PowerShell verification:
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.8.78-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.8.87-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 Current APK SHA-256:
 
 ```text
-CD2A47D401ABAD148CA61BAB89CCA0D50CF29BDA42454FECD4DE5BF57DA20EAF
+21EB4450AC07CCE1A4DB09049CF2170DAB2C2B22FCB4B2BDA60C5300099F21CC
 ```
 
 ## Build
