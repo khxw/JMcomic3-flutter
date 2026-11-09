@@ -40,6 +40,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('运行日志'), findsOneWidget);
+    final filter = tester.widget<FilterChip>(
+      find.byKey(const ValueKey('runtime-log-errors-only')),
+    );
+    expect(filter.showCheckmark, isFalse);
     expect(find.textContaining('normal startup event'), findsOneWidget);
     expect(find.textContaining('network request failed'), findsOneWidget);
 

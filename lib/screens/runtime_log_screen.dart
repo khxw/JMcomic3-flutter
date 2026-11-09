@@ -144,13 +144,38 @@ class _RuntimeLogScreenState extends State<RuntimeLogScreen> {
                           child: FilterChip(
                             key: const ValueKey('runtime-log-errors-only'),
                             selected: _errorsOnly,
+                            showCheckmark: false,
+                            selectedColor:
+                                scheme.errorContainer.withValues(alpha: .52),
+                            backgroundColor: scheme.surfaceContainerHighest,
+                            side: BorderSide(
+                              color: _errorsOnly
+                                  ? scheme.error.withValues(alpha: .42)
+                                  : scheme.outlineVariant.withValues(alpha: .5),
+                            ),
+                            shape: const StadiumBorder(),
+                            visualDensity: VisualDensity.compact,
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
                             onSelected: (selected) {
                               setState(() => _errorsOnly = selected);
                             },
                             label: Text(
                               context.l10n.tr('仅错误', en: 'Errors only'),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: _errorsOnly
+                                    ? scheme.onErrorContainer
+                                    : scheme.onSurfaceVariant,
+                              ),
                             ),
-                            avatar: const Icon(Icons.error_outline, size: 16),
+                            avatar: Icon(
+                              Icons.error_outline_rounded,
+                              size: 16,
+                              color: _errorsOnly
+                                  ? scheme.error
+                                  : scheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       ],
