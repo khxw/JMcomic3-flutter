@@ -905,7 +905,7 @@ async fn download_album(
             .and_then(|value| value.to_str())
             .unwrap_or("jpg");
         let destination = album_directory.join(format!("cover.{extension}"));
-        std::fs::copy(source, destination).map_err(|error| error.to_string())?;
+        link_or_copy(&source, &destination)?;
         let _ = state.downloads.mark_covers_done(record.id);
     }
 
@@ -1020,7 +1020,7 @@ async fn download_album(
                     .and_then(|value| value.to_str())
                     .ok_or_else(|| "downloaded image has no file name".to_string())?;
                 let destination = destination_dir.join(file_name);
-                std::fs::copy(source, destination).map_err(|error| error.to_string())?;
+                link_or_copy(&source, &destination)?;
                 downloaded += 1;
                 state
                     .downloads
@@ -1073,6 +1073,21 @@ fn downloaded_image_stems(directory: &Path) -> HashSet<String> {
                 .map(str::to_string)
         })
         .collect()
+}
+
+fn link_or_copy(source: &Path, destination: &Path) -> Result<(), String> {
+    if source == destination {
+        return Ok(());
+    }
+    if let Some(parent) = destination.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    if std::fs::hard_link(source, destination).is_ok() {
+        return Ok(());
+    }
+    std::fs::copy(source, destination)
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 async fn export_response(
@@ -1830,6 +1845,25 @@ mod tests {
         );
         store.save("download_root", "/new/path").unwrap();
         assert_eq!(stored_download_root(&store).unwrap(), "/new/path");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn download_assets_prefer_hard_links_without_losing_file_access() {
+        let root = std::env::temp_dir().join(format!(
+            "jmcomic3-backend-v2-link-copy-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let source = root.join("source.jpg");
+        let destination = root.join("nested").join("destination.jpg");
+        std::fs::write(&source, b"first").unwrap();
+        link_or_copy(&source, &destination).unwrap();
+        assert_eq!(std::fs::read(&destination).unwrap(), b"first");
+
+        std::fs::write(&source, b"second").unwrap();
+        assert_eq!(std::fs::read(&destination).unwrap(), b"second");
         std::fs::remove_dir_all(root).unwrap();
     }
 }
