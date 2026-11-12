@@ -20,7 +20,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 ## Current release
 
-**v1.8.87+216** · Android ARM64 · API 24+
+**v1.8.89+218** · Android ARM64 · API 24+
 
 - [Latest GitHub Release](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - [Changelog](CHANGELOG.md)
@@ -30,7 +30,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 | File | Purpose |
 | --- | --- |
-| `JMComic3-Mod-v1.8.87-arm64-v8a-release.apk` | Android ARM64 devices |
+| `JMComic3-Mod-v1.8.89-arm64-v8a-release.apk` | Android ARM64 devices |
 | `SHA256SUMS.txt` | APK integrity verification |
 
 This fork currently publishes only an **Android ARM64 APK**. ARM32, Windows,
@@ -56,7 +56,12 @@ Back up bookshelf, history, and download settings before upgrading.
 - Continuous, zoomable continuous, single-page, and double-page readers.
 - Redesigned reader app bar, paging controls, chapter list, and settings panels.
 - Configurable image preloading in both directions or forward-only.
+- Full release notes are shown consistently in the startup prompt and About page.
+- Redesigned update download progress with target version, percentage, file size,
+  route, and verification state.
+- The Pro, Settings, and About/update entries use one compact segmented control.
 - Visible-page reading progress and safe reader cache/resource cleanup.
+- The oversized reader image-error placeholder is fixed.
 - Themes, locales, fonts, display refresh modes, network routes, and WebDAV.
 - Automatic cover-cache pruning keeps covers below about 48 MB and 30 days
   without removing downloaded comics or reading data.
@@ -76,13 +81,13 @@ Back up bookshelf, history, and download settings before upgrading.
 PowerShell verification:
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.8.87-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.8.89-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 Current APK SHA-256:
 
 ```text
-21EB4450AC07CCE1A4DB09049CF2170DAB2C2B22FCB4B2BDA60C5300099F21CC
+D22C48D7AF9355D03B2A132867AAE730234A6DFC25713DF5F93364609F9538DA
 ```
 
 ## Build
@@ -114,8 +119,6 @@ flutter build apk --release --no-pub --target-platform android-arm64 --split-per
 
 ## Known limitations
 
-- A custom download directory currently keeps a copy in addition to app-local
-  download storage; deleting a task may not remove old external copies.
 - Cover cache pruning is automatic; the current UI does not expose a separate
   cover-cache size or manual cover-only cleanup control.
 
