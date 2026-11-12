@@ -232,6 +232,9 @@ void main() {
     await _loadProfile(tester);
     await _capture(tester, 'profile-mobile-signed-in');
 
+    final aboutEntry = find.byKey(const ValueKey('profile-about-entry'));
+    expect(aboutEntry, findsOneWidget);
+    expect(tester.widget<IconButton>(aboutEntry).tooltip, 'About & updates');
     expect(
       tester.getRect(find.byType(Avatar)).right,
       lessThan(tester.getRect(find.text(_username)).left),

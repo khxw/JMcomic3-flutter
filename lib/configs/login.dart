@@ -26,6 +26,7 @@ String _loginMessage = "";
 const _guestModePropertyName = "guest_mode";
 bool _guestMode = false;
 bool _refreshAccountOnLogin = false;
+DateTime? _lastSelfInfoRefreshAt;
 final Event _event = Event();
 
 SelfInfo get selfInfo => _selfInfo;
@@ -39,6 +40,8 @@ String get loginMessage => _loginMessage;
 bool get hasJwtAccess => _status == LoginStatus.loginSuccess;
 
 bool get isGuestMode => _status == LoginStatus.guest;
+
+DateTime? get lastSelfInfoRefreshAt => _lastSelfInfoRefreshAt;
 
 bool consumeLoginAccountRefresh() {
   if (!_refreshAccountOnLogin) return false;
@@ -66,6 +69,7 @@ Future initLogin(BuildContext context) async {
       _guestMode = false;
       await methods.saveProperty(_guestModePropertyName, "false");
       _selfInfo = preLogin.selfInfo!;
+      _lastSelfInfoRefreshAt = DateTime.now();
       _loginState = LoginStatus.loginSuccess;
       fav(context);
     } else {
@@ -225,7 +229,12 @@ Future<bool> refreshSelfInfo() async {
   try {
     final preLogin = await methods.preLogin();
     if (!preLogin.preLogin || preLogin.selfInfo == null) return false;
-    _selfInfo = preLogin.selfInfo!;
+    final nextSelfInfo = preLogin.selfInfo!;
+    _lastSelfInfoRefreshAt = DateTime.now();
+    if (_sameSelfInfo(_selfInfo, nextSelfInfo)) {
+      return true;
+    }
+    _selfInfo = nextSelfInfo;
     _event.broadcast();
     return true;
   } catch (error, stackTrace) {
@@ -235,9 +244,59 @@ Future<bool> refreshSelfInfo() async {
   }
 }
 
+bool _sameSelfInfo(SelfInfo current, SelfInfo next) {
+  // The session token can rotate without changing any visible account data.
+  return current.uid == next.uid &&
+      current.username == next.username &&
+      current.email == next.email &&
+      current.emailverified == next.emailverified &&
+      current.photo == next.photo &&
+      current.fname == next.fname &&
+      current.gender == next.gender &&
+      current.message == next.message &&
+      current.coin == next.coin &&
+      current.albumFavorites == next.albumFavorites &&
+      current.levelName == next.levelName &&
+      current.level == next.level &&
+      current.nextLevelExp == next.nextLevelExp &&
+      current.exp == next.exp &&
+      current.expPercent == next.expPercent &&
+      current.albumFavoritesMax == next.albumFavoritesMax &&
+      _sameProfileValue(current.badges, next.badges);
+}
+
+bool _sameProfileValue(Object? current, Object? next) {
+  if (identical(current, next)) return true;
+  if (current is Map && next is Map) {
+    if (current.length != next.length) return false;
+    for (final key in current.keys) {
+      if (!next.containsKey(key) ||
+          !_sameProfileValue(current[key], next[key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (current is Iterable && next is Iterable) {
+    final currentItems = current.iterator;
+    final nextItems = next.iterator;
+    while (true) {
+      final hasCurrent = currentItems.moveNext();
+      final hasNext = nextItems.moveNext();
+      if (hasCurrent != hasNext) return false;
+      if (!hasCurrent) return true;
+      if (!_sameProfileValue(currentItems.current, nextItems.current)) {
+        return false;
+      }
+    }
+  }
+  return current == next;
+}
+
 Future<void> enterGuestMode() async {
   _refreshAccountOnLogin = false;
   _guestMode = true;
+  _lastSelfInfoRefreshAt = null;
   await methods.saveProperty(_guestModePropertyName, "true");
   _loginMessage = "";
   _loginState = LoginStatus.guest;
@@ -248,6 +307,7 @@ Future<void> logoutAccount() async {
   favData = [];
   _refreshAccountOnLogin = false;
   _guestMode = true;
+  _lastSelfInfoRefreshAt = null;
   _loginMessage = "";
   _loginState = LoginStatus.guest;
   try {

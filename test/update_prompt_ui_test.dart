@@ -79,7 +79,7 @@ void main() {
           return _response({
             'tag_name': 'v9.9.9',
             'name': 'JMComic3 Mod v9.9.9',
-            'body': '## 更新内容\n\n- 新版更新检查页\n- 下载与阅读体验优化',
+            'body': '## 更新内容\n\n- 新版更新检查页\n- 下载与阅读体验优化\n- 网络线路切换优化\n- 第四条更新说明',
           });
         default:
           return _response('');
@@ -120,6 +120,11 @@ void main() {
     expect(find.text('发现新版本'), findsOneWidget);
     expect(find.text('v9.9.9'), findsOneWidget);
     expect(find.textContaining('新版更新检查页'), findsOneWidget);
+    expect(find.textContaining('第四条更新说明'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('update-prompt-release-notes')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey('update-prompt-later')),
       findsOneWidget,

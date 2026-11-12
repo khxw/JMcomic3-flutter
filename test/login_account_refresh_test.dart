@@ -48,6 +48,7 @@ void main() {
   testWidgets('login refreshes account info and daily sign status',
       (tester) async {
     var dailyCalls = 0;
+    var preLoginCalls = 0;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(_channel, (call) async {
@@ -57,11 +58,12 @@ void main() {
         case 'login':
           return _response(_selfInfo(1));
         case 'pre_login':
+          preLoginCalls++;
           return _response({
             'pre_set': true,
             'pre_login': true,
             'message': '',
-            'self_info': _selfInfo(9),
+            'self_info': _selfInfo(preLoginCalls >= 2 ? 10 : 9),
           });
         case 'daily':
           dailyCalls++;
@@ -100,10 +102,124 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(loginStatus, LoginStatus.loginSuccess);
-    expect(selfInfo.level, 9);
+    expect(selfInfo.level, 10);
     expect(dailyCalls, 1);
     expect(dailySignStatus, DailySignStatus.signed);
     expect(find.text('Signed in'), findsOneWidget);
+
+    final callsBeforeResume = preLoginCalls;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(preLoginCalls, callsBeforeResume);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('unchanged account details do not broadcast another refresh',
+      (tester) async {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      switch (request['method']) {
+        case 'pre_login':
+          return _response({
+            'pre_set': true,
+            'pre_login': true,
+            'message': '',
+            'self_info': _selfInfo(10),
+          });
+        case 'favorite':
+          return _response({
+            'total': 0,
+            'count': 0,
+            'list': <Object>[],
+            'folder_list': <Object>[],
+          });
+        default:
+          return _response('');
+      }
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+    });
+
+    await enterGuestMode();
+    await tester.pumpWidget(const MaterialApp(
+      locale: Locale('en'),
+      localizationsDelegates: [AppLocalizations.delegate],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: UserScreen(),
+    ));
+    await initLogin(tester.element(find.byType(UserScreen)));
+    await tester.pumpAndSettle();
+
+    final accountBeforeRefresh = selfInfo;
+    var loginEvents = 0;
+    void onLoginEvent(_) => loginEvents++;
+    loginEvent.subscribe(onLoginEvent);
+    addTearDown(() => loginEvent.unsubscribe(onLoginEvent));
+
+    expect(await refreshSelfInfo(), isTrue);
+
+    expect(identical(selfInfo, accountBeforeRefresh), isTrue);
+    expect(loginEvents, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('inactive profile does not refresh when the app resumes',
+      (tester) async {
+    var preLoginCalls = 0;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      if (request['method'] == 'pre_login') {
+        preLoginCalls++;
+        return _response({
+          'pre_set': true,
+          'pre_login': true,
+          'message': '',
+          'self_info': _selfInfo(10),
+        });
+      }
+      if (request['method'] == 'favorite') {
+        return _response({
+          'total': 0,
+          'count': 0,
+          'list': <Object>[],
+          'folder_list': <Object>[],
+        });
+      }
+      return _response('');
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    });
+
+    await enterGuestMode();
+    await tester.pumpWidget(const MaterialApp(
+      locale: Locale('en'),
+      localizationsDelegates: [AppLocalizations.delegate],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: TickerMode(
+        enabled: false,
+        child: UserScreen(),
+      ),
+    ));
+    await initLogin(tester.element(find.byType(UserScreen)));
+    await tester.pumpAndSettle();
+
+    final callsBeforeResume = preLoginCalls;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(preLoginCalls, callsBeforeResume);
     expect(tester.takeException(), isNull);
   });
 

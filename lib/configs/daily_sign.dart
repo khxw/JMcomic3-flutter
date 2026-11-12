@@ -95,6 +95,7 @@ Future<void> checkDailySignStatus(BuildContext context,
       );
     }
     _setDailySignStatus(DailySignStatus.signed);
+    await refreshSelfInfo();
   } catch (e, st) {
     debugPrient("$e\n$st");
     _lastDailySignCheckUid = selfInfo.uid;

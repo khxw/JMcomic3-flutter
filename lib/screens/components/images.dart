@@ -1153,18 +1153,23 @@ Widget buildOfflineImageUnavailable(
 
 Widget buildError(BuildContext context, double? width, double? height,
     {List<LongPressMenuItem>? longPressMenuItems, VoidCallback? onReload}) {
-  double? size;
-  if (width != null && height != null) {
-    size = width < height ? width : height;
-  }
+  final shortestSide =
+      width != null && height != null ? math.min(width, height) : null;
+  final iconSize =
+      shortestSide == null ? 28.0 : shortestSide.clamp(22.0, 32.0).toDouble();
+  final errorLabel = context.l10n.tr('图片加载失败', en: 'Image failed to load');
   final error = SizedBox(
     width: width,
     height: height,
     child: Center(
-      child: Icon(
-        Icons.error_outline,
-        size: size,
-        color: Colors.grey,
+      child: Tooltip(
+        message: errorLabel,
+        child: Icon(
+          Icons.error_outline_rounded,
+          size: iconSize,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          semanticLabel: errorLabel,
+        ),
       ),
     ),
   );

@@ -28,6 +28,24 @@ void main() {
     expect(isVersionNewerForTest('invalid', current), isFalse);
   });
 
+  test('release notes normalization is shared by every update surface', () {
+    const raw = '''
+
+# 更新内容
+
+- 第一条
+- 第二条
+- 第三条
+- 第四条
+''';
+
+    expect(
+      normalizeReleaseNotes(raw),
+      '- 第一条\n- 第二条\n- 第三条\n- 第四条',
+    );
+    expect(normalizeReleaseNotes(null), isEmpty);
+  });
+
   test('update checks are enabled for the fork release source', () async {
     final properties = <String, String>{};
     final messenger =

@@ -28,14 +28,19 @@ class UserScreen extends StatefulWidget {
 }
 
 class _UserScreenState extends State<UserScreen>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   bool _loggingOut = false;
+  bool _accountRefreshInFlight = false;
+  bool _profileActive = false;
+
+  static const _accountRefreshInterval = Duration(minutes: 5);
 
   @override
   bool get wantKeepAlive => true;
 
   @override
   void initState() {
+    WidgetsBinding.instance.addObserver(this);
     loginEvent.subscribe(_loginChanged);
     proEvent.subscribe(_setState);
     dailySignEvent.subscribe(_setState);
@@ -46,11 +51,54 @@ class _UserScreenState extends State<UserScreen>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final active = TickerMode.of(context);
+    if (active && !_profileActive) {
+      _profileActive = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_profileActive) return;
+        unawaited(_refreshAccountInfo());
+      });
+    } else if (!active) {
+      _profileActive = false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !_profileActive) return;
+    unawaited(_refreshAccountInfo());
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     loginEvent.unsubscribe(_loginChanged);
     proEvent.unsubscribe(_setState);
     dailySignEvent.unsubscribe(_setState);
     super.dispose();
+  }
+
+  Future<void> _refreshAccountInfo() async {
+    if (!mounted ||
+        !_profileActive ||
+        ModalRoute.of(context)?.isCurrent == false ||
+        loginStatus != LoginStatus.loginSuccess ||
+        _accountRefreshInFlight) {
+      return;
+    }
+    final lastRefresh = lastSelfInfoRefreshAt;
+    if (lastRefresh != null &&
+        DateTime.now().difference(lastRefresh) < _accountRefreshInterval) {
+      return;
+    }
+    _accountRefreshInFlight = true;
+    try {
+      await refreshSelfInfo();
+    } finally {
+      _accountRefreshInFlight = false;
+    }
   }
 
   void _loginChanged(_) {
@@ -1066,19 +1114,38 @@ class _UserScreenState extends State<UserScreen>
   }
 
   Widget _buildAboutIcon() {
-    return IconButton(
-      tooltip: context.l10n.about,
-      onPressed: () async {
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (BuildContext context) {
-            return const AboutScreen();
-          },
-        ));
-      },
-      icon: const VersionBadged(
-        child: Padding(
-          padding: EdgeInsets.all(1),
-          child: Icon(Icons.info_outlined),
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: IconButton(
+        key: const ValueKey('profile-about-entry'),
+        tooltip: context.l10n.tr('关于与更新', en: 'About & updates'),
+        onPressed: () async {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (BuildContext context) {
+              return const AboutScreen();
+            },
+          ));
+        },
+        style: IconButton.styleFrom(
+          foregroundColor: scheme.primary,
+          backgroundColor: scheme.primary.withValues(alpha: .1),
+          fixedSize: const Size.square(40),
+          minimumSize: const Size.square(40),
+          maximumSize: const Size.square(40),
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: scheme.primary.withValues(alpha: .16),
+            ),
+          ),
+        ),
+        icon: const VersionBadged(
+          child: Icon(
+            Icons.info_outline_rounded,
+            size: 21,
+          ),
         ),
       ),
     );

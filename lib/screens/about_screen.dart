@@ -525,7 +525,7 @@ class _ReleaseNotesCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final available = (notes ?? '').trim().isNotEmpty;
-    final normalized = available ? _normalizeReleaseNotes(notes!) : '';
+    final normalized = available ? normalizeReleaseNotes(notes) : '';
     return Container(
       key: const ValueKey('about-release-notes'),
       decoration: BoxDecoration(
@@ -638,18 +638,4 @@ class _UpdatesDisabledCard extends StatelessWidget {
       ),
     );
   }
-}
-
-String _normalizeReleaseNotes(String input) {
-  final lines = input.trim().split('\n');
-  while (lines.isNotEmpty && lines.first.trim().isEmpty) {
-    lines.removeAt(0);
-  }
-  if (lines.isNotEmpty && lines.first.trimLeft().startsWith('# ')) {
-    lines.removeAt(0);
-  }
-  while (lines.isNotEmpty && lines.first.trim().isEmpty) {
-    lines.removeAt(0);
-  }
-  return lines.join('\n').trim();
 }

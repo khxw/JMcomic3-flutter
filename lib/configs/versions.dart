@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:event/event.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter/services.dart' show PlatformException, rootBundle;
 import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/http_client.dart';
@@ -25,13 +26,14 @@ const updatesTemporarilyDisabled = false;
 const _releaseLatestUrl =
     "https://api.github.com/repos/$_repoOwner/$_repoName/releases/latest";
 const _releaseLatestMirrorUrls = [
-  "https://ghproxy.com/https://api.github.com/repos/$_repoOwner/$_repoName/releases/latest",
-  "https://ghproxy.net/https://api.github.com/repos/$_repoOwner/$_repoName/releases/latest",
+  "https://gh-proxy.org/https://api.github.com/repos/$_repoOwner/$_repoName/releases/latest",
+  "https://gh-proxy.com/https://api.github.com/repos/$_repoOwner/$_repoName/releases/latest",
 ];
 const _releaseLatestPageUrl =
     "https://github.com/$_repoOwner/$_repoName/releases/latest";
 const _releaseLatestPageMirrorUrls = [
-  "https://r.jina.ai/http://github.com/$_repoOwner/$_repoName/releases/latest",
+  "https://gh-proxy.org/https://github.com/$_repoOwner/$_repoName/releases/latest",
+  "https://gh-proxy.com/https://github.com/$_repoOwner/$_repoName/releases/latest",
 ];
 const _apkDownloadMirrorPrefixes = [
   "https://gh-proxy.org/",
@@ -145,6 +147,20 @@ String? get latestVersionName => _latestVersionName;
 
 String? latestVersionInfo() {
   return _latestVersionInfo;
+}
+
+String normalizeReleaseNotes(String? input) {
+  final lines = (input ?? '').trim().split('\n');
+  while (lines.isNotEmpty && lines.first.trim().isEmpty) {
+    lines.removeAt(0);
+  }
+  if (lines.isNotEmpty && lines.first.trimLeft().startsWith('# ')) {
+    lines.removeAt(0);
+  }
+  while (lines.isNotEmpty && lines.first.trim().isEmpty) {
+    lines.removeAt(0);
+  }
+  return lines.join('\n').trim();
 }
 
 String latestDownloadUrl() {
@@ -306,6 +322,7 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
         state: progress,
         assetName: latestApkAssetName() ?? 'JMComic3 Mod APK',
         size: latestApkSize(),
+        version: latestVersion ?? latestVersionName,
       );
     },
   ));
@@ -555,11 +572,13 @@ class _UpdateDownloadDialog extends StatelessWidget {
   final ValueListenable<_UpdateDownloadState> state;
   final String assetName;
   final int? size;
+  final String? version;
 
   const _UpdateDownloadDialog({
     required this.state,
     required this.assetName,
     required this.size,
+    required this.version,
   });
 
   @override
@@ -568,92 +587,343 @@ class _UpdateDownloadDialog extends StatelessWidget {
     final scheme = theme.colorScheme;
     return PopScope(
       canPop: false,
-      child: AlertDialog(
-        key: const ValueKey('update-download-dialog'),
-        title: Row(
-          children: [
-            Icon(Icons.download_rounded, color: scheme.primary),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                context.l10n.tr('下载并安装更新', en: 'Download update'),
-              ),
+      child: SafeArea(
+        child: Dialog(
+          key: const ValueKey('update-download-dialog'),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 24,
+          ),
+          backgroundColor: scheme.surface,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(
+              color: scheme.outlineVariant.withValues(alpha: .42),
             ),
-          ],
-        ),
-        content: ValueListenableBuilder<_UpdateDownloadState>(
-          valueListenable: state,
-          builder: (context, value, _) {
-            final percent =
-                value.progress == null ? null : (value.progress! * 100).round();
-            final status = switch (value.phase) {
-              _UpdateDownloadPhase.preparing =>
-                context.l10n.tr('正在准备下载...', en: 'Preparing download...'),
-              _UpdateDownloadPhase.downloading => percent == null
-                  ? context.l10n.tr('正在下载更新...', en: 'Downloading update...')
-                  : context.l10n.tr(
-                      '正在下载更新 $percent%',
-                      en: 'Downloading update $percent%',
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 430),
+            child: ValueListenableBuilder<_UpdateDownloadState>(
+              valueListenable: state,
+              builder: (context, value, _) {
+                final progress = value.progress?.clamp(0, 1).toDouble();
+                final percent =
+                    progress == null ? null : (progress * 100).round();
+                final preparing = value.phase == _UpdateDownloadPhase.preparing;
+                final verifying = value.phase == _UpdateDownloadPhase.verifying;
+                final accent = verifying ? scheme.tertiary : scheme.primary;
+                final title = switch (value.phase) {
+                  _UpdateDownloadPhase.preparing => context.l10n.tr(
+                      '正在准备更新',
+                      en: 'Preparing update',
                     ),
-              _UpdateDownloadPhase.verifying =>
-                context.l10n.tr('正在校验安装包...', en: 'Verifying package...'),
-            };
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  status,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                LinearProgressIndicator(
-                  key: const ValueKey('update-download-progress'),
-                  value: value.phase == _UpdateDownloadPhase.preparing
-                      ? null
-                      : value.progress,
-                  minHeight: 7,
-                  borderRadius: BorderRadius.circular(99),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  assetName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-                if (size != null && size! > 0) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    '${(size! / (1024 * 1024)).toStringAsFixed(1)} MB',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
+                  _UpdateDownloadPhase.downloading => context.l10n.tr(
+                      '正在下载更新',
+                      en: 'Downloading update',
                     ),
-                  ),
-                ],
-                if (value.source != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    context.l10n.tr(
-                      '下载线路：${value.source}',
-                      en: 'Download route: ${value.source}',
+                  _UpdateDownloadPhase.verifying => context.l10n.tr(
+                      '正在校验安装包',
+                      en: 'Verifying package',
                     ),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
+                };
+                final subtitle = switch (value.phase) {
+                  _UpdateDownloadPhase.preparing => context.l10n.tr(
+                      '正在选择可用线路并准备下载',
+                      en: 'Selecting an available route and preparing the download',
                     ),
+                  _UpdateDownloadPhase.downloading => context.l10n.tr(
+                      '请保持应用在前台，完成后会自动校验并打开系统安装界面',
+                      en: 'Keep the app open. The package will be verified and the system installer will open automatically',
+                    ),
+                  _UpdateDownloadPhase.verifying => context.l10n.tr(
+                      '文件已下载，正在检查大小、包名和 SHA-256',
+                      en: 'Checking file size, package name, and SHA-256',
+                    ),
+                };
+                final totalBytes =
+                    size != null && size! > 0 ? size!.toDouble() : null;
+                final downloadedBytes = totalBytes == null || progress == null
+                    ? null
+                    : totalBytes * progress;
+                final sizeText = totalBytes == null
+                    ? null
+                    : downloadedBytes == null
+                        ? _formatMegabytes(totalBytes)
+                        : '${_formatMegabytes(downloadedBytes)} / '
+                            '${_formatMegabytes(totalBytes)}';
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: .1),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            alignment: Alignment.center,
+                            child: Icon(
+                              verifying
+                                  ? Icons.verified_user_outlined
+                                  : Icons.system_update_alt_rounded,
+                              color: accent,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  subtitle,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (version != null && version!.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: accent.withValues(alpha: .1),
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                              child: Text(
+                                version!,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: accent,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      Container(
+                        key: const ValueKey('update-download-progress-panel'),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color:
+                              scheme.surfaceContainerLow.withValues(alpha: .72),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: scheme.outlineVariant.withValues(alpha: .46),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                if (preparing)
+                                  SizedBox(
+                                    width: 42,
+                                    height: 42,
+                                    child: CircularProgressIndicator(
+                                      key: const ValueKey(
+                                        'update-download-preparing',
+                                      ),
+                                      strokeWidth: 3,
+                                      color: accent,
+                                      backgroundColor: accent.withValues(
+                                        alpha: .14,
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  Text(
+                                    '$percent%',
+                                    key: const ValueKey(
+                                      'update-download-percent',
+                                    ),
+                                    style: theme.textTheme.headlineMedium
+                                        ?.copyWith(
+                                      color: accent,
+                                      fontWeight: FontWeight.w900,
+                                      height: 1,
+                                      letterSpacing: -.5,
+                                    ),
+                                  ),
+                                const Spacer(),
+                                Flexible(
+                                  child: Text(
+                                    sizeText ??
+                                        (verifying
+                                            ? context.l10n.tr(
+                                                '完整性校验',
+                                                en: 'Integrity check',
+                                              )
+                                            : context.l10n.tr(
+                                                '等待下载数据',
+                                                en: 'Waiting for data',
+                                              )),
+                                    textAlign: TextAlign.end,
+                                    style:
+                                        theme.textTheme.labelMedium?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            LinearProgressIndicator(
+                              key: const ValueKey(
+                                'update-download-progress',
+                              ),
+                              value: preparing ? null : progress,
+                              minHeight: 9,
+                              borderRadius: BorderRadius.circular(99),
+                              color: accent,
+                              backgroundColor: accent.withValues(alpha: .12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _UpdateDownloadInfoRow(
+                        icon: Icons.android_rounded,
+                        label: context.l10n.tr('安装包', en: 'Package'),
+                        value: assetName,
+                      ),
+                      if (value.source != null) ...[
+                        const SizedBox(height: 8),
+                        _UpdateDownloadInfoRow(
+                          icon: Icons.alt_route_rounded,
+                          label: context.l10n.tr(
+                            '下载线路',
+                            en: 'Download route',
+                          ),
+                          value: value.source!,
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: scheme.secondaryContainer.withValues(
+                            alpha: .38,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.shield_outlined,
+                              size: 18,
+                              color: scheme.onSecondaryContainer,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                context.l10n.tr(
+                                  '安装包来自可信 Releases，下载后会校验摘要；最终安装仍由系统确认。',
+                                  en: 'The package comes from trusted Releases and is verified after download. The system still confirms installation.',
+                                ),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: scheme.onSecondaryContainer,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ],
-            );
-          },
+                );
+              },
+            ),
+          ),
         ),
       ),
     );
   }
+}
+
+class _UpdateDownloadInfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _UpdateDownloadInfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: .38),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 19, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 9),
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatMegabytes(double bytes) {
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
 }
 
 Future _versionCheck() async {
@@ -1177,16 +1447,16 @@ void _showUpdatePrompt(BuildContext context) {
     transitionDuration:
         reduceMotion ? Duration.zero : const Duration(milliseconds: 220),
     pageBuilder: (dialogContext, _, __) {
+      final normalizedNotes = normalizeReleaseNotes(latestVersionInfo());
       return _UpdatePromptDialog(
         current: currentVersion(),
         latest: latestVersion ?? latestVersionName ?? currentVersion(),
-        summary: _updatePromptSummary(
-          latestVersionInfo(),
-          context.l10n.tr(
-            '包含界面优化、功能改进和问题修复。',
-            en: 'Includes UI, feature, and reliability improvements.',
-          ),
-        ),
+        releaseNotes: normalizedNotes.isEmpty
+            ? context.l10n.tr(
+                '包含界面优化、功能改进和问题修复。',
+                en: 'Includes UI, feature, and reliability improvements.',
+              )
+            : normalizedNotes,
         onLater: () => Navigator.of(dialogContext).pop(),
         onInstallUpdate: () {
           Navigator.of(dialogContext).pop();
@@ -1215,14 +1485,14 @@ void _showUpdatePrompt(BuildContext context) {
 class _UpdatePromptDialog extends StatelessWidget {
   final String current;
   final String latest;
-  final String summary;
+  final String releaseNotes;
   final VoidCallback onLater;
   final VoidCallback onInstallUpdate;
 
   const _UpdatePromptDialog({
     required this.current,
     required this.latest,
-    required this.summary,
+    required this.releaseNotes,
     required this.onLater,
     required this.onInstallUpdate,
   });
@@ -1450,14 +1720,17 @@ class _UpdatePromptDialog extends StatelessWidget {
                               ],
                             ),
                             const SizedBox(height: 7),
-                            Text(
-                              summary,
-                              maxLines: 4,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                                height: 1.45,
+                            MarkdownBody(
+                              key: const ValueKey(
+                                'update-prompt-release-notes',
                               ),
+                              data: releaseNotes,
+                              selectable: true,
+                              onTapLink: (_, href, __) {
+                                if (href != null && href.trim().isNotEmpty) {
+                                  openUrl(href);
+                                }
+                              },
                             ),
                           ],
                         ),
@@ -1560,25 +1833,4 @@ class _PromptVersionTile extends StatelessWidget {
       ),
     );
   }
-}
-
-String _updatePromptSummary(String? raw, String fallback) {
-  final text = (raw ?? '').trim();
-  if (text.isEmpty) {
-    return fallback;
-  }
-  final lines = text
-      .split('\n')
-      .map((line) => line.trim())
-      .where((line) => line.isNotEmpty)
-      .where((line) => !line.startsWith('#'))
-      .map(
-        (line) => line
-            .replaceAll(RegExp(r'^[-*]\s*'), '')
-            .replaceAll(RegExp(r'[*_`>]'), ''),
-      )
-      .where((line) => line.isNotEmpty)
-      .take(3)
-      .join('\n');
-  return lines.isEmpty ? fallback : lines;
 }
