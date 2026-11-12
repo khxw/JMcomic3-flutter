@@ -170,40 +170,7 @@ class _UserScreenState extends State<UserScreen>
                     fontSize: 17,
                     fontWeight: FontWeight.w600,
                   ),
-          actions: [
-            if (!normalPlatform)
-              IconButton(
-                tooltip: 'Pro',
-                onPressed: () {
-                  Navigator.of(context)
-                      .push(MaterialPageRoute(builder: (BuildContext context) {
-                    return const ProOhScreen();
-                  }));
-                },
-                icon: Icon(
-                  hasProAccess
-                      ? Icons.offline_bolt
-                      : Icons.offline_bolt_outlined,
-                ),
-              ),
-            if (normalPlatform)
-              IconButton(
-                tooltip: 'Pro',
-                onPressed: () {
-                  Navigator.of(context)
-                      .push(MaterialPageRoute(builder: (BuildContext context) {
-                    return const ProScreen();
-                  }));
-                },
-                icon: Icon(
-                  hasProAccess
-                      ? Icons.offline_bolt
-                      : Icons.offline_bolt_outlined,
-                ),
-              ),
-            _buildSettingsIcon(),
-            if (normalPlatform) _buildAboutIcon(),
-          ]),
+          actions: [_buildProfileActions()]),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -1099,53 +1066,112 @@ class _UserScreenState extends State<UserScreen>
     ));
   }
 
-  Widget _buildSettingsIcon() {
-    return IconButton(
-      tooltip: context.l10n.settings,
-      onPressed: () {
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const SettingsScreen(),
+  Widget _buildProfileActions() {
+    final scheme = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final children = <Widget>[
+      _buildProfileActionButton(
+        key: const ValueKey('profile-pro-entry'),
+        tooltip: 'Pro',
+        foregroundColor:
+            hasProAccess ? scheme.tertiary : scheme.onSurfaceVariant,
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  normalPlatform ? const ProScreen() : const ProOhScreen(),
+            ),
+          );
+        },
+        icon: Icon(
+          hasProAccess
+              ? Icons.offline_bolt_rounded
+              : Icons.offline_bolt_outlined,
+          size: 20,
+        ),
+      ),
+      _buildProfileActionButton(
+        key: const ValueKey('profile-settings-entry'),
+        tooltip: context.l10n.settings,
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const SettingsScreen(),
+            ),
+          );
+        },
+        icon: const Icon(Icons.settings_rounded, size: 20),
+      ),
+      if (normalPlatform) _buildAboutIcon(),
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, right: 8),
+      child: Container(
+        key: const ValueKey('profile-app-actions'),
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHighest.withValues(
+            alpha: dark ? .34 : .5,
           ),
-        );
-      },
-      icon: const Icon(Icons.settings),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: scheme.outlineVariant.withValues(alpha: .55),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < children.length; index++) ...[
+              if (index > 0) const SizedBox(width: 1),
+              children[index],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileActionButton({
+    required Key key,
+    required String tooltip,
+    required VoidCallback onPressed,
+    required Widget icon,
+    Color? foregroundColor,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return IconButton(
+      key: key,
+      tooltip: tooltip,
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        foregroundColor: foregroundColor ?? scheme.onSurfaceVariant,
+        fixedSize: const Size.square(38),
+        minimumSize: const Size.square(38),
+        maximumSize: const Size.square(38),
+        padding: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(11),
+        ),
+      ),
+      icon: icon,
     );
   }
 
   Widget _buildAboutIcon() {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(right: 4),
-      child: IconButton(
-        key: const ValueKey('profile-about-entry'),
-        tooltip: context.l10n.tr('关于与更新', en: 'About & updates'),
-        onPressed: () async {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (BuildContext context) {
-              return const AboutScreen();
-            },
-          ));
-        },
-        style: IconButton.styleFrom(
-          foregroundColor: scheme.primary,
-          backgroundColor: scheme.primary.withValues(alpha: .1),
-          fixedSize: const Size.square(40),
-          minimumSize: const Size.square(40),
-          maximumSize: const Size.square(40),
-          padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: scheme.primary.withValues(alpha: .16),
-            ),
+    return _buildProfileActionButton(
+      key: const ValueKey('profile-about-entry'),
+      tooltip: context.l10n.tr('关于与更新', en: 'About & updates'),
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const AboutScreen(),
           ),
-        ),
-        icon: const VersionBadged(
-          child: Icon(
-            Icons.info_outline_rounded,
-            size: 21,
-          ),
+        );
+      },
+      icon: const VersionBadged(
+        child: Icon(
+          Icons.info_outline_rounded,
+          size: 20,
         ),
       ),
     );

@@ -233,8 +233,27 @@ void main() {
     await _capture(tester, 'profile-mobile-signed-in');
 
     final aboutEntry = find.byKey(const ValueKey('profile-about-entry'));
+    final proEntry = find.byKey(const ValueKey('profile-pro-entry'));
+    final settingsEntry = find.byKey(
+      const ValueKey('profile-settings-entry'),
+    );
+    expect(find.byKey(const ValueKey('profile-app-actions')), findsOneWidget);
+    expect(proEntry, findsOneWidget);
+    expect(settingsEntry, findsOneWidget);
     expect(aboutEntry, findsOneWidget);
     expect(tester.widget<IconButton>(aboutEntry).tooltip, 'About & updates');
+    final actionRects = [
+      tester.getRect(proEntry),
+      tester.getRect(settingsEntry),
+      tester.getRect(aboutEntry),
+    ];
+    expect(actionRects.map((rect) => rect.width).toSet(), hasLength(1));
+    expect(actionRects.map((rect) => rect.height).toSet(), hasLength(1));
+    expect(
+      actionRects.every((rect) => rect.width >= 38 && rect.width <= 48),
+      isTrue,
+    );
+    expect(actionRects.map((rect) => rect.top).toSet(), hasLength(1));
     expect(
       tester.getRect(find.byType(Avatar)).right,
       lessThan(tester.getRect(find.text(_username)).left),
