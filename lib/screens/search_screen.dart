@@ -103,6 +103,18 @@ class _SearchScreenState extends State<SearchScreen>
     }
   }
 
+  Future<void> _refreshSearchHistory() async {
+    try {
+      final histories = await methods.lastSearchHistories(20);
+      if (!mounted) return;
+      setState(() {
+        _histories = histories;
+      });
+    } catch (_) {
+      // Keep the currently visible history when the refresh fails.
+    }
+  }
+
   void _onFocusChanged() {
     if (mounted) setState(() {});
   }
@@ -130,6 +142,7 @@ class _SearchScreenState extends State<SearchScreen>
 
   void _handleBack() {
     if (_query.isNotEmpty) {
+      unawaited(_refreshSearchHistory());
       _clearQuery();
       return;
     }
@@ -533,6 +546,9 @@ class _SearchScreenState extends State<SearchScreen>
       denseGrid: true,
       onPage: (page) async {
         final response = await methods.comicSearch(_query, _sortBy, page);
+        if (page == 1) {
+          unawaited(_refreshSearchHistory());
+        }
         return InnerComicPage(
           total: response.total,
           list: response.content,

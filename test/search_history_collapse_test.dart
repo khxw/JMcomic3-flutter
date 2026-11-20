@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jmcomic3/configs/pager_column_number.dart';
+import 'package:jmcomic3/configs/pager_controller_mode.dart';
 import 'package:jmcomic3/configs/pager_cover_rate.dart';
 import 'package:jmcomic3/configs/pager_view_mode.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
@@ -59,6 +60,7 @@ void main() {
     });
 
     await initPagerViewMode();
+    await initPagerControllerMode();
     await initPagerCoverRate();
     await initPagerColumnCount();
     await tester.pumpWidget(const MaterialApp(
@@ -90,6 +92,12 @@ void main() {
 
   testWidgets('back from search results returns to the search landing page',
       (tester) async {
+    final histories = <Map<String, Object>>[
+      {
+        'search_query': 'quiet forest',
+        'last_search_time': 1770000000,
+      },
+    ];
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(_channel, (call) async {
@@ -97,18 +105,23 @@ void main() {
           jsonDecode(call.arguments as String) as Map<String, dynamic>;
       switch (request['method']) {
         case 'last_search_histories':
-          return _response([
-            {
-              'search_query': 'quiet forest',
-              'last_search_time': 1770000000,
-            },
-          ]);
+          return _response(histories);
         case 'categories':
           return _response({
             'categories': <Object>[],
             'blocks': <Object>[],
           });
         case 'comic_search':
+          final params =
+              jsonDecode(request['params'] as String) as Map<String, dynamic>;
+          final query = params['search_query'] as String;
+          histories.removeWhere(
+            (item) => item['search_query'] == query,
+          );
+          histories.insert(0, {
+            'search_query': query,
+            'last_search_time': 1770000100,
+          });
           return _response({
             'total': 0,
             'content': <Object>[],
@@ -132,11 +145,13 @@ void main() {
 
     await tester.enterText(
       find.byKey(const ValueKey('compose-search-field')),
-      'quiet forest',
+      'brand new',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
     expect(find.text('Search results'), findsOneWidget);
+    expect(histories.first['search_query'], 'brand new');
     // The standalone search harness does not mount the full app shell.
     tester.takeException();
 
@@ -144,5 +159,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Recent searches'), findsOneWidget);
     expect(find.text('Search results'), findsNothing);
+    expect(find.text('brand new'), findsOneWidget);
   });
 }
