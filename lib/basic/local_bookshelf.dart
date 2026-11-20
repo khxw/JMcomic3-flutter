@@ -4,8 +4,12 @@ import 'package:event/event.dart';
 import 'package:flutter/foundation.dart';
 import 'package:jmcomic3/basic/methods.dart';
 
+import 'async_semaphore.dart';
+
 const _storageKey = "local_bookshelf_v1";
 const _groupsStorageKey = "local_bookshelf_groups_v1";
+const _updatesCheckedAtKey = "local_bookshelf_updates_checked_at";
+const _updatesRefreshInterval = Duration(minutes: 10);
 
 final Event localBookshelfEvent = Event();
 final List<LocalBookshelfItem> localBookshelfItems = [];
@@ -18,23 +22,28 @@ class LocalBookshelfItem {
   final ComicBasic comic;
   final int addedAt;
   final String group;
+  final int? lastSeenUpdateAt;
 
   const LocalBookshelfItem({
     required this.comic,
     required this.addedAt,
     required this.group,
+    this.lastSeenUpdateAt,
   });
 
   factory LocalBookshelfItem.fromJson(Map<String, dynamic> json) {
     final comicJson = json['comic'];
+    final comic = ComicBasic.fromJson(
+      comicJson is Map
+          ? Map<String, dynamic>.from(comicJson)
+          : <String, dynamic>{},
+    );
     return LocalBookshelfItem(
-      comic: ComicBasic.fromJson(
-        comicJson is Map
-            ? Map<String, dynamic>.from(comicJson)
-            : <String, dynamic>{},
-      ),
+      comic: comic,
       addedAt: _toInt(json['added_at']),
       group: "${json['group'] ?? ''}".trim(),
+      lastSeenUpdateAt:
+          _toNullableInt(json['last_seen_update_at']) ?? comic.updateAt,
     );
   }
 
@@ -42,18 +51,41 @@ class LocalBookshelfItem {
         'comic': comic.toJson(),
         'added_at': addedAt,
         'group': group,
+        'last_seen_update_at': lastSeenUpdateAt,
       };
 
-  LocalBookshelfItem copyWith({String? group}) => LocalBookshelfItem(
-        comic: comic,
+  bool get hasUpdate {
+    final updatedAt = comic.updateAt;
+    final seenAt = lastSeenUpdateAt ?? updatedAt;
+    return updatedAt != null &&
+        updatedAt > 0 &&
+        seenAt != null &&
+        updatedAt > seenAt;
+  }
+
+  LocalBookshelfItem copyWith({
+    String? group,
+    ComicBasic? comic,
+    int? lastSeenUpdateAt,
+  }) =>
+      LocalBookshelfItem(
+        comic: comic ?? this.comic,
         addedAt: addedAt,
         group: group ?? this.group,
+        lastSeenUpdateAt: lastSeenUpdateAt ?? this.lastSeenUpdateAt,
       );
 
   static int _toInt(dynamic value) {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse("$value") ?? 0;
+  }
+
+  static int? _toNullableInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse("$value");
   }
 }
 
@@ -143,6 +175,15 @@ int localBookshelfGroupCount(String group) {
       .length;
 }
 
+int localBookshelfUpdateCount(String? group) {
+  return localBookshelfItems
+      .where(
+        (item) =>
+            (group == null || _sameGroup(item.group, group)) && item.hasUpdate,
+      )
+      .length;
+}
+
 bool localBookshelfContains(int comicId) {
   return localBookshelfItems.any((item) => item.comic.id == comicId);
 }
@@ -167,6 +208,7 @@ Future<bool> toggleLocalBookshelf(
       comic: comic,
       addedAt: DateTime.now().millisecondsSinceEpoch,
       group: group.trim(),
+      lastSeenUpdateAt: comic.updateAt,
     ),
   );
   _rememberGroup(group);
@@ -242,6 +284,91 @@ Future<bool> moveLocalBookshelfItem(int comicId, String group) async {
   _rememberGroup(normalized);
   await _saveStorage();
   return true;
+}
+
+Future<void> markLocalBookshelfItemSeen(int comicId) async {
+  await loadLocalBookshelf();
+  final index =
+      localBookshelfItems.indexWhere((item) => item.comic.id == comicId);
+  if (index < 0) return;
+  final item = localBookshelfItems[index];
+  final seenAt = item.comic.updateAt;
+  if (seenAt == null || item.lastSeenUpdateAt == seenAt) return;
+  localBookshelfItems[index] = item.copyWith(lastSeenUpdateAt: seenAt);
+  await _saveStorage();
+}
+
+Future<int> refreshLocalBookshelfUpdates({bool force = false}) async {
+  await loadLocalBookshelf();
+  final now = DateTime.now();
+  if (!force) {
+    final raw = await methods.loadProperty(_updatesCheckedAtKey);
+    final lastCheckedMs = int.tryParse(raw) ?? 0;
+    if (lastCheckedMs > 0 &&
+        now.millisecondsSinceEpoch - lastCheckedMs <
+            _updatesRefreshInterval.inMilliseconds) {
+      return 0;
+    }
+  }
+
+  final snapshot = List<LocalBookshelfItem>.of(localBookshelfItems);
+  final semaphore = AsyncSemaphore(4);
+  final refreshed = await Future.wait(
+    snapshot.map(
+      (item) => semaphore.run<LocalBookshelfItem?>(() async {
+        try {
+          final album = await methods.album(
+            item.comic.id,
+            ignoreViewLog: true,
+            forceRefresh: true,
+          );
+          final image =
+              album.images.isEmpty ? item.comic.image : album.images.first;
+          final comic = ComicBasic(
+            id: album.id,
+            author: album.author.join(', '),
+            description: album.description,
+            name: album.name,
+            image: image,
+            updateAt: album.updateAt,
+            addtime: album.addtime,
+          );
+          final lastSeen = item.lastSeenUpdateAt ?? item.comic.updateAt;
+          return item.copyWith(
+            comic: comic,
+            lastSeenUpdateAt: lastSeen,
+          );
+        } catch (_) {
+          return null;
+        }
+      }),
+    ),
+  );
+
+  var changed = false;
+  for (final updated in refreshed.whereType<LocalBookshelfItem>()) {
+    final index = localBookshelfItems.indexWhere(
+      (item) => item.comic.id == updated.comic.id,
+    );
+    if (index < 0) continue;
+    final previous = localBookshelfItems[index];
+    if (previous.comic.updateAt != updated.comic.updateAt ||
+        previous.comic.name != updated.comic.name ||
+        previous.comic.author != updated.comic.author ||
+        previous.comic.description != updated.comic.description ||
+        previous.comic.image != updated.comic.image) {
+      localBookshelfItems[index] = updated;
+      changed = true;
+    }
+  }
+  if (changed) {
+    await _saveStorage();
+  }
+  await methods.saveProperty(
+    _updatesCheckedAtKey,
+    now.millisecondsSinceEpoch.toString(),
+  );
+  return localBookshelfUpdateCount(null);
 }
 
 @visibleForTesting

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/local_bookshelf.dart';
@@ -58,6 +60,11 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
       setState(() => _loading = true);
     }
     await loadLocalBookshelf(force: force);
+    if (force) {
+      await refreshLocalBookshelfUpdates(force: true);
+    } else {
+      unawaited(refreshLocalBookshelfUpdates());
+    }
     final savedSort = await methods.loadProperty("bookshelf_sort");
     if (!mounted) return;
     setState(() {
@@ -306,6 +313,7 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
           title: context.l10n.all,
           group: null,
           count: total,
+          updateCount: localBookshelfUpdateCount(null),
           kind: _ShelfFolderKind.all,
         ),
       );
@@ -316,6 +324,7 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
           title: group,
           group: group,
           count: localBookshelfGroupCount(group),
+          updateCount: localBookshelfUpdateCount(group),
           kind: _ShelfFolderKind.group,
         ),
       );
@@ -326,6 +335,7 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
           title: context.l10n.tr('未分组', en: 'Ungrouped'),
           group: "",
           count: ungrouped,
+          updateCount: localBookshelfUpdateCount(""),
           kind: _ShelfFolderKind.ungrouped,
         ),
       );
@@ -458,12 +468,14 @@ class _ShelfFolder {
   final String title;
   final String? group;
   final int count;
+  final int updateCount;
   final _ShelfFolderKind kind;
 
   const _ShelfFolder({
     required this.title,
     required this.group,
     required this.count,
+    required this.updateCount,
     required this.kind,
   });
 
@@ -525,6 +537,11 @@ class _ShelfFolderCardState extends State<_ShelfFolderCard> {
             '${folder.count} 本漫画',
             en: '${folder.count} ${folder.count == 1 ? 'comic' : 'comics'}',
           );
+    final hasUpdates = folder.updateCount > 0;
+    final updateLabel = context.l10n.tr(
+      '${folder.updateCount} 本有更新',
+      en: '${folder.updateCount} updated',
+    );
     final background = folder.kind == _ShelfFolderKind.all
         ? Color.alphaBlend(
             accent.withValues(alpha: .1),
@@ -534,7 +551,8 @@ class _ShelfFolderCardState extends State<_ShelfFolderCard> {
     return RepaintBoundary(
       child: Semantics(
         button: true,
-        label: '${folder.title}，$countLabel',
+        label:
+            '${folder.title}，$countLabel${hasUpdates ? '，$updateLabel' : ''}',
         hint: context.l10n.tr('打开文件夹', en: 'Open folder'),
         child: ExcludeSemantics(
           child: MouseRegion(
@@ -586,19 +604,56 @@ class _ShelfFolderCardState extends State<_ShelfFolderCard> {
                               ),
                             ),
                             const Spacer(),
-                            Text(
-                              empty
-                                  ? context.l10n.tr('空', en: 'Empty')
-                                  : context.l10n.tr(
-                                      '${folder.count} 本',
-                                      en: '${folder.count}',
+                            if (hasUpdates)
+                              Container(
+                                key: ValueKey(
+                                  'bookshelf-folder-update-${folder.key}',
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: scheme.errorContainer,
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 5,
+                                      height: 5,
+                                      decoration: BoxDecoration(
+                                        color: scheme.error,
+                                        shape: BoxShape.circle,
+                                      ),
                                     ),
-                              maxLines: 1,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: accent,
-                                fontWeight: FontWeight.w600,
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${folder.updateCount}',
+                                      style:
+                                          theme.textTheme.labelSmall?.copyWith(
+                                        color: scheme.onErrorContainer,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              Text(
+                                empty
+                                    ? context.l10n.tr('空', en: 'Empty')
+                                    : context.l10n.tr(
+                                        '${folder.count} 本',
+                                        en: '${folder.count}',
+                                      ),
+                                maxLines: 1,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: accent,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
                           ],
                         ),
                         const Spacer(),

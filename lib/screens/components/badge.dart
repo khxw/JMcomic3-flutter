@@ -14,30 +14,50 @@ class Badged extends StatelessWidget {
       return child;
     }
     return Stack(
+      clipBehavior: Clip.none,
       children: [
         child,
-        Positioned(
-          right: 0,
-          child: Container(
-            padding: const EdgeInsets.all(1),
-            decoration: BoxDecoration(
-              color: Colors.red,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            constraints: const BoxConstraints(
-              minWidth: 12,
-              minHeight: 12,
-            ),
-            child: Text(
-              badge!,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 8,
+        if (badge!.isEmpty)
+          Positioned(
+            top: 0,
+            right: 0,
+            child: Container(
+              key: const ValueKey('version-update-dot'),
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.error,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.surface,
+                  width: 1,
+                ),
               ),
-              textAlign: TextAlign.center,
+            ),
+          )
+        else
+          Positioned(
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.all(1),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              constraints: const BoxConstraints(
+                minWidth: 12,
+                minHeight: 12,
+              ),
+              child: Text(
+                badge!,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 8,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -73,7 +93,7 @@ class _VersionBadgedState extends State<VersionBadged> {
   Widget build(BuildContext context) {
     return Badged(
       child: widget.child,
-      badge: updatesTemporarilyDisabled || latestVersion == null ? null : "1",
+      badge: updatesTemporarilyDisabled || latestVersion == null ? null : "",
     );
   }
 }

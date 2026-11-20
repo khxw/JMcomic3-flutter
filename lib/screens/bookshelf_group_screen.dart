@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/local_bookshelf.dart';
@@ -239,6 +241,9 @@ class _BookshelfGroupScreenState extends State<BookshelfGroupScreen> {
                     'GROUP_BOOKSHELF:${widget.group ?? 'all'}:$_sort:${items.length}',
                   ),
                   data: items.map((item) => item.comic).toList(growable: false),
+                  onComicTap: (comic) {
+                    unawaited(markLocalBookshelfItemSeen(comic.id));
+                  },
                   longPressMenuItems: [
                     if (localBookshelfGroupNames.isNotEmpty)
                       ComicLongPressMenuItem(

@@ -20,6 +20,7 @@ class ComicList extends StatefulWidget {
   final Function? onScroll;
   final List<ComicLongPressMenuItem>? longPressMenuItems;
   final bool dense;
+  final ValueChanged<ComicBasic>? onComicTap;
 
   const ComicList({
     Key? key,
@@ -30,6 +31,7 @@ class ComicList extends StatefulWidget {
     this.onScroll,
     this.longPressMenuItems,
     this.dense = false,
+    this.onComicTap,
   }) : super(key: key);
 
   @override
@@ -344,6 +346,7 @@ class _ComicListState extends State<ComicList> {
   }
 
   void _pushToComicInfo(ComicBasic data) {
+    widget.onComicTap?.call(data);
     Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
       return ComicInfoScreen(data.id, data);
     }));
