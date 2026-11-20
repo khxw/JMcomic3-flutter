@@ -57,6 +57,7 @@ class _UserScreenState extends State<UserScreen>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_profileActive) return;
         unawaited(_refreshAccountInfo());
+        unawaited(refreshDailySignStatus());
       });
     } else if (!active) {
       _profileActive = false;
@@ -94,6 +95,7 @@ class _UserScreenState extends State<UserScreen>
     _accountRefreshInFlight = true;
     try {
       await refreshSelfInfo();
+      await refreshDailySignStatus();
     } finally {
       _accountRefreshInFlight = false;
     }
@@ -106,6 +108,9 @@ class _UserScreenState extends State<UserScreen>
     if (accountUid != _dailySignAccountUid) {
       _dailySignAccountUid = accountUid;
       resetDailySignStatus();
+      if (accountUid != null) {
+        unawaited(refreshDailySignStatus());
+      }
     }
   }
 

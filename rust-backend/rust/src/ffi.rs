@@ -737,6 +737,17 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
                 Err(error) => InvokeResponse::error(error.to_string()),
             }
         }
+        "daily_status" => {
+            let user_id = match int_param(&params, "uid").or_else(|_| int_param(&params, "user_id"))
+            {
+                Ok(id) => id,
+                Err(error) => return InvokeResponse::error(error),
+            };
+            match state.client.daily(user_id).await {
+                Ok(value) => InvokeResponse::success_value(&value),
+                Err(error) => InvokeResponse::error(error.to_string()),
+            }
+        }
         "all_downloads" => match state.downloads.all_json() {
             Ok(value) => InvokeResponse::success_value(&value),
             Err(error) => InvokeResponse::error(error.to_string()),

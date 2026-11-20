@@ -15,6 +15,8 @@ enum DailySignStatus {
 
 DailySignStatus dailySignStatus = DailySignStatus.unchecked;
 bool _dailySignInFlight = false;
+bool _dailyStatusInFlight = false;
+DateTime? _dailySignedDate;
 
 final dailySignEvent = Event();
 
@@ -25,6 +27,8 @@ void _setDailySignStatus(DailySignStatus status) {
 
 void resetDailySignStatus() {
   _dailySignInFlight = false;
+  _dailyStatusInFlight = false;
+  _dailySignedDate = null;
   _setDailySignStatus(DailySignStatus.unchecked);
 }
 
@@ -83,6 +87,7 @@ Future<void> signInDaily(BuildContext context) async {
         message: msg.isNotEmpty ? msg : context.l10n.tr("已签到", en: "Signed in"),
       );
     }
+    _dailySignedDate = DateUtils.dateOnly(DateTime.now());
     _setDailySignStatus(DailySignStatus.signed);
     await refreshSelfInfo();
   } catch (e, st) {
@@ -99,4 +104,50 @@ Future<void> signInDaily(BuildContext context) async {
   } finally {
     _dailySignInFlight = false;
   }
+}
+
+Future<void> refreshDailySignStatus() async {
+  if (loginStatus != LoginStatus.loginSuccess) {
+    resetDailySignStatus();
+    return;
+  }
+  if (_dailyStatusInFlight || _dailySignInFlight) return;
+  _dailyStatusInFlight = true;
+  _setDailySignStatus(DailySignStatus.checking);
+  try {
+    final data = await methods.dailyStatus(selfInfo.uid);
+    final signed = _signedOnDate(data, DateTime.now());
+    _dailySignedDate = signed ? DateUtils.dateOnly(DateTime.now()) : null;
+    _setDailySignStatus(
+      signed ? DailySignStatus.signed : DailySignStatus.unchecked,
+    );
+  } catch (error, stackTrace) {
+    debugPrient(
+      "daily status refresh failed: "
+      "${error.runtimeType}/${stackTrace.runtimeType}",
+    );
+    final signedToday = _dailySignedDate == DateUtils.dateOnly(DateTime.now());
+    _setDailySignStatus(
+      signedToday ? DailySignStatus.signed : DailySignStatus.unchecked,
+    );
+  } finally {
+    _dailyStatusInFlight = false;
+  }
+}
+
+bool _signedOnDate(Map<String, dynamic> data, DateTime date) {
+  final record = data['record'];
+  if (record is! List) return false;
+  final expectedDay = date.day.toString().padLeft(2, '0');
+  for (final week in record) {
+    if (week is! List) continue;
+    for (final item in week) {
+      if (item is! Map) continue;
+      final day = '${item['date'] ?? ''}'.padLeft(2, '0');
+      if (day == expectedDay) {
+        return item['signed'] == true;
+      }
+    }
+  }
+  return false;
 }

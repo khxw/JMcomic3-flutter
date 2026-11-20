@@ -48,6 +48,7 @@ void main() {
   testWidgets('login refreshes account info without automatic sign-in',
       (tester) async {
     var dailyCalls = 0;
+    var dailyStatusCalls = 0;
     var preLoginCalls = 0;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -68,6 +69,19 @@ void main() {
         case 'daily':
           dailyCalls++;
           return _response('Signed in');
+        case 'daily_status':
+          dailyStatusCalls++;
+          return _response({
+            'record': [
+              [
+                {
+                  'date': DateTime.now().day.toString().padLeft(2, '0'),
+                  'signed': true,
+                  'bonus': false,
+                },
+              ],
+            ],
+          });
         case 'favorite':
           return _response({
             'total': 0,
@@ -104,9 +118,9 @@ void main() {
     expect(loginStatus, LoginStatus.loginSuccess);
     expect(selfInfo.level, 9);
     expect(dailyCalls, 0);
-    expect(dailySignStatus, DailySignStatus.unchecked);
-    expect(find.text('Manual Sign-in'), findsOneWidget);
-    expect(find.text('Not checked'), findsOneWidget);
+    expect(dailyStatusCalls, greaterThanOrEqualTo(1));
+    expect(dailySignStatus, DailySignStatus.signed);
+    expect(find.text('Signed in'), findsOneWidget);
 
     final callsBeforeResume = preLoginCalls;
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);

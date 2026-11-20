@@ -75,7 +75,8 @@ void main() {
         builder: (_) => const UserAgreementScreen(),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     expect(
       find.byKey(const ValueKey('agreement-welcome-step')),
@@ -91,7 +92,7 @@ void main() {
     await tester.tap(
       find.byKey(const ValueKey('agreement-welcome-continue')),
     );
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(
       find.byKey(const ValueKey('agreement-terms-step')),
@@ -148,11 +149,12 @@ void main() {
         builder: (_) => const UserAgreementScreen(),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(
       find.byKey(const ValueKey('agreement-welcome-continue')),
     );
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('同意并继续'), findsOneWidget);
     expect(find.byKey(const ValueKey('agreement-exit')), findsOneWidget);

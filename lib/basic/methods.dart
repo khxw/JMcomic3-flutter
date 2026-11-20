@@ -59,6 +59,7 @@ class Methods {
     "week",
     "week_filter",
     "daily",
+    "daily_status",
   };
   static const Duration _categoriesCacheTtl = Duration(minutes: 10);
   static const Duration _comicsCacheTtl = Duration(minutes: 5);
@@ -1721,6 +1722,14 @@ class Methods {
 
   Future<String> daily(int uid) {
     return _invoke("daily", uid);
+  }
+
+  Future<Map<String, dynamic>> dailyStatus(int uid) async {
+    return _decodeMapResponse(
+      await _invoke("daily_status", uid),
+      "daily_status",
+      nullAsEmpty: true,
+    );
   }
 
   Future<WeekData> week(int page) async {

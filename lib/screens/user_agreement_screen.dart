@@ -111,7 +111,7 @@ class _UserAgreementScreenState extends State<UserAgreementScreen> {
   }
 }
 
-class _WelcomeStep extends StatelessWidget {
+class _WelcomeStep extends StatefulWidget {
   final VoidCallback onContinue;
 
   const _WelcomeStep({
@@ -120,163 +120,198 @@ class _WelcomeStep extends StatelessWidget {
   });
 
   @override
+  State<_WelcomeStep> createState() => _WelcomeStepState();
+}
+
+class _WelcomeStepState extends State<_WelcomeStep>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ambientController = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 18),
+  );
+  bool _motionConfigured = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_motionConfigured) return;
+    _motionConfigured = true;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _ambientController.value = .45;
+    } else {
+      _ambientController.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ambientController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            scheme.primaryContainer,
-            scheme.surface,
-            scheme.tertiaryContainer.withValues(alpha: .62),
-          ],
-          stops: const [0, .56, 1],
-        ),
+    const surface = Color(0xFF0F1417);
+    const primaryContainer = Color(0xFF004D65);
+    const tertiaryContainer = Color(0xFF464364);
+    const onSurface = Color(0xFFDFE3E7);
+    const secondary = Color(0xFFB4CAD6);
+    const onSecondary = Color(0xFF1F333D);
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+        systemNavigationBarColor: surface,
+        systemNavigationBarIconBrightness: Brightness.light,
       ),
-      child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 620),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight - 44,
-                    ),
-                    child: IntrinsicHeight(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Spacer(),
-                          Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(28),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: .22),
-                                  blurRadius: 28,
-                                  offset: const Offset(0, 14),
-                                ),
-                              ],
-                            ),
-                            child: const AppIcon(
-                              size: 96,
-                              borderRadius: 24,
-                            ),
-                          ),
-                          const SizedBox(height: 22),
-                          Text(
-                            'JMComic3 Mod',
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -.5,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            context.l10n.tr(
-                              '浏览、阅读与管理你的漫画收藏',
-                              en: 'Browse, read, and manage your comic collection',
-                            ),
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          const _WelcomeFeatures(),
-                          const Spacer(),
-                          const SizedBox(height: 24),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton.icon(
-                              key: const ValueKey('agreement-welcome-continue'),
-                              onPressed: onContinue,
-                              icon: const Icon(Icons.arrow_forward_rounded),
-                              label: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 13),
-                                child: Text(
-                                  context.l10n.tr(
-                                    '继续',
-                                    en: 'Continue',
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+      child: AnimatedBuilder(
+        animation: _ambientController,
+        builder: (context, child) {
+          final t = Curves.easeInOut.transform(_ambientController.value);
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment(-1 - t * .12, -1 - t * .08),
+                end: Alignment(1 - t * .2, 1 - t * .1),
+                colors: [
+                  primaryContainer,
+                  surface,
+                  tertiaryContainer.withValues(alpha: .62),
+                ],
+                stops: const [0, .56, 1],
+              ),
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned(
+                  top: -210 + t * 45,
+                  left: -190 + t * 35,
+                  width: 440,
+                  height: 440,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            const Color(0xFF2FBFD6).withValues(alpha: .2),
+                            Colors.transparent,
+                          ],
+                          stops: const [0, .7],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _WelcomeFeatures extends StatelessWidget {
-  const _WelcomeFeatures();
-
-  @override
-  Widget build(BuildContext context) {
-    final items = [
-      (
-        Icons.explore_rounded,
-        context.l10n.tr('发现与搜索', en: 'Discover'),
-      ),
-      (
-        Icons.menu_book_rounded,
-        context.l10n.tr('舒适阅读', en: 'Read'),
-      ),
-      (
-        Icons.collections_bookmark_rounded,
-        context.l10n.tr('本地书架', en: 'Library'),
-      ),
-      (
-        Icons.download_for_offline_rounded,
-        context.l10n.tr('下载管理', en: 'Downloads'),
-      ),
-    ];
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 9,
-      runSpacing: 9,
-      children: [
-        for (final item in items)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-            decoration: BoxDecoration(
-              color:
-                  Theme.of(context).colorScheme.surface.withValues(alpha: .74),
-              borderRadius: BorderRadius.circular(99),
-              border: Border.all(
-                color: Theme.of(context)
-                    .colorScheme
-                    .outlineVariant
-                    .withValues(alpha: .7),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(item.$1, size: 17),
-                const SizedBox(width: 6),
-                Text(item.$2),
+                Positioned(
+                  right: -210 + t * -35,
+                  bottom: -230 + t * -30,
+                  width: 450,
+                  height: 450,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            const Color(0xFF967FDB).withValues(alpha: .2),
+                            Colors.transparent,
+                          ],
+                          stops: const [0, .7],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                child!,
               ],
             ),
+          );
+        },
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 430),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - 46,
+                      ),
+                      child: IntrinsicHeight(
+                        child: Column(
+                          children: [
+                            const Spacer(),
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(24),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: .3),
+                                    blurRadius: 34,
+                                    offset: const Offset(0, 20),
+                                  ),
+                                ],
+                              ),
+                              child: const AppIcon(
+                                size: 96,
+                                borderRadius: 24,
+                              ),
+                            ),
+                            const SizedBox(height: 27),
+                            Text(
+                              'JMComic3 Mod',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineMedium
+                                  ?.copyWith(
+                                    color: onSurface,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -.5,
+                                  ),
+                            ),
+                            const Spacer(),
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.icon(
+                                key: const ValueKey(
+                                  'agreement-welcome-continue',
+                                ),
+                                onPressed: widget.onContinue,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: secondary,
+                                  foregroundColor: onSecondary,
+                                  minimumSize: const Size.fromHeight(56),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.arrow_forward_rounded,
+                                  size: 23,
+                                ),
+                                label: Text(
+                                  context.l10n.tr('继续', en: 'Continue'),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
-      ],
+        ),
+      ),
     );
   }
 }
