@@ -128,97 +128,117 @@ class _SearchScreenState extends State<SearchScreen>
     _focusNode.requestFocus();
   }
 
+  void _handleBack() {
+    if (_query.isNotEmpty) {
+      _clearQuery();
+      return;
+    }
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final scheme = Theme.of(context).colorScheme;
     final showingResults = _query.isNotEmpty;
-    return Scaffold(
-      key: const ValueKey('compose-search-page'),
-      backgroundColor: scheme.surface,
-      body: SafeArea(
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1120),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 14, 12, 6),
-                  child: Row(
-                    children: [
-                      if (Navigator.of(context).canPop()) ...[
-                        IconButton.filledTonal(
-                          tooltip: MaterialLocalizations.of(context)
-                              .backButtonTooltip,
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.arrow_back_rounded),
-                        ),
-                        const SizedBox(width: 10),
-                      ],
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              showingResults
-                                  ? context.l10n.tr(
-                                      '搜索结果',
-                                      en: 'Search results',
-                                    )
-                                  : context.l10n.navSearch,
-                              style: (showingResults
-                                      ? Theme.of(context).textTheme.titleLarge
-                                      : Theme.of(context)
-                                          .textTheme
-                                          .headlineSmall)
-                                  ?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: -.4,
+    return PopScope(
+      canPop: !showingResults,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _query.isNotEmpty) {
+          _clearQuery();
+        }
+      },
+      child: Scaffold(
+        key: const ValueKey('compose-search-page'),
+        backgroundColor: scheme.surface,
+        body: SafeArea(
+          bottom: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 14, 12, 6),
+                    child: Row(
+                      children: [
+                        if (showingResults ||
+                            Navigator.of(context).canPop()) ...[
+                          IconButton.filledTonal(
+                            tooltip: MaterialLocalizations.of(context)
+                                .backButtonTooltip,
+                            onPressed: _handleBack,
+                            icon: const Icon(Icons.arrow_back_rounded),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                showingResults
+                                    ? context.l10n.tr(
+                                        '搜索结果',
+                                        en: 'Search results',
+                                      )
+                                    : context.l10n.navSearch,
+                                style: (showingResults
+                                        ? Theme.of(context).textTheme.titleLarge
+                                        : Theme.of(context)
+                                            .textTheme
+                                            .headlineSmall)
+                                    ?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -.4,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              showingResults
-                                  ? '“$_query”'
-                                  : context.l10n.tr(
-                                      '按标题、作者或标签发现漫画',
-                                      en: 'Find comics by title, author or tag',
-                                    ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: scheme.onSurfaceVariant),
-                            ),
-                          ],
+                              const SizedBox(height: 3),
+                              Text(
+                                showingResults
+                                    ? '“$_query”'
+                                    : context.l10n.tr(
+                                        '按标题、作者或标签发现漫画',
+                                        en: 'Find comics by title, author or tag',
+                                      ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: scheme.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      if (showingResults)
-                        IconButton.filledTonal(
-                          tooltip:
-                              '${context.l10n.chooseSort}: ${sortByName(context, _sortBy)}',
-                          onPressed: _chooseSort,
-                          icon: const Icon(Icons.sort_rounded),
-                        ),
-                      const BrowserBottomSheetAction(),
-                    ],
+                        if (showingResults)
+                          IconButton.filledTonal(
+                            tooltip:
+                                '${context.l10n.chooseSort}: ${sortByName(context, _sortBy)}',
+                            onPressed: _chooseSort,
+                            icon: const Icon(Icons.sort_rounded),
+                          ),
+                        const BrowserBottomSheetAction(),
+                      ],
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                  child: _buildSearchField(context),
-                ),
-                Expanded(
-                  child: ComposePageSwitcher(
-                    child: _query.isEmpty
-                        ? _buildLanding(context)
-                        : _buildResults(context),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    child: _buildSearchField(context),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: ComposePageSwitcher(
+                      child: _query.isEmpty
+                          ? _buildLanding(context)
+                          : _buildResults(context),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

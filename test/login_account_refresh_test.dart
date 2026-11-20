@@ -121,6 +121,9 @@ void main() {
     expect(dailyStatusCalls, greaterThanOrEqualTo(1));
     expect(dailySignStatus, DailySignStatus.signed);
     expect(find.text('Signed in'), findsOneWidget);
+    final statusCallsBeforeRetry = dailyStatusCalls;
+    await refreshDailySignStatus();
+    expect(dailyStatusCalls, statusCallsBeforeRetry);
 
     final callsBeforeResume = preLoginCalls;
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);

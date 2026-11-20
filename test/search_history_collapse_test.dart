@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jmcomic3/configs/pager_column_number.dart';
+import 'package:jmcomic3/configs/pager_cover_rate.dart';
+import 'package:jmcomic3/configs/pager_view_mode.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/search_screen.dart';
 
@@ -40,6 +43,11 @@ void main() {
             'categories': <Object>[],
             'blocks': <Object>[],
           });
+        case 'comic_search':
+          return _response({
+            'total': 0,
+            'content': <Object>[],
+          });
         case 'load_property':
           return _response('');
         default:
@@ -50,6 +58,9 @@ void main() {
       messenger.setMockMethodCallHandler(_channel, null);
     });
 
+    await initPagerViewMode();
+    await initPagerCoverRate();
+    await initPagerColumnCount();
     await tester.pumpWidget(const MaterialApp(
       locale: Locale('en'),
       localizationsDelegates: [AppLocalizations.delegate],
@@ -75,5 +86,63 @@ void main() {
     expect(find.text('quiet forest'), findsOneWidget);
     expect(find.text('city rain'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('back from search results returns to the search landing page',
+      (tester) async {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      switch (request['method']) {
+        case 'last_search_histories':
+          return _response([
+            {
+              'search_query': 'quiet forest',
+              'last_search_time': 1770000000,
+            },
+          ]);
+        case 'categories':
+          return _response({
+            'categories': <Object>[],
+            'blocks': <Object>[],
+          });
+        case 'comic_search':
+          return _response({
+            'total': 0,
+            'content': <Object>[],
+          });
+        default:
+          return _response('');
+      }
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+    });
+
+    await tester.pumpWidget(const MaterialApp(
+      locale: Locale('en'),
+      localizationsDelegates: [AppLocalizations.delegate],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: SearchScreen(),
+    ));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('compose-search-field')),
+      'quiet forest',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(find.text('Search results'), findsOneWidget);
+    // The standalone search harness does not mount the full app shell.
+    tester.takeException();
+
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('Recent searches'), findsOneWidget);
+    expect(find.text('Search results'), findsNothing);
   });
 }

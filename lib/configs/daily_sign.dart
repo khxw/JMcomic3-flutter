@@ -14,9 +14,12 @@ enum DailySignStatus {
 }
 
 DailySignStatus dailySignStatus = DailySignStatus.unchecked;
+const _dailyStatusCooldown = Duration(minutes: 5);
 bool _dailySignInFlight = false;
 bool _dailyStatusInFlight = false;
 DateTime? _dailySignedDate;
+DateTime? _lastDailyStatusQueryAt;
+int? _lastDailyStatusQueryUid;
 
 final dailySignEvent = Event();
 
@@ -29,6 +32,8 @@ void resetDailySignStatus() {
   _dailySignInFlight = false;
   _dailyStatusInFlight = false;
   _dailySignedDate = null;
+  _lastDailyStatusQueryAt = null;
+  _lastDailyStatusQueryUid = null;
   _setDailySignStatus(DailySignStatus.unchecked);
 }
 
@@ -112,10 +117,19 @@ Future<void> refreshDailySignStatus() async {
     return;
   }
   if (_dailyStatusInFlight || _dailySignInFlight) return;
+  final uid = selfInfo.uid;
+  final lastQuery = _lastDailyStatusQueryAt;
+  if (_lastDailyStatusQueryUid == uid &&
+      lastQuery != null &&
+      DateTime.now().difference(lastQuery) < _dailyStatusCooldown) {
+    return;
+  }
   _dailyStatusInFlight = true;
+  _lastDailyStatusQueryUid = uid;
+  _lastDailyStatusQueryAt = DateTime.now();
   _setDailySignStatus(DailySignStatus.checking);
   try {
-    final data = await methods.dailyStatus(selfInfo.uid);
+    final data = await methods.dailyStatus(uid);
     final signed = _signedOnDate(data, DateTime.now());
     _dailySignedDate = signed ? DateUtils.dateOnly(DateTime.now()) : null;
     _setDailySignStatus(
