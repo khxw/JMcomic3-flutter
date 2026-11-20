@@ -88,6 +88,20 @@ void main() {
       find.byKey(const ValueKey('agreement-terms-step')),
       findsNothing,
     );
+    final gradientBefore = (tester
+            .widget<DecoratedBox>(
+              find.byKey(const ValueKey('onboarding-ambient-gradient')),
+            )
+            .decoration as BoxDecoration)
+        .gradient as LinearGradient;
+    await tester.pump(const Duration(seconds: 1));
+    final gradientAfter = (tester
+            .widget<DecoratedBox>(
+              find.byKey(const ValueKey('onboarding-ambient-gradient')),
+            )
+            .decoration as BoxDecoration)
+        .gradient as LinearGradient;
+    expect(gradientAfter.begin, isNot(gradientBefore.begin));
 
     await tester.tap(
       find.byKey(const ValueKey('agreement-welcome-continue')),

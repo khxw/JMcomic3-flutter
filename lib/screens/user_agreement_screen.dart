@@ -127,7 +127,7 @@ class _WelcomeStepState extends State<_WelcomeStep>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ambientController = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 18),
+    duration: const Duration(seconds: 9),
   );
   bool _motionConfigured = false;
 
@@ -170,6 +170,7 @@ class _WelcomeStepState extends State<_WelcomeStep>
         builder: (context, child) {
           final t = Curves.easeInOut.transform(_ambientController.value);
           return DecoratedBox(
+            key: const ValueKey('onboarding-ambient-gradient'),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment(-1 - t * .12, -1 - t * .08),
@@ -186,17 +187,18 @@ class _WelcomeStepState extends State<_WelcomeStep>
               fit: StackFit.expand,
               children: [
                 Positioned(
-                  top: -210 + t * 45,
-                  left: -190 + t * 35,
-                  width: 440,
-                  height: 440,
+                  top: -235 + t * 115,
+                  left: -215 + t * 95,
+                  width: 480,
+                  height: 480,
                   child: IgnorePointer(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
                           colors: [
-                            const Color(0xFF2FBFD6).withValues(alpha: .2),
+                            const Color(0xFF3ED8E7)
+                                .withValues(alpha: .18 + t * .13),
                             Colors.transparent,
                           ],
                           stops: const [0, .7],
@@ -206,20 +208,44 @@ class _WelcomeStepState extends State<_WelcomeStep>
                   ),
                 ),
                 Positioned(
-                  right: -210 + t * -35,
-                  bottom: -230 + t * -30,
-                  width: 450,
-                  height: 450,
+                  right: -225 - t * 90,
+                  bottom: -245 - t * 80,
+                  width: 500,
+                  height: 500,
                   child: IgnorePointer(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
                           colors: [
-                            const Color(0xFF967FDB).withValues(alpha: .2),
+                            const Color(0xFFA58DF0)
+                                .withValues(alpha: .17 + t * .14),
                             Colors.transparent,
                           ],
                           stops: const [0, .7],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 95 + t * 125,
+                  left: -190 + t * 105,
+                  width: 620,
+                  height: 190,
+                  child: IgnorePointer(
+                    child: Transform.rotate(
+                      angle: -.36 + t * .1,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              const Color(0xFF62D5DD)
+                                  .withValues(alpha: .045 + t * .045),
+                              Colors.transparent,
+                            ],
+                          ),
                         ),
                       ),
                     ),
