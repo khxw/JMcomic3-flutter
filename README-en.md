@@ -20,7 +20,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 ## Current release
 
-**v1.8.96+225** · Android ARM64 · API 24+
+**v1.8.98+227** · Android ARM64 · API 24+
 
 - [Latest GitHub Release](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - [Changelog](CHANGELOG.md)
@@ -30,7 +30,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 | File | Purpose |
 | --- | --- |
-| `JMComic3-Mod-v1.8.96-arm64-v8a-release.apk` | Android ARM64 devices |
+| `JMComic3-Mod-v1.8.98-arm64-v8a-release.apk` | Android ARM64 devices |
 | `SHA256SUMS.txt` | APK integrity verification |
 
 This fork currently publishes only an **Android ARM64 APK**. ARM32, Windows,
@@ -58,6 +58,8 @@ Back up bookshelf, history, and download settings before upgrading.
 - Configurable image preloading in both directions or forward-only.
 - The onboarding page uses a slow animated gradient, soft glows, and a reduced layout.
 - Back from search results returns to the search landing page before leaving search.
+- Comic details resolve the same original publish date shown on the web,
+  avoiding the latest update time being displayed as the publish date.
 - Bottom navigation keeps a single sliding indicator with lighter page transitions.
 - Full release notes are shown consistently in the startup prompt and About page.
 - Redesigned update download progress with target version, percentage, file size,
@@ -84,13 +86,13 @@ Back up bookshelf, history, and download settings before upgrading.
 PowerShell verification:
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.8.96-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.8.98-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 Current APK SHA-256:
 
 ```text
-7CFA3C588A3E7A9908395E86F36ACDD49AEEDD4E800911B615080F8A03361A7D
+F9B0570094721BA87DA51276A486D93411012D7939E811F54EE25F4CDAE54CAE
 ```
 
 ## Build

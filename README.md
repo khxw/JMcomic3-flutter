@@ -10,7 +10,7 @@ JMComic3 并存安装。
 
 ## 当前版本
 
-**v1.8.96+225** · Android ARM64 · API 24+
+**v1.8.98+227** · Android ARM64 · API 24+
 
 - 最新发布：[GitHub Releases](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - 完整更新记录：[CHANGELOG.md](https://github.com/khxw/JMcomic3-flutter/blob/main/CHANGELOG.md)
@@ -20,7 +20,7 @@ JMComic3 并存安装。
 
 | 文件 | 用途 |
 | --- | --- |
-| `JMComic3-Mod-v1.8.96-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
+| `JMComic3-Mod-v1.8.98-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
 | `SHA256SUMS.txt` | 校验 APK 文件完整性 |
 
 当前 Fork 只发布 **Android ARM64 APK**。本仓库没有为这个修改版提供 ARM32、
@@ -44,6 +44,7 @@ Windows 或 AAB 安装包。
 - 支持可配置图片预加载，可选择前后双向或仅向后预加载。
 - 首次引导页加入缓慢动态渐变、柔和光晕和精简布局。
 - 搜索结果页返回时先回到搜索首页，再次返回才退出搜索。
+- 漫画详情页获取与网页一致的上架日期，避免把最近更新时间显示成发布时间。
 - 底部导航只保留一个滑动指示器，并优化页面切换动画。
 - 首页更新提醒与关于页统一显示完整更新日志。
 - 重做更新下载进度弹窗，显示目标版本、百分比、文件大小、线路和校验状态。
@@ -68,13 +69,13 @@ Windows 或 AAB 安装包。
 Windows PowerShell 校验示例：
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.8.96-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.8.98-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 当前 APK SHA-256：
 
 ```text
-7CFA3C588A3E7A9908395E86F36ACDD49AEEDD4E800911B615080F8A03361A7D
+F9B0570094721BA87DA51276A486D93411012D7939E811F54EE25F4CDAE54CAE
 ```
 
 ## 构建
