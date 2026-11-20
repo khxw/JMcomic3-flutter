@@ -159,7 +159,10 @@ class ComicInfoCard extends StatelessWidget {
   }
 
   List<Widget> _buildDateMetaRow(BuildContext context) {
-    final published = _formatUnixSeconds(comic.addtime);
+    final adddate = comic.adddate?.trim();
+    final published = adddate == null || adddate.isEmpty
+        ? _formatUnixSeconds(comic.addtime)
+        : adddate;
     final updated = _formatUnixSeconds(comic.updateAt);
     if (published == null && updated == null) {
       return const [];

@@ -514,6 +514,17 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
             Ok(id) => result_value(state.client.chapter(id).await),
             Err(error) => InvokeResponse::error(error),
         },
+        "album_published_at" => {
+            let album_id = int_param(&params, "id");
+            let album_name = string_param(&params, "name").unwrap_or_default();
+            match album_id {
+                Ok(id) if !album_name.trim().is_empty() => {
+                    result_text(state.client.album_published_at(id, &album_name).await)
+                }
+                Ok(_) => InvokeResponse::error("album name is required"),
+                Err(error) => InvokeResponse::error(error),
+            }
+        }
         "comic_search" => {
             let keyword = string_param(&params, "search_query").unwrap_or_default();
             if keyword.trim().is_empty() {

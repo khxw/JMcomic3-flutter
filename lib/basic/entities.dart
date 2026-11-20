@@ -200,6 +200,7 @@ class ComicSimple extends ComicBasic {
     required String image,
     int? updateAt,
     int? addtime,
+    String? adddate,
     required this.category,
     required this.categorySub,
   }) : super(
@@ -210,6 +211,7 @@ class ComicSimple extends ComicBasic {
           image: image,
           updateAt: updateAt,
           addtime: addtime,
+          adddate: adddate,
         );
 
   late final ComicSimpleCategory category;
@@ -488,6 +490,7 @@ class ComicBasic {
     required this.image,
     this.updateAt,
     this.addtime,
+    this.adddate,
   });
 
   late final int id;
@@ -497,6 +500,7 @@ class ComicBasic {
   late final String image;
   late final int? updateAt;
   late final int? addtime;
+  late final String? adddate;
 
   ComicBasic.fromJson(Map<String, dynamic> json) {
     id = _toInt(json['id']);
@@ -506,6 +510,11 @@ class ComicBasic {
     image = "${json['image'] ?? ''}";
     updateAt = _toNullableInt(json['update_at']);
     addtime = _toNullableInt(json['addtime']);
+    final rawAdddate = json['adddate'];
+    final normalizedAdddate = rawAdddate?.toString().trim();
+    adddate = normalizedAdddate == null || normalizedAdddate.isEmpty
+        ? null
+        : normalizedAdddate;
   }
 
   Map<String, dynamic> toJson() {
@@ -517,6 +526,7 @@ class ComicBasic {
     _data['image'] = image;
     _data['update_at'] = updateAt;
     _data['addtime'] = addtime;
+    _data['adddate'] = adddate;
     return _data;
   }
 }

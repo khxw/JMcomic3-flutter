@@ -51,6 +51,7 @@ class Methods {
     "comics",
     "comic_search",
     "album",
+    "album_published_at",
     "chapter",
     "forum",
     "favorites",
@@ -83,6 +84,7 @@ class Methods {
   static final Map<String, _CacheEntry<String>> _comicsCache = {};
   static final Map<String, _CacheEntry<String>> _albumCache = {};
   static final Map<String, _CacheEntry<String>> _coverCache = {};
+  static final Map<int, String> _albumPublishedDateCache = {};
   static final Map<String, Future<String>> _categoriesInflight = {};
   static final Map<String, Future<String>> _comicsInflight = {};
   static final Map<String, Future<String>> _albumInflight = {};
@@ -98,6 +100,7 @@ class Methods {
     _categoriesCache.clear();
     _comicsCache.clear();
     _albumCache.clear();
+    _albumPublishedDateCache.clear();
     _categoriesInflight.clear();
     _comicsInflight.clear();
     _albumInflight.clear();
@@ -853,6 +856,20 @@ class Methods {
       debugName: "album",
     );
     return _decodeEntityResponse(rsp, "album", AlbumResponse.fromJson);
+  }
+
+  Future<String> albumPublishedAt(int id, String name) async {
+    final cached = _albumPublishedDateCache[id];
+    if (cached != null && cached.isNotEmpty) return cached;
+    final publishedDate = await _invoke("album_published_at", {
+      "id": id,
+      "name": name,
+    });
+    final normalized = publishedDate.trim();
+    if (normalized.isNotEmpty) {
+      _albumPublishedDateCache[id] = normalized;
+    }
+    return normalized;
   }
 
   Future<ChapterResponse> chapter(int id) async {

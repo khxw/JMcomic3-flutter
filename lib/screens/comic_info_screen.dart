@@ -86,6 +86,7 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> {
   bool _accountFavoriteLoading = false;
   bool _accountFavorite = false;
   int? _resolvedUpdateAt;
+  String? _resolvedPublishedDate;
   late Future<AlbumResponse> _albumFuture = _loadAlbum();
   late Future<ViewLog?> _viewFuture = _loadViewLog();
 
@@ -108,8 +109,28 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> {
     if (knownUpdateAt == null || knownUpdateAt <= 0) {
       unawaited(_resolveUpdateAt(album));
     }
+    final knownPublishedDate = widget.simple?.adddate;
+    if (knownPublishedDate == null || knownPublishedDate.trim().isEmpty) {
+      unawaited(_resolvePublishedDate(album));
+    }
     unawaited(_syncBookshelf(bookshelfFuture, album.id));
     return album;
+  }
+
+  Future<void> _resolvePublishedDate(AlbumResponse album) async {
+    try {
+      final publishedDate =
+          await methods.albumPublishedAt(album.id, album.name);
+      if (!mounted ||
+          widget.comicId != album.id ||
+          publishedDate.trim().isEmpty) {
+        return;
+      }
+      setState(() => _resolvedPublishedDate = publishedDate.trim());
+    } catch (_) {
+      // Publication date is supplementary metadata. Do not block the detail
+      // page when the search-backed lookup is temporarily unavailable.
+    }
   }
 
   Future<void> _resolveUpdateAt(AlbumResponse album) async {
@@ -156,6 +177,7 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> {
       _accountFavoriteLoading = false;
       _accountFavorite = false;
       _resolvedUpdateAt = null;
+      _resolvedPublishedDate = null;
       _albumFuture = _loadAlbum();
       _viewFuture = _loadViewLog();
     }
@@ -521,6 +543,7 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> {
                     simple:
                         effectiveComicInfoSimple(widget.simple, widget.comicId),
                     resolvedUpdateAt: _resolvedUpdateAt,
+                    resolvedPublishedDate: _resolvedPublishedDate,
                     onSearch: _search,
                   ),
                   _ComicDetailDirectory(

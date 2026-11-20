@@ -127,12 +127,13 @@ ViewLog _viewLog({
       lastViewPage: page,
     );
 
-ComicSimple _simple() => ComicSimple(
+ComicSimple _simple({String? adddate = '2025-09-12'}) => ComicSimple(
       id: _albumId,
       author: 'Stale cached author',
       description: '',
       name: 'Stale cached title',
       image: '',
+      adddate: adddate,
       category: ComicSimpleCategory(title: '中文'),
       categorySub: ComicSimpleCategory(title: '冒险'),
     );
@@ -154,6 +155,7 @@ class _Fixture {
   Completer<void>? albumGate;
   String? coverPath;
   bool downloadCreated = false;
+  String publishedDate = '2025-09-12';
   final requests = <Map<String, dynamic>>[];
   final _pendingCover = Completer<String>();
   final properties = <String, String>{
@@ -230,6 +232,8 @@ class _Fixture {
           return _response('', error: 'network unavailable');
         }
         return _response(album.toJson());
+      case 'album_published_at':
+        return _response(publishedDate);
       case 'find_view_log':
         if (viewLogGate != null) await viewLogGate!.future;
         return _response(viewLog?.toJson());
@@ -460,12 +464,13 @@ Future<_Fixture> _prepare(
 Future<void> _mount(
   WidgetTester tester,
   _Fixture fixture, {
+  ComicBasic? simple,
   double textScale = 1,
   bool dark = false,
   Locale locale = const Locale('en'),
 }) async {
   await tester.pumpWidget(_host(
-    ComicInfoScreen(fixture.album.id, _simple()),
+    ComicInfoScreen(fixture.album.id, simple ?? _simple()),
     textScale: textScale,
     dark: dark,
     locale: locale,
@@ -588,6 +593,20 @@ void main() {
       fixture.calls('chapter').single['params'],
       '$_secondChapterId',
     );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('detail uses search metadata for the original publish date',
+      (tester) async {
+    final fixture = await _prepare(tester);
+    fixture.album = _album();
+    fixture.publishedDate = '2025-09-12';
+    await _mount(tester, fixture, simple: _simple(adddate: null));
+
+    expect(find.textContaining('Published 2025-09-12'), findsOneWidget);
+    expect(find.textContaining('Published 2026-11-20'), findsNothing);
+    expect(fixture.calls('album_published_at').single['params'],
+        contains('"id":$_albumId'));
     expect(tester.takeException(), isNull);
   });
 

@@ -176,6 +176,17 @@ impl JmClient {
         Ok(normalize_album_value(value))
     }
 
+    pub async fn album_published_at(
+        &self,
+        album_id: i64,
+        album_name: &str,
+    ) -> BackendResult<String> {
+        let value = self
+            .search(album_name.trim(), 1, SearchSort::Latest)
+            .await?;
+        Ok(album_published_at_from_search(&value, album_id))
+    }
+
     pub async fn chapter(&self, chapter_id: i64) -> BackendResult<Value> {
         let value = self
             .api_json(
@@ -977,6 +988,24 @@ fn normalize_album_value(mut value: Value) -> Value {
     value
 }
 
+fn album_published_at_from_search(value: &Value, album_id: i64) -> String {
+    value
+        .get("content")
+        .and_then(Value::as_array)
+        .and_then(|items| {
+            items.iter().find(|item| {
+                item.get("id")
+                    .and_then(value_i64)
+                    .is_some_and(|id| id == album_id)
+            })
+        })
+        .and_then(|item| item.get("adddate"))
+        .map(value_wire_string)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
 fn normalize_categories_value(mut value: Value) -> Value {
     let Some(root) = value.as_object_mut() else {
         return fallback_categories();
@@ -1498,6 +1527,23 @@ mod tests {
             "勿短时间重复留言，请重新确认留言内容。"
         ));
         assert!(!is_comment_like_upstream_limited("网络连接失败"));
+    }
+
+    #[test]
+    fn album_published_date_uses_the_matching_search_result() {
+        let value = json!({
+            "content": [
+                {"id": "42", "adddate": "2024-01-01"},
+                {"id": 1214196, "adddate": "2025-09-12"},
+                {"id": "1214197", "adddate": "2025-09-13"}
+            ]
+        });
+
+        assert_eq!(
+            album_published_at_from_search(&value, 1214196),
+            "2025-09-12"
+        );
+        assert_eq!(album_published_at_from_search(&value, 999), "");
     }
 
     #[test]

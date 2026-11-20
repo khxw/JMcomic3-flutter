@@ -12,6 +12,7 @@ class ComicDetailHeader extends StatefulWidget {
   final AlbumResponse album;
   final ComicBasic? simple;
   final int? resolvedUpdateAt;
+  final String? resolvedPublishedDate;
   final ValueChanged<String> onSearch;
 
   const ComicDetailHeader({
@@ -19,6 +20,7 @@ class ComicDetailHeader extends StatefulWidget {
     required this.album,
     this.simple,
     this.resolvedUpdateAt,
+    this.resolvedPublishedDate,
     required this.onSearch,
   });
 
@@ -60,7 +62,9 @@ class _ComicDetailHeaderState extends State<ComicDetailHeader> {
     final updated = _formatTimestamp(
       widget.resolvedUpdateAt ?? album.updateAt ?? widget.simple?.updateAt,
     );
-    final published = _formatTimestamp(album.addtime ?? widget.simple?.addtime);
+    final published = _formatPublishedDate(
+      widget.resolvedPublishedDate ?? widget.simple?.adddate,
+    );
     final displayJmcode = currentDisplayJmcode();
 
     return LayoutBuilder(
@@ -359,6 +363,11 @@ class _ComicDetailHeaderState extends State<ComicDetailHeader> {
     } on ArgumentError {
       return null;
     }
+  }
+
+  static String? _formatPublishedDate(String? value) {
+    final date = value?.trim();
+    return date == null || date.isEmpty ? null : date;
   }
 }
 
