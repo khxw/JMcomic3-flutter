@@ -10,7 +10,7 @@ JMComic3 并存安装。
 
 ## 当前版本
 
-**v1.8.89+218** · Android ARM64 · API 24+
+**v1.8.96+225** · Android ARM64 · API 24+
 
 - 最新发布：[GitHub Releases](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - 完整更新记录：[CHANGELOG.md](https://github.com/khxw/JMcomic3-flutter/blob/main/CHANGELOG.md)
@@ -20,7 +20,7 @@ JMComic3 并存安装。
 
 | 文件 | 用途 |
 | --- | --- |
-| `JMComic3-Mod-v1.8.89-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
+| `JMComic3-Mod-v1.8.96-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
 | `SHA256SUMS.txt` | 校验 APK 文件完整性 |
 
 当前 Fork 只发布 **Android ARM64 APK**。本仓库没有为这个修改版提供 ARM32、
@@ -42,6 +42,9 @@ Windows 或 AAB 安装包。
 - 支持普通连续、自由缩放连续、单页与双页阅读。
 - 重做阅读页顶栏、底部翻页控制、章节列表和阅读设置面板。
 - 支持可配置图片预加载，可选择前后双向或仅向后预加载。
+- 首次引导页加入缓慢动态渐变、柔和光晕和精简布局。
+- 搜索结果页返回时先回到搜索首页，再次返回才退出搜索。
+- 底部导航只保留一个滑动指示器，并优化页面切换动画。
 - 首页更新提醒与关于页统一显示完整更新日志。
 - 重做更新下载进度弹窗，显示目标版本、百分比、文件大小、线路和校验状态。
 - 个人中心 Pro、设置和关于/更新入口统一为紧凑分段按钮。
@@ -51,7 +54,7 @@ Windows 或 AAB 安装包。
 - 封面缓存自动限制为约 48 MB、最长保留 30 天，不影响下载漫画和阅读记录。
 - 阅读页图片使用临时缓存，支持按日期统计和清理图片缓存。
 - 支持主题、语言、字体、刷新率、网络线路和 WebDAV 设置。
-- 启动时优先使用最先响应的 API 与图片线路，并并行预取首页内容。
+- 启动时并行比较全部 API 与图片线路，在 800ms 窗口内选择最快线路，并并行预取首页内容。
 - Rust v2 后端源码位于 `rust-backend/rust/`，与 Flutter 应用在同一仓库维护。
 
 ## 安装
@@ -65,13 +68,13 @@ Windows 或 AAB 安装包。
 Windows PowerShell 校验示例：
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.8.89-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.8.96-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 当前 APK SHA-256：
 
 ```text
-D22C48D7AF9355D03B2A132867AAE730234A6DFC25713DF5F93364609F9538DA
+7CFA3C588A3E7A9908395E86F36ACDD49AEEDD4E800911B615080F8A03361A7D
 ```
 
 ## 构建

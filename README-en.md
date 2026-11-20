@@ -20,7 +20,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 ## Current release
 
-**v1.8.89+218** · Android ARM64 · API 24+
+**v1.8.96+225** · Android ARM64 · API 24+
 
 - [Latest GitHub Release](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - [Changelog](CHANGELOG.md)
@@ -30,7 +30,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 | File | Purpose |
 | --- | --- |
-| `JMComic3-Mod-v1.8.89-arm64-v8a-release.apk` | Android ARM64 devices |
+| `JMComic3-Mod-v1.8.96-arm64-v8a-release.apk` | Android ARM64 devices |
 | `SHA256SUMS.txt` | APK integrity verification |
 
 This fork currently publishes only an **Android ARM64 APK**. ARM32, Windows,
@@ -56,6 +56,9 @@ Back up bookshelf, history, and download settings before upgrading.
 - Continuous, zoomable continuous, single-page, and double-page readers.
 - Redesigned reader app bar, paging controls, chapter list, and settings panels.
 - Configurable image preloading in both directions or forward-only.
+- The onboarding page uses a slow animated gradient, soft glows, and a reduced layout.
+- Back from search results returns to the search landing page before leaving search.
+- Bottom navigation keeps a single sliding indicator with lighter page transitions.
 - Full release notes are shown consistently in the startup prompt and About page.
 - Redesigned update download progress with target version, percentage, file size,
   route, and verification state.
@@ -66,8 +69,8 @@ Back up bookshelf, history, and download settings before upgrading.
 - Automatic cover-cache pruning keeps covers below about 48 MB and 30 days
   without removing downloaded comics or reading data.
 - Reader pages use temporary caching, with date-based cache statistics and cleanup.
-- Startup prefers the first responsive API/image routes and prefetches home feeds
-  in parallel.
+- Startup compares all API/image routes in parallel, selects the fastest within
+  an 800 ms window, and prefetches home feeds concurrently.
 - Rust v2 backend source and the Flutter app are maintained in this repository.
 
 ## Installation
@@ -81,13 +84,13 @@ Back up bookshelf, history, and download settings before upgrading.
 PowerShell verification:
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.8.89-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.8.96-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 Current APK SHA-256:
 
 ```text
-D22C48D7AF9355D03B2A132867AAE730234A6DFC25713DF5F93364609F9538DA
+7CFA3C588A3E7A9908395E86F36ACDD49AEEDD4E800911B615080F8A03361A7D
 ```
 
 ## Build
