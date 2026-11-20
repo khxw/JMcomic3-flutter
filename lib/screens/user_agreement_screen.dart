@@ -187,10 +187,10 @@ class _WelcomeStepState extends State<_WelcomeStep>
               fit: StackFit.expand,
               children: [
                 Positioned(
-                  top: -235 + t * 115,
-                  left: -215 + t * 95,
-                  width: 480,
-                  height: 480,
+                  top: -285 + t * 115,
+                  left: -265 + t * 95,
+                  width: 640,
+                  height: 640,
                   child: IgnorePointer(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
@@ -198,20 +198,22 @@ class _WelcomeStepState extends State<_WelcomeStep>
                         gradient: RadialGradient(
                           colors: [
                             const Color(0xFF3ED8E7)
-                                .withValues(alpha: .18 + t * .13),
-                            Colors.transparent,
+                                .withValues(alpha: .11 + t * .08),
+                            const Color(0xFF3ED8E7)
+                                .withValues(alpha: .035 + t * .025),
+                            const Color(0xFF3ED8E7).withValues(alpha: 0),
                           ],
-                          stops: const [0, .7],
+                          stops: const [0, .42, 1],
                         ),
                       ),
                     ),
                   ),
                 ),
                 Positioned(
-                  right: -225 - t * 90,
-                  bottom: -245 - t * 80,
-                  width: 500,
-                  height: 500,
+                  right: -305 - t * 90,
+                  bottom: -325 - t * 80,
+                  width: 680,
+                  height: 680,
                   child: IgnorePointer(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
@@ -219,33 +221,12 @@ class _WelcomeStepState extends State<_WelcomeStep>
                         gradient: RadialGradient(
                           colors: [
                             const Color(0xFFA58DF0)
-                                .withValues(alpha: .17 + t * .14),
-                            Colors.transparent,
+                                .withValues(alpha: .10 + t * .09),
+                            const Color(0xFFA58DF0)
+                                .withValues(alpha: .03 + t * .025),
+                            const Color(0xFFA58DF0).withValues(alpha: 0),
                           ],
-                          stops: const [0, .7],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 95 + t * 125,
-                  left: -190 + t * 105,
-                  width: 620,
-                  height: 190,
-                  child: IgnorePointer(
-                    child: Transform.rotate(
-                      angle: -.36 + t * .1,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.transparent,
-                              const Color(0xFF62D5DD)
-                                  .withValues(alpha: .045 + t * .045),
-                              Colors.transparent,
-                            ],
-                          ),
+                          stops: const [0, .42, 1],
                         ),
                       ),
                     ),
