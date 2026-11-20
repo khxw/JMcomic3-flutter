@@ -365,10 +365,12 @@ void main() {
         'badges': <String>[],
         'message': 'Welcome! A long signature wraps without widening the card.',
       });
-      dailySignStatus = DailySignStatus.signed;
       await _loadPreviewFonts(tester);
       await tester.pumpWidget(_profile(dark: dark));
       await _loadProfile(tester);
+      dailySignStatus = DailySignStatus.signed;
+      dailySignEvent.broadcast();
+      await tester.pumpAndSettle();
       final card = tester.widget<Container>(
         find.byKey(const ValueKey('profile-account-card')),
       );

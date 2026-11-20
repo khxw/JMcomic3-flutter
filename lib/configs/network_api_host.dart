@@ -7,7 +7,7 @@ import 'package:jmcomic3/configs/network_ping.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
 const _defaultApiHost = "www.cdngwc.club";
-const _automaticProbeTimeout = Duration(milliseconds: 1200);
+const _automaticProbeTimeout = Duration(milliseconds: 800);
 // 动态域名拉取失败时使用内置移动端 API 候选，保持设置页和后端候选一致。
 const _fallbackApiHosts = <String>[
   "www.cdnhjk.net",

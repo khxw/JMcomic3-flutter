@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/web_dav_sync.dart';
 import 'package:jmcomic3/configs/android_display_mode.dart';
-import 'package:jmcomic3/configs/daily_sign.dart';
 import 'package:jmcomic3/configs/versions.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/bookshelf_screen.dart';
@@ -32,7 +31,7 @@ class _AppScreenState extends State<AppScreen>
     WidgetsBinding.instance.addObserver(this);
     _pageMotionController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: 150),
       value: 1,
     );
     _pageMotion = CurvedAnimation(
@@ -43,8 +42,6 @@ class _AppScreenState extends State<AppScreen>
       if (!mounted) return;
       unawaited(webDavSyncAuto(context));
       versionPop(context);
-      await checkDailySignStatus(context);
-      if (!mounted) return;
       versionEvent.subscribe(_versionSub);
     });
   }
@@ -166,7 +163,7 @@ class _AppScreenState extends State<AppScreen>
               builder: (context, child) {
                 final remaining = 1 - _pageMotion.value;
                 return Transform.translate(
-                  offset: Offset(_transitionDirection * remaining * 10, 0),
+                  offset: Offset(_transitionDirection * remaining * 6, 0),
                   child: child,
                 );
               },

@@ -32,6 +32,7 @@ class _UserScreenState extends State<UserScreen>
   bool _loggingOut = false;
   bool _accountRefreshInFlight = false;
   bool _profileActive = false;
+  int? _dailySignAccountUid;
 
   static const _accountRefreshInterval = Duration(minutes: 5);
 
@@ -45,9 +46,6 @@ class _UserScreenState extends State<UserScreen>
     proEvent.subscribe(_setState);
     dailySignEvent.subscribe(_setState);
     super.initState();
-    if (consumeLoginAccountRefresh()) {
-      _scheduleDailySignRefresh();
-    }
   }
 
   @override
@@ -103,16 +101,12 @@ class _UserScreenState extends State<UserScreen>
 
   void _loginChanged(_) {
     _setState(null);
-    if (consumeLoginAccountRefresh()) {
-      _scheduleDailySignRefresh();
+    final accountUid =
+        loginStatus == LoginStatus.loginSuccess ? selfInfo.uid : null;
+    if (accountUid != _dailySignAccountUid) {
+      _dailySignAccountUid = accountUid;
+      resetDailySignStatus();
     }
-  }
-
-  void _scheduleDailySignRefresh() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || loginStatus != LoginStatus.loginSuccess) return;
-      unawaited(checkDailySignStatus(context));
-    });
   }
 
   void _setState(_) {
@@ -833,7 +827,7 @@ class _UserScreenState extends State<UserScreen>
           onPressed: checking || signed
               ? null
               : () async {
-                  await checkDailySignStatus(context, toast: true);
+                  await signInDaily(context);
                 },
           style: FilledButton.styleFrom(
             minimumSize: const Size(0, 40),

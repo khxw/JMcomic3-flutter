@@ -25,7 +25,6 @@ LoginStatus _status = LoginStatus.notSet;
 String _loginMessage = "";
 const _guestModePropertyName = "guest_mode";
 bool _guestMode = false;
-bool _refreshAccountOnLogin = false;
 DateTime? _lastSelfInfoRefreshAt;
 final Event _event = Event();
 
@@ -42,12 +41,6 @@ bool get hasJwtAccess => _status == LoginStatus.loginSuccess;
 bool get isGuestMode => _status == LoginStatus.guest;
 
 DateTime? get lastSelfInfoRefreshAt => _lastSelfInfoRefreshAt;
-
-bool consumeLoginAccountRefresh() {
-  if (!_refreshAccountOnLogin) return false;
-  _refreshAccountOnLogin = false;
-  return true;
-}
 
 set _loginState(LoginStatus value) {
   _status = value;
@@ -203,7 +196,6 @@ Future login(
     _guestMode = false;
     await methods.saveProperty(_guestModePropertyName, "false");
     _selfInfo = selfInfo;
-    _refreshAccountOnLogin = true;
     _loginState = LoginStatus.loginSuccess;
     await refreshSelfInfo();
     try {
@@ -294,7 +286,6 @@ bool _sameProfileValue(Object? current, Object? next) {
 }
 
 Future<void> enterGuestMode() async {
-  _refreshAccountOnLogin = false;
   _guestMode = true;
   _lastSelfInfoRefreshAt = null;
   await methods.saveProperty(_guestModePropertyName, "true");
@@ -305,7 +296,6 @@ Future<void> enterGuestMode() async {
 Future<void> logoutAccount() async {
   await methods.logout();
   favData = [];
-  _refreshAccountOnLogin = false;
   _guestMode = true;
   _lastSelfInfoRefreshAt = null;
   _loginMessage = "";

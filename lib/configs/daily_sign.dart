@@ -14,15 +14,18 @@ enum DailySignStatus {
 }
 
 DailySignStatus dailySignStatus = DailySignStatus.unchecked;
-const _dailySignCheckCooldown = Duration(minutes: 5);
-DateTime? _lastDailySignCheckAt;
-int? _lastDailySignCheckUid;
+bool _dailySignInFlight = false;
 
 final dailySignEvent = Event();
 
 void _setDailySignStatus(DailySignStatus status) {
   dailySignStatus = status;
   dailySignEvent.broadcast();
+}
+
+void resetDailySignStatus() {
+  _dailySignInFlight = false;
+  _setDailySignStatus(DailySignStatus.unchecked);
 }
 
 String dailySignStatusLabel(BuildContext context) {
@@ -55,38 +58,24 @@ void _showDailySignToast(
   );
 }
 
-Future<void> checkDailySignStatus(BuildContext context,
-    {bool toast = false}) async {
+Future<void> signInDaily(BuildContext context) async {
   if (loginStatus != LoginStatus.loginSuccess) {
-    _lastDailySignCheckAt = null;
-    _lastDailySignCheckUid = null;
     _setDailySignStatus(DailySignStatus.unchecked);
     return;
   }
-  if (!toast &&
-      _lastDailySignCheckUid == selfInfo.uid &&
-      _lastDailySignCheckAt != null &&
-      DateTime.now().difference(_lastDailySignCheckAt!) <
-          _dailySignCheckCooldown &&
-      dailySignStatus != DailySignStatus.unchecked) {
-    return;
-  }
+  if (_dailySignInFlight || dailySignStatus == DailySignStatus.signed) return;
+  _dailySignInFlight = true;
   _setDailySignStatus(DailySignStatus.checking);
-  if (toast) {
-    _showDailySignToast(
-      context,
-      loading: true,
-      icon: Icons.event_available_rounded,
-      accent: Theme.of(context).colorScheme.primary,
-      message: context.l10n.tr('正在签到...', en: 'Signing in...'),
-    );
-  }
+  _showDailySignToast(
+    context,
+    loading: true,
+    icon: Icons.event_available_rounded,
+    accent: Theme.of(context).colorScheme.primary,
+    message: context.l10n.tr('正在签到...', en: 'Signing in...'),
+  );
   try {
     final msg = await methods.daily(selfInfo.uid);
-    _lastDailySignCheckUid = selfInfo.uid;
-    _lastDailySignCheckAt = DateTime.now();
-    if (toast) {
-      if (!context.mounted) return;
+    if (context.mounted) {
       _showDailySignToast(
         context,
         icon: Icons.check_circle_rounded,
@@ -98,10 +87,7 @@ Future<void> checkDailySignStatus(BuildContext context,
     await refreshSelfInfo();
   } catch (e, st) {
     debugPrient("$e\n$st");
-    _lastDailySignCheckUid = selfInfo.uid;
-    _lastDailySignCheckAt = DateTime.now();
-    if (toast) {
-      if (!context.mounted) return;
+    if (context.mounted) {
       _showDailySignToast(
         context,
         icon: Icons.error_outline_rounded,
@@ -110,5 +96,7 @@ Future<void> checkDailySignStatus(BuildContext context,
       );
     }
     _setDailySignStatus(DailySignStatus.error);
+  } finally {
+    _dailySignInFlight = false;
   }
 }

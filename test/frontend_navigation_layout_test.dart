@@ -402,6 +402,81 @@ Future<void> _capture(WidgetTester tester, String name) async {
 }
 
 void main() {
+  testWidgets('floating navigation has one indicator and no tap ripple',
+      (tester) async {
+    var selectedIndex = 0;
+    await tester.pumpWidget(MaterialApp(
+      theme: lightTheme,
+      home: Scaffold(
+        body: StatefulBuilder(
+          builder: (context, setState) {
+            return Align(
+              alignment: Alignment.bottomCenter,
+              child: ComposeFloatingNavigationBar(
+                destinations: const [
+                  ComposeNavigationDestination(
+                    label: 'Browse',
+                    icon: Icons.explore_outlined,
+                    selectedIcon: Icons.explore_rounded,
+                  ),
+                  ComposeNavigationDestination(
+                    label: 'Library',
+                    icon: Icons.collections_bookmark_outlined,
+                    selectedIcon: Icons.collections_bookmark_rounded,
+                  ),
+                  ComposeNavigationDestination(
+                    label: 'Profile',
+                    icon: Icons.person_outline_rounded,
+                    selectedIcon: Icons.person_rounded,
+                  ),
+                ],
+                selectedIndex: selectedIndex,
+                onSelected: (index) {
+                  setState(() => selectedIndex = index);
+                },
+              ),
+            );
+          },
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('compose-navigation-indicator')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widgetList<InkWell>(
+            find.descendant(
+              of: find.byType(ComposeFloatingNavigationBar),
+              matching: find.byType(InkWell),
+            ),
+          )
+          .every(
+            (item) =>
+                item.splashFactory == NoSplash.splashFactory &&
+                item.highlightColor == Colors.transparent &&
+                item.splashColor == Colors.transparent,
+          ),
+      isTrue,
+    );
+
+    await tester.tap(find.byIcon(Icons.collections_bookmark_outlined));
+    await tester.pumpAndSettle();
+    expect(selectedIndex, 1);
+    expect(
+      tester
+          .widget<AnimatedAlign>(
+            find.byKey(const ValueKey('compose-navigation-indicator')),
+          )
+          .alignment,
+      Alignment.center,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('home renders a carousel and category rails', (tester) async {
     final fixture = await _prepare(tester, size: const Size(1280, 900));
     await tester.pumpWidget(_host(const AppScreen()));
@@ -446,6 +521,22 @@ void main() {
           )
           .alignment,
       Alignment.centerLeft,
+    );
+    expect(
+      tester
+          .widgetList<InkWell>(
+            find.descendant(
+              of: find.byType(ComposeFloatingNavigationBar),
+              matching: find.byType(InkWell),
+            ),
+          )
+          .every(
+            (item) =>
+                item.splashFactory == NoSplash.splashFactory &&
+                item.highlightColor == Colors.transparent &&
+                item.splashColor == Colors.transparent,
+          ),
+      isTrue,
     );
     final browserState = tester.state(find.byType(BrowserScreen));
     await tester.drag(
@@ -639,6 +730,16 @@ void main() {
     expect(find.byType(ComicSearchScreen), findsNothing);
     expect(fixture.calls('last_search_histories').single['params'], '20');
     expect(find.byType(TextField), findsOneWidget);
+    expect(find.text('quiet forest'), findsOneWidget);
+    final historyToggle = find.byKey(
+      const ValueKey('search-history-toggle'),
+    );
+    expect(historyToggle, findsOneWidget);
+    await tester.tap(historyToggle);
+    await tester.pumpAndSettle();
+    expect(find.text('quiet forest'), findsNothing);
+    await tester.tap(historyToggle);
+    await tester.pumpAndSettle();
     expect(find.text('quiet forest'), findsOneWidget);
     await _capture(tester, 'search-desktop');
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));

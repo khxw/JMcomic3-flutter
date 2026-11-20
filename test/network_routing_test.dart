@@ -56,6 +56,11 @@ void main() {
         case 'load_cdn_host':
           return _response(jsonEncode('cdn-current.example.com'));
         case 'ping_server':
+          await Future<void>.delayed(
+            Duration(
+              milliseconds: params == 'fast-api.example.com' ? 5 : 25,
+            ),
+          );
           return _response(
             params == 'fast-api.example.com'
                 ? '18'
@@ -64,6 +69,11 @@ void main() {
                     : '420',
           );
         case 'ping_cdn':
+          await Future<void>.delayed(
+            Duration(
+              milliseconds: params == 'cdn-msp3.jmapiproxy2.cc' ? 5 : 25,
+            ),
+          );
           return _response(
             params == 'cdn-msp3.jmapiproxy2.cc'
                 ? '12'

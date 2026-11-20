@@ -45,7 +45,7 @@ String _errorResponse(String message) => jsonEncode({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('login refreshes account info and daily sign status',
+  testWidgets('login refreshes account info without automatic sign-in',
       (tester) async {
     var dailyCalls = 0;
     var preLoginCalls = 0;
@@ -102,10 +102,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(loginStatus, LoginStatus.loginSuccess);
-    expect(selfInfo.level, 10);
-    expect(dailyCalls, 1);
-    expect(dailySignStatus, DailySignStatus.signed);
-    expect(find.text('Signed in'), findsOneWidget);
+    expect(selfInfo.level, 9);
+    expect(dailyCalls, 0);
+    expect(dailySignStatus, DailySignStatus.unchecked);
+    expect(find.text('Manual Sign-in'), findsOneWidget);
+    expect(find.text('Not checked'), findsOneWidget);
 
     final callsBeforeResume = preLoginCalls;
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);

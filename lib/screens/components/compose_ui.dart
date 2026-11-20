@@ -34,8 +34,10 @@ class ComposeFloatingNavigationBar extends StatelessWidget {
     final scheme = theme.colorScheme;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final showLabels = MediaQuery.textScalerOf(context).scale(10) <= 15;
-    final duration =
-        reduceMotion ? Duration.zero : const Duration(milliseconds: 300);
+    final visibilityDuration =
+        reduceMotion ? Duration.zero : const Duration(milliseconds: 240);
+    final selectionDuration =
+        reduceMotion ? Duration.zero : const Duration(milliseconds: 220);
     final selectedAlignment = destinations.length <= 1
         ? Alignment.center
         : Alignment(
@@ -49,11 +51,11 @@ class ComposeFloatingNavigationBar extends StatelessWidget {
       ignoring: !visible,
       child: AnimatedSlide(
         offset: visible ? Offset.zero : const Offset(0, 1.35),
-        duration: duration,
+        duration: visibilityDuration,
         curve: Curves.easeOutCubic,
         child: AnimatedOpacity(
           opacity: visible ? 1 : 0,
-          duration: duration,
+          duration: visibilityDuration,
           child: SafeArea(
             top: false,
             minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -81,7 +83,7 @@ class ComposeFloatingNavigationBar extends StatelessWidget {
                                   'compose-navigation-indicator',
                                 ),
                                 alignment: selectedAlignment,
-                                duration: duration,
+                                duration: selectionDuration,
                                 curve: Curves.easeOutCubic,
                                 child: FractionallySizedBox(
                                   widthFactor: 1 / destinations.length,
@@ -118,7 +120,7 @@ class ComposeFloatingNavigationBar extends StatelessWidget {
                                     destination: destinations[index],
                                     selected: selectedIndex == index,
                                     showLabel: showLabels,
-                                    duration: duration,
+                                    duration: selectionDuration,
                                     onTap: () => onSelected(index),
                                   ),
                                 ),
@@ -168,6 +170,10 @@ class _ComposeNavigationItem extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          hoverColor: scheme.onSurface.withValues(alpha: .035),
+          splashFactory: NoSplash.splashFactory,
           borderRadius: BorderRadius.circular(23),
           child: AnimatedContainer(
             duration: duration,
@@ -179,7 +185,7 @@ class _ComposeNavigationItem extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 AnimatedScale(
-                  scale: selected ? 1.06 : 1,
+                  scale: selected ? 1.03 : 1,
                   duration: duration,
                   curve: Curves.easeOutCubic,
                   child: Icon(

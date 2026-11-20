@@ -121,12 +121,13 @@ class _InitScreenState extends State<InitScreen> {
   Future _init() async {
     try {
       await methods.init();
+      final userAgreementAcceptedFuture = hasAcceptedCurrentUserAgreement();
       await initConfigs(context);
       debugPrient("STATE : $loginStatus");
       if (!currentPassed()) {
         await firstPassed();
       }
-      if (!await hasAcceptedCurrentUserAgreement()) {
+      if (!await userAgreementAcceptedFuture) {
         if (!mounted) return;
         final accepted = await Navigator.of(context).push<bool>(
           MaterialPageRoute(

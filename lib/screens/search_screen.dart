@@ -31,6 +31,7 @@ class _SearchScreenState extends State<SearchScreen>
   SortBy _sortBy = sortByDefault;
   bool _loadingSuggestions = true;
   bool _suggestionsLoaded = false;
+  bool _historyExpanded = true;
   final Set<int> _expandedBlocks = {};
   Timer? _suggestionLoadTimer;
 
@@ -368,6 +369,27 @@ class _SearchScreenState extends State<SearchScreen>
                 ),
               ),
               IconButton(
+                key: const ValueKey('search-history-toggle'),
+                tooltip: _historyExpanded
+                    ? context.l10n.tr(
+                        '收起最近搜索',
+                        en: 'Collapse recent searches',
+                      )
+                    : context.l10n.tr(
+                        '展开最近搜索',
+                        en: 'Expand recent searches',
+                      ),
+                onPressed: () {
+                  setState(() => _historyExpanded = !_historyExpanded);
+                },
+                icon: AnimatedRotation(
+                  turns: _historyExpanded ? .5 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  child: const Icon(Icons.expand_more_rounded),
+                ),
+              ),
+              IconButton(
                 tooltip: context.l10n.tr(
                   '清除所有历史记录',
                   en: 'Clear all search history',
@@ -377,19 +399,29 @@ class _SearchScreenState extends State<SearchScreen>
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (var index = 0; index < _histories.length; index++)
-                _SuggestionPill(
-                  label: _histories[index].searchQuery,
-                  icon: Icons.north_west_rounded,
-                  onTap: () => _submit(_histories[index].searchQuery),
-                  onLongPress: () => _removeSearchHistory(_histories[index]),
-                ),
-            ],
+          AnimatedSize(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: _historyExpanded
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (var index = 0; index < _histories.length; index++)
+                          _SuggestionPill(
+                            label: _histories[index].searchQuery,
+                            icon: Icons.north_west_rounded,
+                            onTap: () => _submit(_histories[index].searchQuery),
+                            onLongPress: () =>
+                                _removeSearchHistory(_histories[index]),
+                          ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
       ),
