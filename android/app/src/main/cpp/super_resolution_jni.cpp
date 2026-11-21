@@ -9,7 +9,6 @@
 
 namespace {
 
-constexpr int kTileSize = 256;
 constexpr int kPrePadding = 18;
 
 std::mutex g_model_mutex;
@@ -31,8 +30,10 @@ std::string to_string(JNIEnv* env, jstring value)
 
 bool load_model(const std::string& param_path, const std::string& weights_path, int threads)
 {
-    if (g_param_path == param_path && g_weights_path == weights_path)
+    if (g_param_path == param_path && g_weights_path == weights_path) {
+        g_net.opt.num_threads = std::max(1, threads);
         return true;
+    }
 
     g_net.clear();
     g_net.opt.use_vulkan_compute = false;
@@ -77,28 +78,31 @@ bool process_bitmap(
     const uint8_t* input,
     uint8_t* output,
     int width,
-    int height)
+    int height,
+    int tile_size)
 {
     const int output_width = width * 2;
-    const int x_tiles = (width + kTileSize - 1) / kTileSize;
-    const int y_tiles = (height + kTileSize - 1) / kTileSize;
+    const int x_tiles = (width + tile_size - 1) / tile_size;
+    const int y_tiles = (height + tile_size - 1) / tile_size;
 
     for (int tile_y = 0; tile_y < y_tiles; ++tile_y) {
-        const int output_y0 = tile_y * kTileSize;
-        const int output_h = std::min((tile_y + 1) * kTileSize, height) - output_y0;
+        const int output_y0 = tile_y * tile_size;
+        const int output_h =
+            std::min((tile_y + 1) * tile_size, height) - output_y0;
         int bottom_padding = kPrePadding + (output_h + 1) / 2 * 2 - output_h;
         const int input_y0 = std::max(output_y0 - kPrePadding, 0);
-        const int input_y1 = std::min((tile_y + 1) * kTileSize + bottom_padding, height);
+        const int input_y1 =
+            std::min((tile_y + 1) * tile_size + bottom_padding, height);
 
         for (int tile_x = 0; tile_x < x_tiles; ++tile_x) {
-            const int output_x0 = tile_x * kTileSize;
+            const int output_x0 = tile_x * tile_size;
             const int output_w =
-                std::min((tile_x + 1) * kTileSize, width) - output_x0;
+                std::min((tile_x + 1) * tile_size, width) - output_x0;
             int right_padding =
                 kPrePadding + (output_w + 1) / 2 * 2 - output_w;
             const int input_x0 = std::max(output_x0 - kPrePadding, 0);
             const int input_x1 =
-                std::min((tile_x + 1) * kTileSize + right_padding, width);
+                std::min((tile_x + 1) * tile_size + right_padding, width);
 
             ncnn::Mat source(input_x1 - input_x0, input_y1 - input_y0, 3);
             for (int channel = 0; channel < 3; ++channel) {
@@ -117,14 +121,14 @@ bool process_bitmap(
                 std::max(kPrePadding - output_y0, 0);
             const int bottom = std::max(
                 std::min(
-                    (tile_y + 1) * kTileSize + bottom_padding - height,
+                    (tile_y + 1) * tile_size + bottom_padding - height,
                     bottom_padding),
                 0);
             const int left =
                 std::max(kPrePadding - output_x0, 0);
             const int right = std::max(
                 std::min(
-                    (tile_x + 1) * kTileSize + right_padding - width,
+                    (tile_x + 1) * tile_size + right_padding - width,
                     right_padding),
                 0);
 
@@ -181,7 +185,8 @@ Java_com_jmcomic3_yee_SuperResolutionBridge_nativeUpscale(
     jobject output_bitmap,
     jstring param_path,
     jstring weights_path,
-    jint threads)
+    jint threads,
+    jint tile_size)
 {
     AndroidBitmapInfo input_info{};
     AndroidBitmapInfo output_info{};
@@ -221,7 +226,8 @@ Java_com_jmcomic3_yee_SuperResolutionBridge_nativeUpscale(
                 static_cast<const uint8_t*>(input_pixels),
                 static_cast<uint8_t*>(output_pixels),
                 static_cast<int>(input_info.width),
-                static_cast<int>(input_info.height));
+                static_cast<int>(input_info.height),
+                std::max(64, std::min(512, static_cast<int>(tile_size))));
         }
     }
 

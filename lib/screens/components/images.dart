@@ -118,6 +118,7 @@ class PageImageProvider extends ImageProvider<PageImageProvider> {
   /// Enables the optional reader-only super-resolution path. Cover images and
   /// test fixtures keep their original bytes and never pay the inference cost.
   final bool superResolution;
+  final ValueChanged<SuperResolutionPageResult>? onSuperResolutionResolved;
 
   PageImageProvider(
     this.id,
@@ -129,6 +130,7 @@ class PageImageProvider extends ImageProvider<PageImageProvider> {
     String? localPath,
     this.localOnly = false,
     this.superResolution = false,
+    this.onSuperResolutionResolved,
   })  : pageIndex = _normalizePageIndex(pageIndex),
         cacheWidth = _normalizeDecodeTarget(cacheWidth),
         cacheHeight = _normalizeDecodeTarget(cacheHeight),
@@ -145,7 +147,9 @@ class PageImageProvider extends ImageProvider<PageImageProvider> {
       path = await _cachedPageImagePath(key.id, key.imageName);
     }
     if (key.superResolution) {
-      return await superResolutionPagePath(path);
+      final result = await superResolutionPageResult(path);
+      key.onSuperResolutionResolved?.call(result);
+      return result.displayPath;
     }
     return path;
   }

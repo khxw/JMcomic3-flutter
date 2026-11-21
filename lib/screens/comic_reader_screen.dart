@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:another_xlider/another_xlider.dart';
 import 'package:event/event.dart';
@@ -555,6 +556,9 @@ void controlComicReaderForTest(String direction) {
 abstract class _ComicReaderState extends State<_ComicReader>
     with WidgetsBindingObserver {
   static const double _bottomControlsHeight = 58;
+  static const _readerSystemStatusChannel = EventChannel(
+    'reader_system_status',
+  );
 
   late ReaderPosition _position;
   late ReaderProgressWriter _progressWriter;
@@ -566,6 +570,14 @@ abstract class _ComicReaderState extends State<_ComicReader>
   bool _repaintQueued = false;
   int _preloadRevision = 0;
   final Map<int, PageImageProvider> _providers = {};
+  final Map<int, PageImageProvider> _originalProviders = {};
+  final Map<int, SuperResolutionPageResult> _superResolutionResults = {};
+  bool _readerSuperResolutionEnabled = false;
+  bool _readerSuperResolutionPreload = false;
+  StreamSubscription<dynamic>? _readerSystemStatusSubscription;
+  Map<String, dynamic>? _readerSystemStatus;
+  Timer? _readerClockTimer;
+  DateTime _readerClock = DateTime.now();
   late List<PageDescriptor> _pages;
 
   int get _current => _position.current;
@@ -612,6 +624,16 @@ abstract class _ComicReaderState extends State<_ComicReader>
     if (Platform.isAndroid || Platform.isIOS) {
       _systemUiLease = enterReaderSystemUi(fullScreen: _fullScreen);
     }
+    unawaited(_loadReaderSuperResolutionState());
+    if (Platform.isAndroid || Platform.isIOS) {
+      _subscribeReaderSystemStatus();
+    }
+    _readerClockTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) {
+        if (mounted) setState(() => _readerClock = DateTime.now());
+      },
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _progressWriter.schedule(_current);
@@ -621,15 +643,81 @@ abstract class _ComicReaderState extends State<_ComicReader>
 
   PageDescriptor _pageAt(int index) => _pages[index];
 
+  Future<void> _loadReaderSuperResolutionState() async {
+    await loadSuperResolutionState();
+    if (!mounted) return;
+    setState(() {
+      _readerSuperResolutionEnabled = superResolutionEnabled;
+      _readerSuperResolutionPreload = currentSuperResolutionPreload;
+    });
+  }
+
+  void _subscribeReaderSystemStatus() {
+    _readerSystemStatusSubscription =
+        _readerSystemStatusChannel.receiveBroadcastStream().listen(
+      (event) {
+        if (!mounted || event is! Map) return;
+        setState(() {
+          _readerSystemStatus = {
+            'network': event['network']?.toString() ?? 'unknown',
+            'battery': (event['battery'] as num?)?.toInt() ?? -1,
+            'charging': event['charging'] == true,
+          };
+        });
+      },
+      onError: (_) {},
+    );
+  }
+
   PageImageProvider _readerPageProvider(int index) =>
-      _providers.putIfAbsent(index, () {
-        final page = _pageAt(index);
-        return PageImageProvider(widget.chapter.id, page.name,
-            pageIndex: page.sourceIndex,
-            localPath: page.localAvailable ? page.localPath : null,
-            localOnly: page.localPath != null,
-            superResolution: true);
-      });
+      _pageProvider(index, superResolution: true);
+
+  PageImageProvider _readerPreloadProvider(int index) => _pageProvider(
+        index,
+        superResolution:
+            _readerSuperResolutionEnabled && _readerSuperResolutionPreload,
+      );
+
+  PageImageProvider _pageProvider(
+    int index, {
+    required bool superResolution,
+  }) {
+    final cache = superResolution ? _providers : _originalProviders;
+    return cache.putIfAbsent(index, () {
+      final page = _pageAt(index);
+      return PageImageProvider(widget.chapter.id, page.name,
+          pageIndex: page.sourceIndex,
+          localPath: page.localAvailable ? page.localPath : null,
+          localOnly: page.localPath != null,
+          superResolution: superResolution,
+          onSuperResolutionResolved: superResolution
+              ? (result) {
+                  if (!mounted) return;
+                  final previous = _superResolutionResults[index];
+                  if (previous?.displayPath == result.displayPath &&
+                      previous?.upscaled == result.upscaled) {
+                    return;
+                  }
+                  _superResolutionResults[index] = result;
+                  _repaint();
+                }
+              : null);
+    });
+  }
+
+  void _showSuperResolutionComparison(int index) {
+    final result = _superResolutionResults[index];
+    if (result == null || !result.upscaled) return;
+    unawaited(
+      showDialog<void>(
+        context: context,
+        builder: (_) => _SuperResolutionComparisonDialog(
+          pageNumber: index + 1,
+          result: result,
+        ),
+      ),
+    );
+  }
 
   void _preloadAround(int page) {
     final revision = ++_preloadRevision;
@@ -651,7 +739,7 @@ abstract class _ComicReaderState extends State<_ComicReader>
         await Future.wait(
           chunk.map((index) async {
             if (!mounted || revision != _preloadRevision) return;
-            final provider = _readerPageProvider(index);
+            final provider = _readerPreloadProvider(index);
             await precacheImage(provider, context, onError: (_, __) {});
             if (!mounted) {
               imageCache.evict(provider, includeLive: true);
@@ -753,6 +841,8 @@ abstract class _ComicReaderState extends State<_ComicReader>
   @override
   void dispose() {
     _preloadRevision++;
+    _readerClockTimer?.cancel();
+    unawaited(_readerSystemStatusSubscription?.cancel());
     _position.cancel();
     _progressWriter.schedule(_current);
     unawaited(_progressWriter.close());
@@ -837,6 +927,22 @@ abstract class _ComicReaderState extends State<_ComicReader>
       backgroundColor: Colors.black,
       body: Stack(children: [
         Positioned.fill(child: _buildViewer()),
+        Positioned(
+          left: 12,
+          bottom:
+              (_fullScreen || sideSlider ? 12 : _bottomControlsHeight + 12) +
+                  MediaQuery.paddingOf(context).bottom,
+          child: IgnorePointer(
+            child: _ReaderInfoBar(
+              currentPage: _current + 1,
+              totalPages: _pages.length,
+              network: _readerSystemStatus?['network']?.toString() ?? 'unknown',
+              battery: (_readerSystemStatus?['battery'] as int?) ?? -1,
+              charging: _readerSystemStatus?['charging'] == true,
+              time: _readerClock,
+            ),
+          ),
+        ),
         if (!_fullScreen)
           Positioned(
             top: 0,
@@ -864,6 +970,17 @@ abstract class _ComicReaderState extends State<_ComicReader>
                           ),
                         ),
                       ),
+                      if (_readerSuperResolutionEnabled) ...[
+                        _ReaderSuperResolutionStatus(
+                          result: _superResolutionResults[_current],
+                          onPressed: _superResolutionResults[_current]
+                                      ?.upscaled ==
+                                  true
+                              ? () => _showSuperResolutionComparison(_current)
+                              : null,
+                        ),
+                        const SizedBox(width: 4),
+                      ],
                       IconButton(
                         tooltip: context.l10n.tr('章节列表', en: 'Chapters'),
                         onPressed: _onChooseEp,
@@ -1187,5 +1304,362 @@ abstract class _ComicReaderState extends State<_ComicReader>
     } else {
       setState(() {});
     }
+  }
+}
+
+class _ReaderInfoBar extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final String network;
+  final int battery;
+  final bool charging;
+  final DateTime time;
+
+  const _ReaderInfoBar({
+    required this.currentPage,
+    required this.totalPages,
+    required this.network,
+    required this.battery,
+    required this.charging,
+    required this.time,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = totalPages <= 0
+        ? 0
+        : ((currentPage / totalPages) * 100).round().clamp(0, 100);
+    final networkInfo = switch (network) {
+      'wifi' => (Icons.wifi_rounded, context.l10n.tr('WLAN', en: 'Wi-Fi')),
+      'mobile' => (
+          Icons.signal_cellular_alt_rounded,
+          context.l10n.tr('移动', en: 'Mobile'),
+        ),
+      'ethernet' => (Icons.lan_rounded, context.l10n.tr('有线', en: 'Ethernet')),
+      'vpn' => (Icons.vpn_lock_rounded, context.l10n.tr('VPN', en: 'VPN')),
+      'bluetooth' => (
+          Icons.bluetooth_rounded,
+          context.l10n.tr('蓝牙', en: 'Bluetooth'),
+        ),
+      'offline' => (
+          Icons.wifi_off_rounded,
+          context.l10n.tr('离线', en: 'Offline'),
+        ),
+      _ => (Icons.language_rounded, context.l10n.tr('网络', en: 'Network')),
+    };
+    final batteryColor = battery >= 0 && battery <= 20
+        ? const Color(0xFFFF7373)
+        : const Color(0xFFD8DCE3);
+    final clock = '${time.hour.toString().padLeft(2, '0')}:'
+        '${time.minute.toString().padLeft(2, '0')}';
+    const radius = BorderRadius.all(Radius.circular(12));
+    return ClipRRect(
+      key: const ValueKey('reader-info-bar'),
+      borderRadius: radius,
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: .28),
+            borderRadius: radius,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: .16),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.auto_stories_rounded,
+                size: 13,
+                color: Colors.white70,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                '$currentPage/$totalPages · $percent%',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const _InfoBarDivider(),
+              Icon(
+                networkInfo.$1,
+                size: 13,
+                color: Colors.white70,
+                semanticLabel: networkInfo.$2,
+              ),
+              if (network != 'wifi') ...[
+                const SizedBox(width: 2),
+                Text(
+                  networkInfo.$2,
+                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+              ],
+              const _InfoBarDivider(),
+              Icon(
+                charging
+                    ? Icons.battery_charging_full_rounded
+                    : Icons.battery_full_rounded,
+                size: 14,
+                color: batteryColor,
+              ),
+              const SizedBox(width: 1),
+              Text(
+                battery < 0 ? '--' : '$battery%',
+                style: TextStyle(
+                  color: batteryColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const _InfoBarDivider(),
+              Icon(Icons.schedule_rounded, size: 13, color: Colors.white70),
+              const SizedBox(width: 2),
+              Text(
+                clock,
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoBarDivider extends StatelessWidget {
+  const _InfoBarDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 12,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      color: Colors.white.withValues(alpha: .18),
+    );
+  }
+}
+
+class _ReaderSuperResolutionStatus extends StatelessWidget {
+  final SuperResolutionPageResult? result;
+  final VoidCallback? onPressed;
+
+  const _ReaderSuperResolutionStatus({
+    required this.result,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final active = result?.upscaled;
+    final color =
+        active == true ? const Color(0xFF7EE7F4) : const Color(0xFFB8BCC4);
+    final text = active == null
+        ? context.l10n.tr('2× 处理中', en: '2× working')
+        : active
+            ? context.l10n.tr('2× 已生效', en: '2× active')
+            : context.l10n.tr('原图', en: 'Original');
+    final tooltip = active == true
+        ? context.l10n.tr(
+            '超分已生效，点击对比原图',
+            en: 'Upscaling active; tap to compare',
+          )
+        : active == false
+            ? context.l10n.tr(
+                '当前页超分未生效，正在显示原图',
+                en: 'Upscaling unavailable; showing the original',
+              )
+            : context.l10n.tr(
+                '正在处理 2× 超分',
+                en: 'Preparing 2× upscaling',
+              );
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        key: const ValueKey('reader-super-resolution-status'),
+        color: Colors.white.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(999),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (active != null)
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  )
+                else
+                  Icon(Icons.hourglass_top_rounded, size: 12, color: color),
+                const SizedBox(width: 5),
+                Text(
+                  text,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SuperResolutionComparisonDialog extends StatefulWidget {
+  final int pageNumber;
+  final SuperResolutionPageResult result;
+
+  const _SuperResolutionComparisonDialog({
+    required this.pageNumber,
+    required this.result,
+  });
+
+  @override
+  State<_SuperResolutionComparisonDialog> createState() =>
+      _SuperResolutionComparisonDialogState();
+}
+
+class _SuperResolutionComparisonDialogState
+    extends State<_SuperResolutionComparisonDialog> {
+  bool _showUpscaled = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final path =
+        _showUpscaled ? widget.result.displayPath : widget.result.sourcePath;
+    return Dialog(
+      key: const ValueKey('reader-super-resolution-comparison'),
+      insetPadding: const EdgeInsets.all(14),
+      clipBehavior: Clip.antiAlias,
+      backgroundColor: const Color(0xF21B1B1F),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      child: SizedBox(
+        width: min(size.width - 28, 900),
+        height: size.height * .84,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 8, 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      context.l10n.tr(
+                        '超分对比 · 第 ${widget.pageNumber} 页',
+                        en: 'Upscaling comparison · Page ${widget.pageNumber}',
+                      ),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: context.l10n.tr('关闭', en: 'Close'),
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SegmentedButton<bool>(
+                      key: const ValueKey(
+                        'reader-super-resolution-comparison-mode',
+                      ),
+                      segments: [
+                        ButtonSegment(
+                          value: false,
+                          label: Text(
+                            context.l10n.tr('原图', en: 'Original'),
+                          ),
+                          icon: const Icon(Icons.image_outlined),
+                        ),
+                        ButtonSegment(
+                          value: true,
+                          label: Text(
+                            context.l10n.tr('2× 超分', en: '2× upscaled'),
+                          ),
+                          icon: const Icon(Icons.auto_awesome_rounded),
+                        ),
+                      ],
+                      selected: {_showUpscaled},
+                      showSelectedIcon: false,
+                      onSelectionChanged: (selection) {
+                        setState(() => _showUpscaled = selection.first);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ColoredBox(
+                color: Colors.black,
+                child: LayoutBuilder(
+                  builder: (context, constraints) => InteractiveViewer(
+                    minScale: .6,
+                    maxScale: 8,
+                    boundaryMargin: const EdgeInsets.all(120),
+                    child: SizedBox(
+                      width: constraints.maxWidth,
+                      height: constraints.maxHeight,
+                      child: Image.file(
+                        File(path),
+                        key: ValueKey(path),
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                        gaplessPlayback: true,
+                        errorBuilder: (_, __, ___) => Center(
+                          child: Text(
+                            context.l10n.tr(
+                              '对比图片加载失败',
+                              en: 'Unable to load comparison image',
+                            ),
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 9, 16, 12),
+              child: Text(
+                context.l10n.tr(
+                  '切换模式后可双指缩放查看文字和线条细节。',
+                  en: 'Switch modes and pinch to inspect text and line details.',
+                ),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white60, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

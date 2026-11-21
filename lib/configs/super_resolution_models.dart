@@ -3,16 +3,23 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:jmcomic3/basic/methods.dart';
+import 'package:jmcomic3/configs/github_download_mirrors.dart';
 
-const superResolutionManifestUrls = [
-  'https://raw.githubusercontent.com/khxw/JMcomic3-flutter/main/models/super_resolution/manifest.json',
-  'https://gh-proxy.com/https://raw.githubusercontent.com/khxw/JMcomic3-flutter/main/models/super_resolution/manifest.json',
-];
+const _superResolutionManifestOfficialUrl =
+    'https://raw.githubusercontent.com/khxw/JMcomic3-flutter/main/models/super_resolution/manifest.json';
+final superResolutionManifestUrls = List<String>.unmodifiable(
+  githubDownloadCandidates([_superResolutionManifestOfficialUrl]),
+);
 const _bundledManifestAsset = 'lib/assets/super_resolution_manifest.json';
 const _manifestSchema = 1;
 const _maxArchiveBytes = 512 * 1024 * 1024;
+const _modelRequestTimeout = Duration(seconds: 12);
+const _modelProgressInterval = Duration(milliseconds: 120);
+const _modelMinimumSpeedWindow = Duration(seconds: 4);
+const _modelMinimumBytesPerSecond = 64 * 1024;
 const superResolutionParamFileName = 'scale2.0x_model.param';
 const superResolutionWeightsFileName = 'scale2.0x_model.bin';
 
@@ -138,7 +145,8 @@ List<SuperResolutionModel> parseSuperResolutionManifest(String raw) {
 Future<List<SuperResolutionModel>> loadSuperResolutionModels() async {
   for (final url in superResolutionManifestUrls) {
     try {
-      final raw = '${await methods.httpGet(url)}'.trim();
+      final raw =
+          '${await methods.httpGet(url).timeout(_modelRequestTimeout)}'.trim();
       final models = parseSuperResolutionManifest(raw);
       if (models.isNotEmpty) return models;
     } catch (_) {
@@ -253,6 +261,9 @@ Future<String> installSuperResolutionModel({
   required String homeDir,
   required SuperResolutionModel model,
   SuperResolutionDownloadProgress? onProgress,
+  Duration stallTimeout = _modelRequestTimeout,
+  Duration minimumSpeedWindow = _modelMinimumSpeedWindow,
+  int minimumBytesPerSecond = _modelMinimumBytesPerSecond,
 }) async {
   final modelRoot = superResolutionModelDirectory(homeDir, model.id);
   await modelRoot.create(recursive: true);
@@ -264,31 +275,39 @@ Future<String> installSuperResolutionModel({
   final archiveFile = File(
     '${staging.path}${Platform.pathSeparator}model.zip.part',
   );
-  final client = HttpClient()..connectionTimeout = const Duration(seconds: 20);
+  final client = HttpClient()..connectionTimeout = _modelRequestTimeout;
   try {
-    final response = await _openDownload(client, model.downloadUrls);
-    final total = response.contentLength > 0 ? response.contentLength : null;
-    var received = 0;
-    final sink = archiveFile.openWrite();
-    try {
-      await for (final chunk in response) {
-        received += chunk.length;
-        if (received > model.archiveBytes) {
-          throw const FormatException('model archive is larger than declared');
+    Object? lastError;
+    var downloaded = false;
+    final candidates = githubDownloadCandidates(model.downloadUrls);
+    for (var index = 0; index < candidates.length; index++) {
+      final url = candidates[index];
+      try {
+        await _downloadModelArchive(
+          client: client,
+          uri: Uri.parse(url),
+          archiveFile: archiveFile,
+          model: model,
+          onProgress: onProgress,
+          stallTimeout: stallTimeout,
+          minimumSpeedWindow: minimumSpeedWindow,
+          minimumBytesPerSecond: minimumBytesPerSecond,
+          enforceMinimumSpeed: index < candidates.length - 1,
+        );
+        final digest = await sha256.bind(archiveFile.openRead()).first;
+        if ('$digest' != model.sha256) {
+          throw const FormatException('model archive checksum mismatch');
         }
-        sink.add(chunk);
-        onProgress?.call(received, total);
+        downloaded = true;
+        break;
+      } catch (error) {
+        lastError = error;
+        onProgress?.call(0, model.archiveBytes);
+        if (await archiveFile.exists()) await archiveFile.delete();
       }
-    } finally {
-      await sink.flush();
-      await sink.close();
     }
-    if (received != model.archiveBytes) {
-      throw const FormatException('model archive size mismatch');
-    }
-    final digest = await sha256.bind(archiveFile.openRead()).first;
-    if ('$digest' != model.sha256) {
-      throw const FormatException('model archive checksum mismatch');
+    if (!downloaded) {
+      throw lastError ?? const HttpException('no model download URL');
     }
     await _extractModelArchive(archiveFile, staging, model);
     final destination = Directory(
@@ -303,29 +322,93 @@ Future<String> installSuperResolutionModel({
   }
 }
 
-Future<HttpClientResponse> _openDownload(
-  HttpClient client,
-  List<String> urls,
-) async {
-  Object? lastError;
-  for (final url in urls) {
-    try {
-      final request = await client.getUrl(Uri.parse(url));
-      request.followRedirects = true;
-      request.headers.set(
-        HttpHeaders.userAgentHeader,
-        'JMComic3-Mod model downloader',
-      );
-      final response = await request.close();
-      if (response.statusCode == HttpStatus.ok) return response;
-      await response.drain<void>();
-      lastError =
-          HttpException('HTTP ${response.statusCode}', uri: request.uri);
-    } catch (error) {
-      lastError = error;
-    }
+Future<void> _downloadModelArchive({
+  required HttpClient client,
+  required Uri uri,
+  required File archiveFile,
+  required SuperResolutionModel model,
+  required Duration stallTimeout,
+  required Duration minimumSpeedWindow,
+  required int minimumBytesPerSecond,
+  required bool enforceMinimumSpeed,
+  SuperResolutionDownloadProgress? onProgress,
+}) async {
+  onProgress?.call(0, model.archiveBytes);
+  final request = await client.getUrl(uri).timeout(_modelRequestTimeout);
+  request.followRedirects = true;
+  request.headers.set(
+    HttpHeaders.userAgentHeader,
+    'JMComic3-Mod model downloader',
+  );
+  final response = await request.close().timeout(_modelRequestTimeout);
+  if (response.statusCode != HttpStatus.ok) {
+    await response.drain<void>();
+    throw HttpException('HTTP ${response.statusCode}', uri: uri);
   }
-  throw lastError ?? const HttpException('no model download URL');
+
+  final total = response.contentLength > 0 ? response.contentLength : null;
+  var received = 0;
+  var lastProgressAt = 0;
+  final startedAt = DateTime.now();
+  final sink = archiveFile.openWrite();
+  try {
+    await for (final chunk in response.timeout(stallTimeout)) {
+      received += chunk.length;
+      if (received > model.archiveBytes) {
+        throw const FormatException('model archive is larger than declared');
+      }
+      sink.add(chunk);
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (received == model.archiveBytes ||
+          now - lastProgressAt >= _modelProgressInterval.inMilliseconds) {
+        lastProgressAt = now;
+        onProgress?.call(received, total ?? model.archiveBytes);
+      }
+      final elapsed = DateTime.now().difference(startedAt);
+      if (enforceMinimumSpeed &&
+          elapsed >= minimumSpeedWindow &&
+          received / (elapsed.inMilliseconds / 1000) < minimumBytesPerSecond) {
+        throw HttpException(
+          'model download speed below $minimumBytesPerSecond bytes/s',
+          uri: uri,
+        );
+      }
+    }
+  } finally {
+    await sink.flush();
+    await sink.close();
+  }
+  if (received != model.archiveBytes) {
+    throw const FormatException('model archive size mismatch');
+  }
+  if (total != null && total != model.archiveBytes) {
+    throw const FormatException('model archive response size mismatch');
+  }
+  onProgress?.call(received, model.archiveBytes);
+}
+
+@visibleForTesting
+Future<void> downloadSuperResolutionArchiveForTest({
+  required Uri uri,
+  required File archiveFile,
+  required SuperResolutionModel model,
+  Duration stallTimeout = const Duration(milliseconds: 200),
+}) async {
+  final client = HttpClient()..connectionTimeout = _modelRequestTimeout;
+  try {
+    await _downloadModelArchive(
+      client: client,
+      uri: uri,
+      archiveFile: archiveFile,
+      model: model,
+      stallTimeout: stallTimeout,
+      minimumSpeedWindow: const Duration(seconds: 4),
+      minimumBytesPerSecond: _modelMinimumBytesPerSecond,
+      enforceMinimumSpeed: false,
+    );
+  } finally {
+    client.close(force: true);
+  }
 }
 
 Future<void> _extractModelArchive(

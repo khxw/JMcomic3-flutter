@@ -3,12 +3,19 @@ package com.jmcomic3.yee
 import android.Manifest
 import android.app.Activity
 import android.content.ContentValues
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
+import android.os.BatteryManager
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
@@ -34,6 +41,7 @@ import android.hardware.biometrics.BiometricPrompt
 import java.util.concurrent.TimeUnit
 import android.os.CancellationSignal
 import java.security.MessageDigest
+import kotlin.math.roundToInt
 
 class MainActivity : FlutterActivity() {
 
@@ -71,6 +79,10 @@ class MainActivity : FlutterActivity() {
         //
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, "volume_button")
             .setStreamHandler(volumeStreamHandler)
+        EventChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "reader_system_status",
+        ).setStreamHandler(readerSystemStreamHandler)
         // super
         super.configureFlutterEngine(flutterEngine)
     }
@@ -127,6 +139,8 @@ class MainActivity : FlutterActivity() {
                     }
                 val inputPath = args["input_path"]?.toString()?.trim() ?: ""
                 val modelDirectory = args["model_directory"]?.toString()?.trim() ?: ""
+                val threads = (args["threads"] as? Number)?.toInt() ?: 4
+                val tileSize = (args["tile_size"] as? Number)?.toInt() ?: 256
                 if (inputPath.isEmpty() || modelDirectory.isEmpty()) {
                     result.error("invalid_args", "Missing super-resolution path", null)
                     return
@@ -137,6 +151,8 @@ class MainActivity : FlutterActivity() {
                             inputPath,
                             modelDirectory,
                             cacheDir,
+                            threads,
+                            tileSize,
                         )
                         uiThreadHandler.post { result.success(outputPath) }
                     } catch (error: Throwable) {
@@ -437,6 +453,141 @@ class MainActivity : FlutterActivity() {
         override fun onCancel(arguments: Any?) {
             volumeEvents = null
         }
+    }
+
+    private var readerSystemEvents: EventChannel.EventSink? = null
+    private var readerBatteryReceiverRegistered = false
+    private var readerNetworkCallbackRegistered = false
+
+    private val readerBatteryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            postReaderSystemStatus(intent)
+        }
+    }
+
+    private val readerNetworkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            postReaderSystemStatus()
+        }
+
+        override fun onLost(network: Network) {
+            postReaderSystemStatus()
+        }
+
+        override fun onCapabilitiesChanged(
+            network: Network,
+            networkCapabilities: NetworkCapabilities,
+        ) {
+            postReaderSystemStatus()
+        }
+
+        override fun onUnavailable() {
+            postReaderSystemStatus()
+        }
+    }
+
+    private val readerSystemStreamHandler = object : EventChannel.StreamHandler {
+        override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+            readerSystemEvents = events
+            registerReaderSystemObservers()
+            postReaderSystemStatus()
+        }
+
+        override fun onCancel(arguments: Any?) {
+            readerSystemEvents = null
+            unregisterReaderSystemObservers()
+        }
+    }
+
+    private fun registerReaderSystemObservers() {
+        if (!readerBatteryReceiverRegistered) {
+            val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(
+                    readerBatteryReceiver,
+                    batteryFilter,
+                    Context.RECEIVER_NOT_EXPORTED,
+                )
+            } else {
+                registerReceiver(readerBatteryReceiver, batteryFilter)
+            }
+            readerBatteryReceiverRegistered = true
+        }
+        if (!readerNetworkCallbackRegistered) {
+            try {
+                val connectivity = getSystemService(ConnectivityManager::class.java)
+                connectivity.registerDefaultNetworkCallback(readerNetworkCallback)
+                readerNetworkCallbackRegistered = true
+            } catch (error: Exception) {
+                Log.w("ReaderSystemStatus", "Network callback unavailable", error)
+            }
+        }
+    }
+
+    private fun unregisterReaderSystemObservers() {
+        if (readerBatteryReceiverRegistered) {
+            try {
+                unregisterReceiver(readerBatteryReceiver)
+            } catch (_: Exception) {
+            }
+            readerBatteryReceiverRegistered = false
+        }
+        if (readerNetworkCallbackRegistered) {
+            try {
+                getSystemService(ConnectivityManager::class.java)
+                    .unregisterNetworkCallback(readerNetworkCallback)
+            } catch (_: Exception) {
+            }
+            readerNetworkCallbackRegistered = false
+        }
+    }
+
+    private fun postReaderSystemStatus(batteryIntent: Intent? = null) {
+        uiThreadHandler.post {
+            val sink = readerSystemEvents ?: return@post
+            try {
+                sink.success(readerSystemStatus(batteryIntent))
+            } catch (_: Exception) {
+                readerSystemEvents = null
+            }
+        }
+    }
+
+    private fun readerSystemStatus(batteryIntent: Intent?): Map<String, Any> {
+        val battery = batteryIntent
+            ?: registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = battery?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = battery?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        val percent = if (level >= 0 && scale > 0) {
+            (level * 100f / scale).roundToInt().coerceIn(0, 100)
+        } else {
+            -1
+        }
+        val status = battery?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+        val charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+            status == BatteryManager.BATTERY_STATUS_FULL
+
+        val connectivity = getSystemService(ConnectivityManager::class.java)
+        val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
+        val network = when {
+            capabilities == null -> "offline"
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "mobile"
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "ethernet"
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "vpn"
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH) -> "bluetooth"
+            else -> "other"
+        }
+        return mapOf(
+            "network" to network,
+            "battery" to percent,
+            "charging" to charging,
+        )
+    }
+
+    override fun onDestroy() {
+        unregisterReaderSystemObservers()
+        super.onDestroy()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {

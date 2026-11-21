@@ -8,7 +8,6 @@ import java.security.MessageDigest
 
 object SuperResolutionBridge {
     private const val MAX_INPUT_PIXELS = 5_000_000L
-    private const val THREADS = 4
 
     init {
         System.loadLibrary("ncnn")
@@ -19,6 +18,8 @@ object SuperResolutionBridge {
         inputPath: String,
         modelDirectory: String,
         cacheDirectory: File,
+        threads: Int,
+        tileSize: Int,
     ): String {
         val inputFile = File(inputPath)
         val modelDir = File(modelDirectory)
@@ -67,6 +68,8 @@ object SuperResolutionBridge {
             input.recycle()
             throw IllegalArgumentException("Super-resolution input is too large")
         }
+        val resolvedThreads = threads.coerceIn(1, 8)
+        val resolvedTileSize = tileSize.coerceIn(64, 512)
 
         val output = Bitmap.createBitmap(
             input.width * 2,
@@ -80,7 +83,8 @@ object SuperResolutionBridge {
                     output,
                     paramFile.absolutePath,
                     weightsFile.absolutePath,
-                    THREADS,
+                    resolvedThreads,
+                    resolvedTileSize,
                 )
             ) {
                 throw IllegalStateException("Super-resolution inference failed")
@@ -122,5 +126,6 @@ object SuperResolutionBridge {
         paramPath: String,
         weightsPath: String,
         threads: Int,
+        tileSize: Int,
     ): Boolean
 }

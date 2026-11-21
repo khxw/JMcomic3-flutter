@@ -1038,10 +1038,14 @@ class Methods {
   Future<String> superResolutionImage({
     required String inputPath,
     required String modelDirectory,
+    required int threads,
+    required int tileSize,
   }) {
     return _invoke("superResolutionImage", {
       "input_path": inputPath,
       "model_directory": modelDirectory,
+      "threads": threads,
+      "tile_size": tileSize,
     });
   }
 

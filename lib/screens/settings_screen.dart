@@ -55,6 +55,8 @@ class _SettingsState extends State<SettingsScreen> {
   bool _superResolutionLoading = true;
   bool _superResolutionEnabled = false;
   bool _superResolutionModelInstalled = false;
+  bool _superResolutionPreloadEnabled = false;
+  int _superResolutionTileSize = 256;
 
   @override
   void initState() {
@@ -69,6 +71,8 @@ class _SettingsState extends State<SettingsScreen> {
       _superResolutionLoading = false;
       _superResolutionEnabled = superResolutionEnabled;
       _superResolutionModelInstalled = superResolutionModelInstalled;
+      _superResolutionPreloadEnabled = currentSuperResolutionPreload;
+      _superResolutionTileSize = currentSuperResolutionTileSize;
     });
   }
 
@@ -97,6 +101,24 @@ class _SettingsState extends State<SettingsScreen> {
     );
     if (!mounted) return;
     await _refreshSuperResolution();
+  }
+
+  Future<void> _chooseSuperResolutionThreads() async {
+    if (await chooseSuperResolutionThreads(context) && mounted) {
+      await _refreshSuperResolution();
+    }
+  }
+
+  Future<void> _chooseSuperResolutionTileSize() async {
+    if (await chooseSuperResolutionTileSize(context) && mounted) {
+      await _refreshSuperResolution();
+    }
+  }
+
+  Future<void> _setSuperResolutionPreload(bool value) async {
+    await setSuperResolutionPreloadEnabled(value);
+    if (!mounted) return;
+    setState(() => _superResolutionPreloadEnabled = value);
   }
 
   @override
@@ -158,10 +180,14 @@ class _SettingsState extends State<SettingsScreen> {
                 _SettingsSection(
                   sectionKey: const ValueKey('settings-super-resolution'),
                   icon: Icons.auto_awesome_rounded,
-                  title: l10n.tr('漫画超分', en: 'Comic upscaling'),
+                  title: l10n.tr(
+                    '漫画超分（实验性）',
+                    en: 'Comic upscaling (experimental)',
+                  ),
                   subtitle: l10n.tr(
-                    '按需下载模型，不增加 APK 体积',
-                    en: 'Download models on demand without increasing APK size',
+                    '实验性功能：按需下载模型，处理速度受设备性能影响',
+                    en: 'Experimental: models are downloaded on demand and '
+                        'performance depends on the device',
                   ),
                   panelKey:
                       const ValueKey('settings-super-resolution-expanded'),
@@ -172,7 +198,10 @@ class _SettingsState extends State<SettingsScreen> {
                       ),
                       secondary: const Icon(Icons.hd_rounded),
                       title: Text(
-                        l10n.tr('2× 超分', en: '2× upscaling'),
+                        l10n.tr(
+                          '2× 超分（实验性）',
+                          en: '2× upscaling (experimental)',
+                        ),
                       ),
                       subtitle: Text(
                         _superResolutionLoading
@@ -193,6 +222,60 @@ class _SettingsState extends State<SettingsScreen> {
                               !_superResolutionModelInstalled
                           ? null
                           : _setSuperResolution,
+                    ),
+                    ListTile(
+                      key: const ValueKey(
+                        'settings-super-resolution-threads',
+                      ),
+                      leading: const Icon(Icons.speed_rounded),
+                      title: Text(
+                        l10n.tr('推理线程', en: 'Inference threads'),
+                      ),
+                      subtitle: Text(superResolutionThreadsName(context)),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: _chooseSuperResolutionThreads,
+                    ),
+                    ListTile(
+                      key: const ValueKey('settings-super-resolution-tile'),
+                      leading: const Icon(Icons.grid_view_rounded),
+                      title: Text(
+                        l10n.tr('分块大小', en: 'Tile size'),
+                      ),
+                      subtitle: Text(
+                        _superResolutionTileSize == 128
+                            ? l10n.tr(
+                                '低内存 · 128',
+                                en: 'Low memory · 128',
+                              )
+                            : _superResolutionTileSize == 384
+                                ? l10n.tr('高速 · 384', en: 'Fast · 384')
+                                : l10n.tr(
+                                    '均衡 · 256',
+                                    en: 'Balanced · 256',
+                                  ),
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: _chooseSuperResolutionTileSize,
+                    ),
+                    SwitchListTile.adaptive(
+                      key: const ValueKey(
+                        'settings-super-resolution-preload',
+                      ),
+                      secondary: const Icon(Icons.fast_forward_rounded),
+                      title: Text(
+                        l10n.tr('超分预加载', en: 'Upscale preloading'),
+                      ),
+                      subtitle: Text(
+                        l10n.tr(
+                          '开启后会提前处理邻近页面，但当前页可能更慢',
+                          en: 'Processes nearby pages early, but may delay the '
+                              'current page',
+                        ),
+                      ),
+                      value: _superResolutionPreloadEnabled,
+                      onChanged: _superResolutionModelInstalled
+                          ? _setSuperResolutionPreload
+                          : null,
                     ),
                     const Divider(height: 1),
                     ListTile(

@@ -82,9 +82,11 @@ class _SuperResolutionModelScreenState
         model: model,
         onProgress: (received, total) {
           if (!mounted) return;
+          final resolvedTotal = total ?? model.archiveBytes;
+          if (_received == received && _total == resolvedTotal) return;
           setState(() {
             _received = received;
-            _total = total ?? model.archiveBytes;
+            _total = resolvedTotal;
           });
         },
       );
@@ -138,7 +140,12 @@ class _SuperResolutionModelScreenState
       key: const ValueKey('super-resolution-model-page'),
       appBar: AppBar(
         leading: const AppBackButton(),
-        title: Text(l10n.tr('漫画超分模型', en: 'Comic upscale models')),
+        title: Text(
+          l10n.tr(
+            '漫画超分模型（实验性）',
+            en: 'Comic upscale models (experimental)',
+          ),
+        ),
         actions: [
           IconButton(
             tooltip: l10n.tr('刷新', en: 'Refresh'),
@@ -159,11 +166,13 @@ class _SuperResolutionModelScreenState
                     children: [
                       _InfoCard(
                         text: l10n.tr(
-                          '模型按需下载，不包含在 APK 中。下载后会校验 SHA-256，'
+                          '实验性功能。模型按需下载，不包含在 APK 中。'
+                          '下载后会校验 SHA-256，'
                           '失败时不影响正常阅读。',
-                          en: 'Models are downloaded on demand and are not '
-                              'bundled in the APK. SHA-256 is verified before '
-                              'installation, and failures never block reading.',
+                          en: 'Experimental feature. Models are downloaded on '
+                              'demand and are not bundled in the APK. SHA-256 '
+                              'is verified before installation, and failures '
+                              'never block reading.',
                         ),
                       ),
                       if (_error != null) ...[

@@ -10,7 +10,7 @@ JMComic3 并存安装。
 
 ## 当前版本
 
-**v1.8.116+245** · Android ARM64 · API 24+
+**v1.8.125+254** · Android ARM64 · API 24+
 
 - 最新发布：[GitHub Releases](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - 完整更新记录：[CHANGELOG.md](https://github.com/khxw/JMcomic3-flutter/blob/main/CHANGELOG.md)
@@ -20,7 +20,7 @@ JMComic3 并存安装。
 
 | 文件 | 用途 |
 | --- | --- |
-| `JMComic3-Mod-v1.8.116-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
+| `JMComic3-Mod-v1.8.125-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
 | `SHA256SUMS.txt` | 校验 APK 文件完整性 |
 
 当前 Fork 只发布 **Android ARM64 APK**。本仓库没有为这个修改版提供 ARM32、
@@ -46,7 +46,10 @@ Windows 或 AAB 安装包。
 - 搜索结果页返回时先回到搜索首页，再次返回才退出搜索。
 - 漫画详情页获取与网页一致的上架日期，避免把最近更新时间显示成发布时间。
 - 书架分组文件夹和漫画封面显示更新红点。
-- 支持按需下载超分模型和 2× 超分，使用 NCNN 在设备本地处理。
+- 漫画超分（实验性）：支持推理线程、分块大小和超分预加载设置，默认优先处理当前页。
+- 超分下载：与软件更新共用 GitHub 镜像，支持停滞超时和低速线路自动切换。
+- 超分状态：显示“2× 处理中 / 2× 已生效 / 原图”，支持对比原图与超分画面。
+- 阅读信息条：左下角显示章节进度、网络状态、电量百分比和当前时间。
 - 新增应用内开源许可页面，支持组件搜索和完整许可证查看。
 - 底部导航只保留一个滑动指示器，并优化页面切换动画。
 - 首页更新提醒与关于页统一显示完整更新日志。
@@ -72,13 +75,13 @@ Windows 或 AAB 安装包。
 Windows PowerShell 校验示例：
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.8.116-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.8.125-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 当前 APK SHA-256：
 
 ```text
-691a861ae688b996a6381c35e78aa68358c036fde6b641a05b32c98766bcae13
+f2b870e00bce9fe3179571a6dad01db912cd58eef13e5006197ba4ee2033b4a7
 ```
 
 ## 构建

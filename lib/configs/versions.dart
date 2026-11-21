@@ -14,6 +14,7 @@ import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/app_icon.dart';
 
+import 'github_download_mirrors.dart';
 import 'int_property.dart';
 import 'ignore_upgrade_pop.dart';
 
@@ -34,11 +35,6 @@ const _releaseLatestPageUrl =
 const _releaseLatestPageMirrorUrls = [
   "https://gh-proxy.org/https://github.com/$_repoOwner/$_repoName/releases/latest",
   "https://gh-proxy.com/https://github.com/$_repoOwner/$_repoName/releases/latest",
-];
-const _apkDownloadMirrorPrefixes = [
-  "https://gh-proxy.org/",
-  "https://ghfast.top/",
-  "https://gh-proxy.com/",
 ];
 const _releaseRequestTimeout = Duration(seconds: 6);
 const _releaseLookupTimeout = Duration(seconds: 9);
@@ -449,16 +445,12 @@ Future<void> _downloadUpdatePackage({
 }
 
 List<String> _updateDownloadCandidates(String officialUrl) {
-  final candidates = <String>[];
   // Mirrors run untrusted code transport only. Require GitHub's published
   // SHA-256 before using them; native installation verifies that digest later.
-  if (_updateDownloadMirrorEnabled && latestApkSha256() != null) {
-    for (final prefix in _apkDownloadMirrorPrefixes) {
-      candidates.add(Uri.parse('$prefix$officialUrl').toString());
-    }
-  }
-  candidates.add(officialUrl);
-  return candidates;
+  return githubDownloadCandidates(
+    [officialUrl],
+    includeMirrors: _updateDownloadMirrorEnabled && latestApkSha256() != null,
+  );
 }
 
 String _downloadSourceLabel(String candidate, String officialUrl) {
