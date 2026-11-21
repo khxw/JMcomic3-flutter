@@ -1,6 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/configs/versions.dart';
 
+class UpdateDot extends StatelessWidget {
+  static const defaultColor = Color(0xFFE60012);
+
+  final double size;
+
+  const UpdateDot({super.key, this.size = 7});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: defaultColor,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Theme.of(context).colorScheme.surface,
+          width: 1,
+        ),
+      ),
+    );
+  }
+}
+
 // 提示信息, 组件右上角的小红点
 class Badged extends StatelessWidget {
   final String? badge;
@@ -18,21 +42,11 @@ class Badged extends StatelessWidget {
       children: [
         child,
         if (badge!.isEmpty)
-          Positioned(
+          const Positioned(
             top: 0,
             right: 0,
-            child: Container(
-              key: const ValueKey('version-update-dot'),
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.error,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.surface,
-                  width: 1,
-                ),
-              ),
+            child: UpdateDot(
+              key: ValueKey('version-update-dot'),
             ),
           )
         else

@@ -18,6 +18,7 @@ import 'package:jmcomic3/configs/reader_direction.dart';
 import 'package:jmcomic3/configs/reader_preload.dart';
 import 'package:jmcomic3/configs/reader_slider_position.dart';
 import 'package:jmcomic3/configs/reader_type.dart';
+import 'package:jmcomic3/configs/super_resolution.dart';
 import 'package:jmcomic3/configs/two_page_direction.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/components/content_error.dart';
@@ -45,6 +46,7 @@ class ComicReaderScreen extends StatefulWidget {
   final int chapterId;
   final int initRank;
   final Future<ChapterResponse> Function(int seriesId) loadChapter;
+  final ValueChanged<int>? onChapterOpened;
   final bool fullScreenOnInit;
 
   const ComicReaderScreen({
@@ -54,6 +56,7 @@ class ComicReaderScreen extends StatefulWidget {
     required this.chapterId,
     required this.initRank,
     required this.loadChapter,
+    this.onChapterOpened,
     this.fullScreenOnInit = false,
   }) : super(key: key);
 
@@ -116,6 +119,7 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
         _chapterLoading = false;
         _readerRevision++;
       });
+      widget.onChapterOpened?.call(targetId);
     } catch (error, stackTrace) {
       if (!mounted || revision != _chapterRequest) return;
       setState(() {
@@ -623,7 +627,8 @@ abstract class _ComicReaderState extends State<_ComicReader>
         return PageImageProvider(widget.chapter.id, page.name,
             pageIndex: page.sourceIndex,
             localPath: page.localAvailable ? page.localPath : null,
-            localOnly: page.localPath != null);
+            localOnly: page.localPath != null,
+            superResolution: true);
       });
 
   void _preloadAround(int page) {
@@ -777,6 +782,14 @@ abstract class _ComicReaderState extends State<_ComicReader>
           );
         }),
       );
+      unawaited(
+        clearSuperResolutionTemporaryCache().catchError((Object error) {
+          debugPrient(
+            'reader super-resolution cache cleanup failed: '
+            '${error.runtimeType}',
+          );
+        }),
+      );
     });
     super.dispose();
   }
@@ -829,30 +842,52 @@ abstract class _ComicReaderState extends State<_ComicReader>
             top: 0,
             left: 0,
             right: 0,
-            child: AppBar(
+            child: Material(
               key: const ValueKey('reader-top-controls'),
-              backgroundColor: Colors.black.withValues(alpha: .74),
-              foregroundColor: Colors.white,
-              surfaceTintColor: Colors.transparent,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              title: Text(
-                widget.chapter.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              color: Colors.black.withValues(alpha: .74),
+              child: SafeArea(
+                bottom: false,
+                child: SizedBox(
+                  height: kToolbarHeight,
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          widget.chapter.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: context.l10n.tr('章节列表', en: 'Chapters'),
+                        onPressed: _onChooseEp,
+                        icon: const Icon(
+                          Icons.menu_book_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: context.l10n.tr(
+                          '阅读设置',
+                          en: 'Reading settings',
+                        ),
+                        onPressed: _onMoreSetting,
+                        icon: const Icon(
+                          Icons.tune_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
+                ),
               ),
-              actions: [
-                IconButton(
-                  tooltip: context.l10n.tr('章节列表', en: 'Chapters'),
-                  onPressed: _onChooseEp,
-                  icon: const Icon(Icons.menu_book_rounded),
-                ),
-                IconButton(
-                  tooltip: context.l10n.tr('阅读设置', en: 'Reading settings'),
-                  onPressed: _onMoreSetting,
-                  icon: const Icon(Icons.tune_rounded),
-                ),
-              ],
             ),
           ),
         if (!_fullScreen && !sideSlider)

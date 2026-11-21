@@ -26,6 +26,7 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.util.concurrent.Executors
+import java.util.concurrent.ExecutorService
 import java.io.File
 import opensource.jenny.Jni
 import java.util.concurrent.LinkedBlockingQueue
@@ -48,6 +49,10 @@ class MainActivity : FlutterActivity() {
     private val uiThreadHandler = Handler(Looper.getMainLooper())
     private val pool =
         Executors.newCachedThreadPool { runnable -> Thread(runnable).also { it.isDaemon = true } }
+    private val superResolutionPool: ExecutorService =
+        Executors.newSingleThreadExecutor { runnable ->
+            Thread(runnable, "jmcomic-super-resolution").also { it.isDaemon = true }
+        }
     private var pendingDirectoryResult: MethodChannel.Result? = null
     private var pendingCreateDocumentResult: MethodChannel.Result? = null
     private var pendingCreateDocumentContent: String? = null
@@ -111,6 +116,57 @@ class MainActivity : FlutterActivity() {
                 val url = call.argument<String>("url")?.trim() ?: ""
                 uiThreadHandler.post {
                     openExternalUrl(url, result)
+                }
+                return
+            }
+            "superResolutionImage" -> {
+                val args = call.arguments as? Map<*, *>
+                    ?: run {
+                        result.error("invalid_args", "Missing super-resolution arguments", null)
+                        return
+                    }
+                val inputPath = args["input_path"]?.toString()?.trim() ?: ""
+                val modelDirectory = args["model_directory"]?.toString()?.trim() ?: ""
+                if (inputPath.isEmpty() || modelDirectory.isEmpty()) {
+                    result.error("invalid_args", "Missing super-resolution path", null)
+                    return
+                }
+                superResolutionPool.execute {
+                    try {
+                        val outputPath = SuperResolutionBridge.upscaleFile(
+                            inputPath,
+                            modelDirectory,
+                            cacheDir,
+                        )
+                        uiThreadHandler.post { result.success(outputPath) }
+                    } catch (error: Throwable) {
+                        Log.e("SuperResolution", "Upscale failed", error)
+                        uiThreadHandler.post {
+                            result.error(
+                                "super_resolution_failed",
+                                error.message ?: "Super-resolution inference failed",
+                                null,
+                            )
+                        }
+                    }
+                }
+                return
+            }
+            "clearSuperResolutionCache" -> {
+                superResolutionPool.execute {
+                    try {
+                        SuperResolutionBridge.clearCache(cacheDir)
+                        uiThreadHandler.post { result.success(null) }
+                    } catch (error: Throwable) {
+                        Log.e("SuperResolution", "Cache cleanup failed", error)
+                        uiThreadHandler.post {
+                            result.error(
+                                "super_resolution_cleanup_failed",
+                                error.message ?: "Super-resolution cleanup failed",
+                                null,
+                            )
+                        }
+                    }
                 }
                 return
             }

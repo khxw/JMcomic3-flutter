@@ -34,6 +34,28 @@
   [Fuchsia / Google BSD 声明](third_party/zoomable_positioned_list/LICENSE.fuchsia)。
 - 补丁及验证说明：[PATCHES.md](third_party/zoomable_positioned_list/PATCHES.md)。
 
+## Tencent/ncnn
+
+- 项目：[Tencent/ncnn](https://github.com/Tencent/ncnn)。
+- 使用版本：`20261020` Android shared release，包含 `arm64-v8a` 与
+  `armeabi-v7a` 预编译运行库。
+- 对应实现：`android/app/src/main/cpp/` 中的漫画 2× 超分 JNI，
+  以及 `android/app/src/main/jniLibs/` 中的 `libncnn.so`。
+- 保留 [BSD 3-Clause 及随包第三方声明](third_party/ncnn/LICENSE.txt)。
+
+## nihui/waifu2x-ncnn-vulkan
+
+- 项目：[nihui/waifu2x-ncnn-vulkan](https://github.com/nihui/waifu2x-ncnn-vulkan)。
+- 使用模型：`models-cunet/scale2.0x_model.param` 与
+  `models-cunet/scale2.0x_model.bin`，应用内标记为模型版本 `20250915`。
+- 分发方式：模型单独打包为
+  `models/super_resolution/packages/waifu2x-cunet-2x-20250915.zip`，
+  用户需要时从 GitHub 下载，不包含在 APK 中。
+- 来源文件校验和及打包信息：
+  [WAIFU2X-CUNET-2X.md](models/super_resolution/WAIFU2X-CUNET-2X.md)。
+- 模型归档内保留 `LICENSE.txt`，上游许可证为 MIT，
+  版权声明为 `Copyright (c) 2019 nihui`。
+
 ## 其他依赖与资源
 
 Flutter / Dart 包版本由 `pubspec.yaml` 与提交的 `pubspec.lock` 记录，使用各依赖自己的

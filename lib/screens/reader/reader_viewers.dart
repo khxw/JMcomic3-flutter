@@ -93,7 +93,11 @@ class _ContinuousReaderState extends _ComicReaderState {
         final list = zoomable.ZoomablePositionedList.builder(
           key: ValueKey('continuous-${widget.chapter.id}'),
           enableZoom: _zoomEnabled,
-          enableDoubleTapZoom: _zoomEnabled && !_doubleTapFullscreen,
+          // Single-tap fullscreen must not wait for Flutter's double-tap
+          // timeout. Pinch zoom remains available.
+          enableDoubleTapZoom: _zoomEnabled &&
+              !_doubleTapFullscreen &&
+              currentReaderControllerType != ReaderControllerType.touchOnce,
           minScale: 1,
           maxScale: 4,
           doubleTapScale: 2,

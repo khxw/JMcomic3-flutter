@@ -10,6 +10,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:jmcomic3/basic/methods.dart';
+import 'package:jmcomic3/configs/super_resolution.dart';
 import 'package:jmcomic3/screens/components/types.dart';
 
 import '../file_photo_view_screen.dart';
@@ -114,6 +115,10 @@ class PageImageProvider extends ImageProvider<PageImageProvider> {
   /// fall back to an online bridge request.
   final bool localOnly;
 
+  /// Enables the optional reader-only super-resolution path. Cover images and
+  /// test fixtures keep their original bytes and never pay the inference cost.
+  final bool superResolution;
+
   PageImageProvider(
     this.id,
     this.imageName, {
@@ -123,6 +128,7 @@ class PageImageProvider extends ImageProvider<PageImageProvider> {
     int? cacheHeight,
     String? localPath,
     this.localOnly = false,
+    this.superResolution = false,
   })  : pageIndex = _normalizePageIndex(pageIndex),
         cacheWidth = _normalizeDecodeTarget(cacheWidth),
         cacheHeight = _normalizeDecodeTarget(cacheHeight),
@@ -130,13 +136,18 @@ class PageImageProvider extends ImageProvider<PageImageProvider> {
 
   Future<String> _pathForKey(PageImageProvider key) async {
     final supplied = key.localPath;
+    final String path;
     if (supplied != null) {
-      return _validateLocalImagePath(supplied);
-    }
-    if (key.localOnly) {
+      path = await _validateLocalImagePath(supplied);
+    } else if (key.localOnly) {
       throw StateError('local image unavailable');
+    } else {
+      path = await _cachedPageImagePath(key.id, key.imageName);
     }
-    return _cachedPageImagePath(key.id, key.imageName);
+    if (key.superResolution) {
+      return await superResolutionPagePath(path);
+    }
+    return path;
   }
 
   @override
@@ -253,12 +264,13 @@ class PageImageProvider extends ImageProvider<PageImageProvider> {
         cacheWidth == typedOther.cacheWidth &&
         cacheHeight == typedOther.cacheHeight &&
         localPath == typedOther.localPath &&
-        localOnly == typedOther.localOnly;
+        localOnly == typedOther.localOnly &&
+        superResolution == typedOther.superResolution;
   }
 
   @override
   int get hashCode => Object.hash(id, imageName, scale, pageIndex, cacheWidth,
-      cacheHeight, localPath, localOnly);
+      cacheHeight, localPath, localOnly, superResolution);
 
   @override
   String toString() => '$runtimeType('
@@ -269,6 +281,7 @@ class PageImageProvider extends ImageProvider<PageImageProvider> {
       ' cacheWidth: $cacheWidth,'
       ' cacheHeight: $cacheHeight,'
       ' localPath: ${localPath == null ? '<cache>' : describeIdentity(localPath)},'
+      ' superResolution: $superResolution,'
       ' localOnly: $localOnly'
       ')';
 }
@@ -1341,6 +1354,7 @@ PageImageProvider readerPageImageProvider(
     cacheHeight: _cacheExtent(height, devicePixelRatio),
     localPath: localPath,
     localOnly: localOnly,
+    superResolution: true,
   );
 }
 

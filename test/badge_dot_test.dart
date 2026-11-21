@@ -17,5 +17,6 @@ void main() {
 
     expect(find.byKey(const ValueKey('version-update-dot')), findsOneWidget);
     expect(find.text('1'), findsNothing);
+    expect(UpdateDot.defaultColor, const Color(0xFFE60012));
   });
 }

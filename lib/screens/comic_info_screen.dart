@@ -33,17 +33,27 @@ ComicBasic? effectiveComicInfoSimple(ComicBasic? simple, int comicId) {
 }
 
 int comicDetailUpdateChapterId(AlbumResponse album) {
-  if (album.series.isEmpty) return album.id;
-  var latest = album.series.first;
-  var latestSort = int.tryParse(latest.sort.trim()) ?? -1;
-  for (final chapter in album.series.skip(1)) {
-    final sort = int.tryParse(chapter.sort.trim()) ?? -1;
-    if (sort > latestSort) {
-      latest = chapter;
-      latestSort = sort;
-    }
+  return album.latestUpdateChapterId;
+}
+
+String? comicDetailPublishedDateQuery(
+  AlbumResponse album,
+  ComicBasic? simple,
+) {
+  bool usable(String? value) {
+    final normalized =
+        value?.trim().toUpperCase().replaceAll(RegExp(r'[\s#]+'), '') ?? '';
+    return normalized.isNotEmpty &&
+        normalized != album.id.toString() &&
+        normalized != 'JM${album.id}';
   }
-  return latest.id;
+
+  if (usable(album.name)) return album.name.trim();
+  if (usable(simple?.name)) return simple!.name.trim();
+  for (final chapter in album.series.reversed) {
+    if (usable(chapter.name)) return chapter.name.trim();
+  }
+  return null;
 }
 
 ({int chapterId, int page, bool continuing}) comicDetailReadingTarget(
@@ -119,8 +129,9 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> {
 
   Future<void> _resolvePublishedDate(AlbumResponse album) async {
     try {
-      final publishedDate =
-          await methods.albumPublishedAt(album.id, album.name);
+      final query = comicDetailPublishedDateQuery(album, widget.simple);
+      if (query == null) return;
+      final publishedDate = await methods.albumPublishedAt(album.id, query);
       if (!mounted ||
           widget.comicId != album.id ||
           publishedDate.trim().isEmpty) {
@@ -245,6 +256,11 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> {
         chapterId: chapterId,
         initRank: page,
         loadChapter: methods.chapter,
+        onChapterOpened: (openedChapterId) {
+          if (openedChapterId == album.latestUpdateChapterId) {
+            unawaited(markLocalBookshelfItemSeen(album.id));
+          }
+        },
       ),
     ));
     if (!mounted) return;
@@ -258,7 +274,7 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> {
     setState(() => _bookshelfLoading = true);
     try {
       final inShelf = await toggleLocalBookshelf(
-        albumToSimple(album),
+        _bookshelfComic(album),
       );
       if (!mounted) return;
       setState(() {
@@ -355,7 +371,7 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> {
         }
       } else {
         final added = await toggleLocalBookshelf(
-          albumToSimple(album),
+          _bookshelfComic(album),
           group: targetGroup.trim(),
         );
         if (!added) {
@@ -376,6 +392,15 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> {
     } finally {
       if (mounted) setState(() => _bookshelfLoading = false);
     }
+  }
+
+  ComicBasic _bookshelfComic(AlbumResponse album) {
+    final updateAt =
+        _resolvedUpdateAt ?? album.updateAt ?? widget.simple?.updateAt;
+    return albumToSimple(
+      album,
+      updateAt: updateAt != null && updateAt > 0 ? updateAt : null,
+    );
   }
 
   @override

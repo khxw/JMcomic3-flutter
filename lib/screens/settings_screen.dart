@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/configs/android_display_mode.dart';
@@ -18,6 +20,7 @@ import 'package:jmcomic3/configs/network_cdn_host.dart';
 import 'package:jmcomic3/configs/no_animation.dart';
 import 'package:jmcomic3/configs/proxy.dart';
 import 'package:jmcomic3/configs/search_title_words.dart';
+import 'package:jmcomic3/configs/super_resolution.dart';
 import 'package:jmcomic3/configs/theme.dart';
 import 'package:jmcomic3/configs/two_page_direction.dart';
 import 'package:jmcomic3/configs/using_right_click_pop.dart';
@@ -38,6 +41,8 @@ import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
 import 'init_screen.dart';
 import 'runtime_log_screen.dart';
+import 'open_source_license_screen.dart';
+import 'super_resolution_model_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -47,6 +52,53 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsState extends State<SettingsScreen> {
+  bool _superResolutionLoading = true;
+  bool _superResolutionEnabled = false;
+  bool _superResolutionModelInstalled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_refreshSuperResolution());
+  }
+
+  Future<void> _refreshSuperResolution() async {
+    await loadSuperResolutionState(force: true);
+    if (!mounted) return;
+    setState(() {
+      _superResolutionLoading = false;
+      _superResolutionEnabled = superResolutionEnabled;
+      _superResolutionModelInstalled = superResolutionModelInstalled;
+    });
+  }
+
+  Future<void> _setSuperResolution(bool value) async {
+    try {
+      await setSuperResolutionEnabled(value);
+      if (!mounted) return;
+      setState(() => _superResolutionEnabled = value);
+    } catch (error) {
+      if (!mounted) return;
+      defaultToast(
+        context,
+        context.l10n.tr(
+          '请先下载超分模型。',
+          en: 'Download a super-resolution model first.',
+        ),
+      );
+    }
+  }
+
+  Future<void> _openSuperResolutionModels() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const SuperResolutionModelScreen(),
+      ),
+    );
+    if (!mounted) return;
+    await _refreshSuperResolution();
+  }
+
   @override
   Widget build(BuildContext context) {
     return rightClickPop(child: buildScreen(context), context: context);
@@ -101,6 +153,65 @@ class _SettingsState extends State<SettingsScreen> {
                     noAnimationSetting(),
                     const Divider(height: 1),
                     twoGalleryDirectionSetting(context),
+                  ],
+                ),
+                _SettingsSection(
+                  sectionKey: const ValueKey('settings-super-resolution'),
+                  icon: Icons.auto_awesome_rounded,
+                  title: l10n.tr('漫画超分', en: 'Comic upscaling'),
+                  subtitle: l10n.tr(
+                    '按需下载模型，不增加 APK 体积',
+                    en: 'Download models on demand without increasing APK size',
+                  ),
+                  panelKey:
+                      const ValueKey('settings-super-resolution-expanded'),
+                  children: [
+                    SwitchListTile.adaptive(
+                      key: const ValueKey(
+                        'settings-super-resolution-enabled',
+                      ),
+                      secondary: const Icon(Icons.hd_rounded),
+                      title: Text(
+                        l10n.tr('2× 超分', en: '2× upscaling'),
+                      ),
+                      subtitle: Text(
+                        _superResolutionLoading
+                            ? l10n.tr('正在检测模型…', en: 'Checking model…')
+                            : !_superResolutionModelInstalled
+                                ? l10n.tr(
+                                    '下载模型后可用于阅读页',
+                                    en: 'Download a model to use it in the reader',
+                                  )
+                                : l10n.tr(
+                                    '首次处理较慢，失败时自动显示原图',
+                                    en: 'First use is slower; failures fall back '
+                                        'to the original image',
+                                  ),
+                      ),
+                      value: _superResolutionEnabled,
+                      onChanged: _superResolutionLoading ||
+                              !_superResolutionModelInstalled
+                          ? null
+                          : _setSuperResolution,
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      key: const ValueKey(
+                        'settings-super-resolution-models',
+                      ),
+                      leading: const Icon(Icons.memory_rounded),
+                      title: Text(
+                        l10n.tr('超分模型管理', en: 'Upscale model manager'),
+                      ),
+                      subtitle: Text(
+                        l10n.tr(
+                          '查看、下载、校验或删除 2× 超分模型',
+                          en: 'View, download, verify or delete 2× models',
+                        ),
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: _openSuperResolutionModels,
+                    ),
                   ],
                 ),
                 _SettingsSection(
@@ -295,6 +406,27 @@ class _SettingsState extends State<SettingsScreen> {
                     ),
                     const Divider(height: 1),
                     userAgreementSetting(context),
+                    ListTile(
+                      key: const ValueKey('settings-open-source-licenses'),
+                      leading: const Icon(Icons.policy_outlined),
+                      title: Text(
+                        l10n.tr('开源许可', en: 'Open-source licenses'),
+                      ),
+                      subtitle: Text(
+                        l10n.tr(
+                          '查看应用和第三方组件使用的许可证',
+                          en: 'View licenses used by the app and its components',
+                        ),
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const OpenSourceLicenseScreen(),
+                          ),
+                        );
+                      },
+                    ),
                     if (!updatesTemporarilyDisabled && hasProAccess) ...[
                       const Divider(height: 1),
                       autoUpdateCheckSetting(),

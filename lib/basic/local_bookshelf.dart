@@ -322,6 +322,23 @@ Future<int> refreshLocalBookshelfUpdates({bool force = false}) async {
             ignoreViewLog: true,
             forceRefresh: true,
           );
+          var resolvedUpdateAt = album.updateAt;
+          if (resolvedUpdateAt == null || resolvedUpdateAt <= 0) {
+            try {
+              final chapter =
+                  await methods.chapter(album.latestUpdateChapterId);
+              resolvedUpdateAt = chapter.addtime;
+            } catch (_) {
+              // Preserve the last known timestamp when the chapter lookup
+              // fails instead of replacing it with null.
+            }
+          }
+          final previousUpdateAt = item.comic.updateAt;
+          final updateAt = resolvedUpdateAt != null && resolvedUpdateAt > 0
+              ? previousUpdateAt != null && previousUpdateAt > resolvedUpdateAt
+                  ? previousUpdateAt
+                  : resolvedUpdateAt
+              : previousUpdateAt;
           final image =
               album.images.isEmpty ? item.comic.image : album.images.first;
           final comic = ComicBasic(
@@ -330,10 +347,11 @@ Future<int> refreshLocalBookshelfUpdates({bool force = false}) async {
             description: album.description,
             name: album.name,
             image: image,
-            updateAt: album.updateAt,
+            updateAt: updateAt,
             addtime: album.addtime,
           );
-          final lastSeen = item.lastSeenUpdateAt ?? item.comic.updateAt;
+          final lastSeen =
+              item.lastSeenUpdateAt ?? previousUpdateAt ?? updateAt;
           return item.copyWith(
             comic: comic,
             lastSeenUpdateAt: lastSeen,

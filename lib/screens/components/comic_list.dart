@@ -9,6 +9,7 @@ import 'package:jmcomic3/screens/comic_info_screen.dart';
 import 'package:jmcomic3/screens/components/types.dart';
 
 import '../../basic/commons.dart';
+import 'badge.dart';
 import 'comic_info_card.dart';
 import 'images.dart';
 
@@ -21,6 +22,7 @@ class ComicList extends StatefulWidget {
   final List<ComicLongPressMenuItem>? longPressMenuItems;
   final bool dense;
   final ValueChanged<ComicBasic>? onComicTap;
+  final Set<int> updateComicIds;
 
   const ComicList({
     Key? key,
@@ -32,6 +34,7 @@ class ComicList extends StatefulWidget {
     this.longPressMenuItems,
     this.dense = false,
     this.onComicTap,
+    this.updateComicIds = const {},
   }) : super(key: key);
 
   @override
@@ -251,6 +254,20 @@ class _ComicListState extends State<ComicList> {
         }),
       ),
     );
+    final coverWithUpdate = Stack(
+      clipBehavior: Clip.none,
+      children: [
+        cover,
+        if (widget.updateComicIds.contains(comic.id))
+          Positioned(
+            top: 6,
+            right: 6,
+            child: UpdateDot(
+              key: ValueKey('bookshelf-comic-update-${comic.id}'),
+            ),
+          ),
+      ],
+    );
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _pushToComicInfo(comic),
@@ -261,7 +278,7 @@ class _ComicListState extends State<ComicList> {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                cover,
+                coverWithUpdate,
                 if (!compact && !widget.dense) const SizedBox(height: 8),
                 Container(
                   height: titleHeight,
@@ -282,7 +299,7 @@ class _ComicListState extends State<ComicList> {
                 ),
               ],
             )
-          : cover,
+          : coverWithUpdate,
     );
   }
 
@@ -314,11 +331,27 @@ class _ComicListState extends State<ComicList> {
       if (index >= widget.data.length) {
         return widget.appendList![index - widget.data.length];
       }
+      final comic = widget.data[index];
+      final card = ComicInfoCard(comic);
+      final content = widget.updateComicIds.contains(comic.id)
+          ? Stack(
+              children: [
+                card,
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: UpdateDot(
+                    key: ValueKey('bookshelf-comic-update-${comic.id}'),
+                  ),
+                ),
+              ],
+            )
+          : card;
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => _pushToComicInfo(widget.data[index]),
+        onTap: () => _pushToComicInfo(comic),
         onLongPressStart: _longPressCallback(index),
-        child: ComicInfoCard(widget.data[index]),
+        child: content,
       );
     }
 

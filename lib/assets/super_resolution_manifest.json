@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "models": [
+    {
+      "id": "waifu2x-cunet-2x",
+      "version": "20250915",
+      "name": "Waifu2x CUnet 2×",
+      "description": "适合漫画、插画和文字的 2× 超分模型。模型按需下载，在设备本地用 NCNN 推理。",
+      "scale": 2,
+      "download_urls": [
+        "https://raw.githubusercontent.com/khxw/JMcomic3-flutter/main/models/super_resolution/packages/waifu2x-cunet-2x-20250915.zip",
+        "https://gh-proxy.com/https://raw.githubusercontent.com/khxw/JMcomic3-flutter/main/models/super_resolution/packages/waifu2x-cunet-2x-20250915.zip"
+      ],
+      "sha256": "362299211b3a9ee72b14a571aca02dddc4751fccb91a7d8b9aa859868d67000a",
+      "archive_bytes": 2578118,
+      "extracted_bytes": 2785211,
+      "license_name": "MIT",
+      "license_url": "https://github.com/nihui/waifu2x-ncnn-vulkan/blob/master/LICENSE"
+    }
+  ]
+}

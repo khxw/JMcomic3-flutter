@@ -69,6 +69,8 @@ class Methods {
   static const Duration _categoriesPersistentCacheTtl = Duration(hours: 12);
   static const Duration _comicsPersistentCacheTtl = Duration(minutes: 30);
   static const Duration _albumPersistentCacheTtl = Duration(minutes: 30);
+  static const Duration _albumPublishedDateFailureTtl = Duration(minutes: 10);
+  static const Duration _albumPublishedDateLookupTimeout = Duration(seconds: 6);
   static const String _defaultCategoriesCacheKey = "__default__";
   static const String _categoriesPersistentCacheKey =
       "startup_cache_categories_v2";
@@ -76,6 +78,8 @@ class Methods {
       "startup_cache_comics_v1_";
   static const String _albumPersistentCacheKeyPrefix =
       "startup_cache_album_v1_";
+  static const String _albumPublishedDatePropertyPrefix =
+      "album_published_date_v1_";
   static const String _locallyLikedCommentIdsProperty =
       "locally_liked_comment_ids_v1";
   static const int _downloadThreadFallback = 3;
@@ -85,6 +89,8 @@ class Methods {
   static final Map<String, _CacheEntry<String>> _albumCache = {};
   static final Map<String, _CacheEntry<String>> _coverCache = {};
   static final Map<int, String> _albumPublishedDateCache = {};
+  static final Map<int, Future<String>> _albumPublishedDateInflight = {};
+  static final Map<int, int> _albumPublishedDateFailureAt = {};
   static final Map<String, Future<String>> _categoriesInflight = {};
   static final Map<String, Future<String>> _comicsInflight = {};
   static final Map<String, Future<String>> _albumInflight = {};
@@ -101,6 +107,8 @@ class Methods {
     _comicsCache.clear();
     _albumCache.clear();
     _albumPublishedDateCache.clear();
+    _albumPublishedDateInflight.clear();
+    _albumPublishedDateFailureAt.clear();
     _categoriesInflight.clear();
     _comicsInflight.clear();
     _albumInflight.clear();
@@ -861,15 +869,67 @@ class Methods {
   Future<String> albumPublishedAt(int id, String name) async {
     final cached = _albumPublishedDateCache[id];
     if (cached != null && cached.isNotEmpty) return cached;
-    final publishedDate = await _invoke("album_published_at", {
-      "id": id,
-      "name": name,
+    final failedAt = _albumPublishedDateFailureAt[id];
+    if (failedAt != null &&
+        DateTime.now().millisecondsSinceEpoch - failedAt <
+            _albumPublishedDateFailureTtl.inMilliseconds) {
+      return '';
+    }
+    _albumPublishedDateFailureAt.remove(id);
+    final running = _albumPublishedDateInflight[id];
+    if (running != null) return running;
+
+    final future = _loadAlbumPublishedAt(id, name);
+    _albumPublishedDateInflight[id] = future;
+    return future.whenComplete(() {
+      if (identical(_albumPublishedDateInflight[id], future)) {
+        _albumPublishedDateInflight.remove(id);
+      }
     });
+  }
+
+  Future<String> _loadAlbumPublishedAt(int id, String name) async {
+    final propertyKey = "$_albumPublishedDatePropertyPrefix$id";
+    try {
+      final cached = (await loadProperty(propertyKey)).trim();
+      if (cached.isNotEmpty) {
+        _albumPublishedDateCache[id] = cached;
+        _albumPublishedDateFailureAt.remove(id);
+        return cached;
+      }
+    } catch (_) {
+      // A local cache miss must not block the search-backed lookup.
+    }
+
+    late final String publishedDate;
+    try {
+      publishedDate = await _invoke("album_published_at", {
+        "id": id,
+        "name": name,
+      }).timeout(_albumPublishedDateLookupTimeout);
+    } catch (_) {
+      _albumPublishedDateFailureAt[id] = DateTime.now().millisecondsSinceEpoch;
+      rethrow;
+    }
     final normalized = publishedDate.trim();
     if (normalized.isNotEmpty) {
       _albumPublishedDateCache[id] = normalized;
+      _albumPublishedDateFailureAt.remove(id);
+      try {
+        await saveProperty(propertyKey, normalized);
+      } catch (_) {
+        // The date can still be returned when persistence is unavailable.
+      }
+    } else {
+      _albumPublishedDateFailureAt[id] = DateTime.now().millisecondsSinceEpoch;
     }
     return normalized;
+  }
+
+  void resetAlbumPublishedDateCacheForTest() {
+    _albumPublishedDateCache.clear();
+    _albumPublishedDateInflight.clear();
+    _albumPublishedDateFailureAt.clear();
   }
 
   Future<ChapterResponse> chapter(int id) async {
@@ -973,6 +1033,20 @@ class Methods {
 
   Future clearReaderPageCache() async {
     return _invoke("clear_reader_page_cache", "");
+  }
+
+  Future<String> superResolutionImage({
+    required String inputPath,
+    required String modelDirectory,
+  }) {
+    return _invoke("superResolutionImage", {
+      "input_path": inputPath,
+      "model_directory": modelDirectory,
+    });
+  }
+
+  Future clearSuperResolutionCache() {
+    return _invoke("clearSuperResolutionCache", null);
   }
 
   Future<Map<String, dynamic>> imageCacheDays() async {

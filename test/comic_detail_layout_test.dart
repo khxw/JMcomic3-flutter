@@ -465,12 +465,16 @@ Future<void> _mount(
   WidgetTester tester,
   _Fixture fixture, {
   ComicBasic? simple,
+  bool includeSimple = true,
   double textScale = 1,
   bool dark = false,
   Locale locale = const Locale('en'),
 }) async {
   await tester.pumpWidget(_host(
-    ComicInfoScreen(fixture.album.id, simple ?? _simple()),
+    ComicInfoScreen(
+      fixture.album.id,
+      includeSimple ? simple ?? _simple() : null,
+    ),
     textScale: textScale,
     dark: dark,
     locale: locale,
@@ -579,6 +583,13 @@ void main() {
       expect(comicDetailReadingTarget(album, _viewLog()),
           (chapterId: _albumId, page: 0, continuing: false));
     });
+
+    test('publish-date lookup falls back to usable cached metadata', () {
+      expect(
+        comicDetailPublishedDateQuery(_album(name: ''), _simple()),
+        'Stale cached title',
+      );
+    });
   });
 
   testWidgets('detail restores update time and clock when album omits it',
@@ -605,6 +616,19 @@ void main() {
 
     expect(find.textContaining('Published 2025-09-12'), findsOneWidget);
     expect(find.textContaining('Published 2026-11-20'), findsNothing);
+    expect(fixture.calls('album_published_at').single['params'],
+        contains('"id":$_albumId'));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('comic-id search resolves publish date without cached simple',
+      (tester) async {
+    final fixture = await _prepare(tester);
+    fixture.album = _album();
+    fixture.publishedDate = '2025-09-12';
+    await _mount(tester, fixture, includeSimple: false);
+
+    expect(find.textContaining('Published 2025-09-12'), findsOneWidget);
     expect(fixture.calls('album_published_at').single['params'],
         contains('"id":$_albumId'));
     expect(tester.takeException(), isNull);

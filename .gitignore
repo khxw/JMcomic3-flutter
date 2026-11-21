@@ -97,6 +97,7 @@ tests_data/
 !/android/app/src/main/jniLibs/
 !/android/app/src/main/jniLibs/**/
 !/android/app/src/main/jniLibs/**/librust.so
+!/android/app/src/main/jniLibs/**/libncnn.so
 *.dylib
 .build/
 .vscode/

@@ -1,5 +1,6 @@
 # Keep JNI bridge names stable; native symbol lookup depends on these names.
 -keep class opensource.jenny.Jni { *; }
+-keep class com.jmcomic3.yee.SuperResolutionBridge { *; }
 
 # Preserve native method signatures across the app.
 -keepclasseswithmembernames class * {

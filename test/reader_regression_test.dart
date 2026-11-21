@@ -499,10 +499,15 @@ void main() {
       await mountReader(
           tester, ReaderType.webToonFreeZoom, ReaderDirection.topToBottom);
       final before = tester.getRect(firstPage());
-      expect(find.byType(AppBar), findsOneWidget);
+      final topControls = find.byKey(const ValueKey('reader-top-controls'));
+      final bottomControls =
+          find.byKey(const ValueKey('reader-bottom-controls'));
+      expect(topControls, findsOneWidget);
+      expect(bottomControls, findsOneWidget);
       await doubleTap(tester,
           tester.getRect(find.byType(zoomable.ZoomablePositionedList)).center);
-      expect(find.byType(AppBar), findsNothing);
+      expect(topControls, findsNothing);
+      expect(bottomControls, findsNothing);
       final after = tester.getRect(firstPage());
       expect(after.width, closeTo(before.width, 1));
       expect(after.top, closeTo(before.top, 1));
@@ -516,6 +521,43 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('free zoom single-tap controls skip double-tap delay',
+      (tester) async {
+    controlMode = ReaderControllerType.touchOnce;
+    await mountReader(
+        tester, ReaderType.webToonFreeZoom, ReaderDirection.topToBottom);
+    final listFinder = find.byType(zoomable.ZoomablePositionedList);
+    final topControls = find.byKey(const ValueKey('reader-top-controls'));
+    final bottomControls = find.byKey(const ValueKey('reader-bottom-controls'));
+
+    expect(
+        tester
+            .widget<zoomable.ZoomablePositionedList>(listFinder)
+            .enableDoubleTapZoom,
+        isFalse);
+
+    await tester.tapAt(tester.getRect(listFinder).center);
+    await tester.pump();
+    expect(topControls, findsNothing);
+    expect(bottomControls, findsNothing);
+    expect(
+        tester
+            .widget<zoomable.ZoomablePositionedList>(listFinder)
+            .enableDoubleTapZoom,
+        isFalse);
+
+    await tester.tapAt(tester.getRect(listFinder).center);
+    await tester.pump();
+    expect(topControls, findsOneWidget);
+    expect(bottomControls, findsOneWidget);
+    expect(
+        tester
+            .widget<zoomable.ZoomablePositionedList>(listFinder)
+            .enableDoubleTapZoom,
+        isFalse);
+    expect(tester.takeException(), isNull);
+  });
 
   for (final type in [
     ReaderType.gallery,

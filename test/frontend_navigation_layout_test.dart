@@ -1017,12 +1017,6 @@ void main() {
 
     expect(find.byKey(const ValueKey('settings-page')), findsOneWidget);
     expect(find.byKey(const ValueKey('settings-common')), findsOneWidget);
-    expect(find.byKey(const ValueKey('settings-reading')), findsOneWidget);
-    expect(find.byKey(const ValueKey('settings-storage')), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('settings-bookshelf-backup')),
-      findsOneWidget,
-    );
     expect(
       find.byKey(const ValueKey('settings-common-expanded')),
       findsOneWidget,
@@ -1042,23 +1036,26 @@ void main() {
       of: find.byKey(const ValueKey('settings-list')),
       matching: find.byType(Scrollable),
     );
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('settings-account')),
-      300,
-      scrollable: settingsScrollable,
-    );
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('settings-account')), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('settings-sync')),
-      300,
-      scrollable: settingsScrollable,
-    );
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('settings-sync')), findsOneWidget);
+    for (final key in [
+      'settings-reading',
+      'settings-super-resolution',
+      'settings-storage',
+      'settings-bookshelf-backup',
+      'settings-account',
+      'settings-sync',
+      'settings-system',
+    ]) {
+      await tester.scrollUntilVisible(
+        find.byKey(ValueKey(key)),
+        300,
+        scrollable: settingsScrollable,
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(ValueKey(key)), findsOneWidget);
+    }
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('settings-system')),
-      300,
+      250,
       scrollable: settingsScrollable,
     );
     await tester.pumpAndSettle();

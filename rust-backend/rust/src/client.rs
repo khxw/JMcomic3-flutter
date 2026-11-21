@@ -181,10 +181,14 @@ impl JmClient {
         album_id: i64,
         album_name: &str,
     ) -> BackendResult<String> {
-        let value = self
-            .search(album_name.trim(), 1, SearchSort::Latest)
-            .await?;
-        Ok(album_published_at_from_search(&value, album_id))
+        for query in album_published_search_queries(album_name) {
+            let value = self.search(&query, 1, SearchSort::Latest).await?;
+            let published_at = album_published_at_from_search(&value, album_id);
+            if !published_at.is_empty() {
+                return Ok(published_at);
+            }
+        }
+        Ok(String::new())
     }
 
     pub async fn chapter(&self, chapter_id: i64) -> BackendResult<Value> {
@@ -1006,6 +1010,59 @@ fn album_published_at_from_search(value: &Value, album_id: i64) -> String {
         .to_string()
 }
 
+fn album_published_search_queries(album_name: &str) -> Vec<String> {
+    let full = album_name.trim();
+    if full.is_empty() {
+        return Vec::new();
+    }
+
+    let without_prefix = strip_leading_bracketed_prefix(full);
+    let title_part = without_prefix
+        .split(|character| matches!(character, '/' | '|' | '｜'))
+        .map(str::trim)
+        .filter(|value| value.chars().count() >= 2)
+        .max_by_key(|value| value.chars().count())
+        .unwrap_or(without_prefix);
+    let primary_title = if title_part.chars().count() > 80 {
+        title_part.chars().take(80).collect::<String>()
+    } else {
+        title_part.to_string()
+    };
+
+    let mut queries = Vec::new();
+    for candidate in [primary_title.as_str(), full] {
+        let candidate = candidate.trim();
+        if !candidate.is_empty() && !queries.iter().any(|value| value == candidate) {
+            queries.push(candidate.to_string());
+        }
+    }
+    queries
+}
+
+fn strip_leading_bracketed_prefix(value: &str) -> &str {
+    let mut result = value.trim();
+    loop {
+        let Some(first) = result.chars().next() else {
+            return result;
+        };
+        let close = match first {
+            '[' => ']',
+            '(' => ')',
+            '（' => '）',
+            '【' => '】',
+            _ => return result,
+        };
+        let Some((close_index, _)) = result
+            .char_indices()
+            .skip(1)
+            .find(|(_, character)| *character == close)
+        else {
+            return result;
+        };
+        result = result[close_index + close.len_utf8()..].trim_start();
+    }
+}
+
 fn normalize_categories_value(mut value: Value) -> Value {
     let Some(root) = value.as_object_mut() else {
         return fallback_categories();
@@ -1527,6 +1584,18 @@ mod tests {
             "勿短时间重复留言，请重新确认留言内容。"
         ));
         assert!(!is_comment_like_upstream_limited("网络连接失败"));
+    }
+
+    #[test]
+    fn album_published_queries_remove_leading_labels_and_try_title_parts() {
+        let queries = album_published_search_queries("[作者] (C105) 豚小屋 / Oyster House");
+
+        assert_eq!(queries[0], "Oyster House");
+        assert_eq!(queries[1], "[作者] (C105) 豚小屋 / Oyster House");
+        assert!(queries.len() <= 2);
+        assert!(queries
+            .iter()
+            .any(|query| query == "豚小屋" || query == "Oyster House"));
     }
 
     #[test]

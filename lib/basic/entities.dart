@@ -385,6 +385,9 @@ class AlbumResponse {
   /// 章节列表还会被页面直接用于按钮展示，原地排序会让 UI 顺序和后端返回顺序意外漂移。
   int get initialReadableChapterId => _firstSeriesBySort(series)?.id ?? id;
 
+  /// 详情接口通常不返回 `update_at`，书架刷新需要用最新章节时间兜底。
+  int get latestUpdateChapterId => _lastSeriesBySort(series)?.id ?? id;
+
   AlbumResponse.fromJson(Map<String, dynamic> json) {
     id = json['id'];
     name = json['name'];
@@ -474,6 +477,19 @@ Series? _firstSeriesBySort(List<Series> series) {
   for (final item in series) {
     final sort = int.tryParse(item.sort.trim()) ?? 0x7fffffff;
     if (result == null || sort < resultSort) {
+      result = item;
+      resultSort = sort;
+    }
+  }
+  return result;
+}
+
+Series? _lastSeriesBySort(List<Series> series) {
+  Series? result;
+  var resultSort = -1;
+  for (final item in series) {
+    final sort = int.tryParse(item.sort.trim()) ?? -1;
+    if (result == null || sort > resultSort) {
       result = item;
       resultSort = sort;
     }
@@ -1620,14 +1636,17 @@ class DlImage {
   }
 }
 
-ComicBasic albumToSimple(AlbumResponse album) {
+ComicBasic albumToSimple(AlbumResponse album, {int? updateAt}) {
+  final resolvedUpdateAt = updateAt ?? album.updateAt;
   return ComicBasic(
     id: album.id,
     description: album.description,
     name: album.name,
     author: album.author.join(" / "),
     image: album.images.isEmpty ? '' : album.images[0],
-    updateAt: album.updateAt,
+    updateAt: resolvedUpdateAt != null && resolvedUpdateAt > 0
+        ? resolvedUpdateAt
+        : null,
     addtime: album.addtime,
   );
 }
