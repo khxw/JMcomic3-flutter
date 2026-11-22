@@ -355,6 +355,9 @@ Future<SuperResolutionPageResult> superResolutionPageResult(
         threads: currentSuperResolutionThreads,
         tileSize: currentSuperResolutionTileSize,
         backend: backend,
+        inputName: model.inputName,
+        outputName: model.outputName,
+        prepadding: model.prepadding,
       )
       .then(
         (displayPath) => SuperResolutionPageResult(

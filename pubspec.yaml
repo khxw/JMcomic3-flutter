@@ -3,7 +3,7 @@ description: JMComic3 Mod comic browser
 
 publish_to: 'none'
 
-version: 1.8.141+270
+version: 1.8.142+271
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -45,6 +45,6 @@ flutter:
     - lib/assets/version.txt
     - lib/assets/super_resolution_manifest.json
     - third_party/ncnn/LICENSE.txt
-    - third_party/waifu2x-ncnn-vulkan/LICENSE.txt
+    - third_party/realcugan-ncnn-vulkan/LICENSE.txt
     - third_party/zoomable_positioned_list/LICENSE
     - third_party/zoomable_positioned_list/LICENSE.fuchsia

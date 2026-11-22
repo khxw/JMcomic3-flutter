@@ -21,6 +21,9 @@ object SuperResolutionBridge {
         threads: Int,
         tileSize: Int,
         backend: String,
+        inputName: String,
+        outputName: String,
+        prepadding: Int,
     ): String {
         val inputFile = File(inputPath)
         val modelDir = File(modelDirectory)
@@ -31,6 +34,12 @@ object SuperResolutionBridge {
         }
         if (!paramFile.isFile || !weightsFile.isFile) {
             throw IllegalArgumentException("Super-resolution model is incomplete")
+        }
+        val layerNamePattern = Regex("^[A-Za-z0-9_.-]{1,64}$")
+        if (!layerNamePattern.matches(inputName) ||
+            !layerNamePattern.matches(outputName)
+        ) {
+            throw IllegalArgumentException("Invalid super-resolution layer name")
         }
 
         val outputDirectory = File(cacheDirectory, "super_resolution").apply {
@@ -48,6 +57,9 @@ object SuperResolutionBridge {
                 weightsFile.length().toString(),
                 weightsFile.lastModified().toString(),
                 "backend-$backend",
+                "input-$inputName",
+                "output-$outputName",
+                "padding-$prepadding",
                 "jpeg-95",
             ).joinToString("|"),
         )
@@ -73,6 +85,7 @@ object SuperResolutionBridge {
         }
         val resolvedThreads = threads.coerceIn(1, 8)
         val resolvedTileSize = tileSize.coerceIn(64, 512)
+        val resolvedPrepadding = prepadding.coerceIn(0, 64)
         val backendPreference = when (backend) {
             "gpu" -> 1
             "cpu" -> 2
@@ -99,6 +112,9 @@ object SuperResolutionBridge {
                     resolvedThreads,
                     resolvedTileSize,
                     backendPreference,
+                    inputName,
+                    outputName,
+                    resolvedPrepadding,
                 )
             ) {
                 throw IllegalStateException("Super-resolution inference failed")
@@ -150,6 +166,9 @@ object SuperResolutionBridge {
         threads: Int,
         tileSize: Int,
         backendPreference: Int,
+        inputName: String,
+        outputName: String,
+        prepadding: Int,
     ): Boolean
 
     private external fun nativeIsVulkanAvailable(): Boolean

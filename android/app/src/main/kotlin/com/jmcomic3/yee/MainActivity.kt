@@ -147,6 +147,9 @@ class MainActivity : FlutterActivity() {
                 val threads = (args["threads"] as? Number)?.toInt() ?: 4
                 val tileSize = (args["tile_size"] as? Number)?.toInt() ?: 256
                 val backend = args["backend"]?.toString()?.trim() ?: "auto"
+                val inputName = args["input_name"]?.toString()?.trim() ?: "in0"
+                val outputName = args["output_name"]?.toString()?.trim() ?: "out0"
+                val prepadding = (args["prepadding"] as? Number)?.toInt() ?: 18
                 if (inputPath.isEmpty() || modelDirectory.isEmpty()) {
                     result.error("invalid_args", "Missing super-resolution path", null)
                     return
@@ -160,6 +163,9 @@ class MainActivity : FlutterActivity() {
                             threads,
                             tileSize,
                             backend,
+                            inputName,
+                            outputName,
+                            prepadding,
                         )
                         uiThreadHandler.post { result.success(outputPath) }
                     } catch (error: Throwable) {

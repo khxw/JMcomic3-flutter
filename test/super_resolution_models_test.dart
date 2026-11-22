@@ -10,11 +10,15 @@ import 'package:jmcomic3/configs/github_download_mirrors.dart';
 import 'package:jmcomic3/configs/super_resolution_models.dart';
 
 Map<String, Object> _model({String? sha}) => {
-      'id': 'waifu2x-anime-2x',
+      'id': 'realcugan-test-2x',
       'version': '1.0.0',
-      'name': 'Anime 2x',
+      'name': 'Real-CUGAN 2x',
       'description': 'Test model',
       'scale': 2,
+      'model_format': superResolutionModelFormatRealCugan,
+      'input_name': 'in0',
+      'output_name': 'out0',
+      'prepadding': 18,
       'download_url':
           'https://github.com/khxw/JMcomic3-flutter/releases/download/model/model.zip',
       'download_urls': [
@@ -49,11 +53,15 @@ SuperResolutionModel _downloadModel({
   int extractedBytes = 4096,
 }) {
   return SuperResolutionModel(
-    id: 'waifu2x-test',
+    id: 'realcugan-test',
     version: '1.0.0',
-    name: 'Waifu2x test',
+    name: 'Real-CUGAN test',
     description: 'Test model',
     scale: 2,
+    modelFormat: superResolutionModelFormatRealCugan,
+    inputName: 'in0',
+    outputName: 'out0',
+    prepadding: 18,
     downloadUrls: urls,
     sha256: sha256Value ?? List.filled(64, 'a').join(),
     archiveBytes: archiveBytes,
@@ -66,12 +74,12 @@ SuperResolutionModel _downloadModel({
 void main() {
   test('super-resolution manifest validates and deduplicates models', () {
     final models = parseSuperResolutionManifest(jsonEncode({
-      'schema': 1,
+      'schema': 2,
       'models': [_model(), _model()],
     }));
 
     expect(models, hasLength(1));
-    expect(models.single.id, 'waifu2x-anime-2x');
+    expect(models.single.id, 'realcugan-test-2x');
     expect(models.single.scale, 2);
     expect(models.single.downloadUrls, hasLength(2));
   });
@@ -79,7 +87,7 @@ void main() {
   test('super-resolution manifest rejects invalid checksums', () {
     expect(
       () => parseSuperResolutionManifest(jsonEncode({
-        'schema': 1,
+        'schema': 2,
         'models': [_model(sha: 'invalid')],
       })),
       throwsFormatException,
@@ -118,6 +126,10 @@ void main() {
         'version': directory.uri.pathSegments
             .where((segment) => segment.isNotEmpty)
             .last,
+        'model_format': superResolutionModelFormatRealCugan,
+        'input_name': 'in0',
+        'output_name': 'out0',
+        'prepadding': 18,
         'installed_at': directory == newer
             ? DateTime.now().millisecondsSinceEpoch
             : DateTime.now()
@@ -130,6 +142,32 @@ void main() {
     expect(installed?.version, '20250915');
     expect(installed?.paramFile.existsSync(), isTrue);
     expect(installed?.weightsFile.existsSync(), isTrue);
+  });
+
+  test('legacy Waifu2x installations are not selected', () async {
+    final home = await Directory.systemTemp.createTemp('jm-legacy-model-');
+    addTearDown(() => home.delete(recursive: true));
+    final directory = Directory(
+      '${home.path}${Platform.pathSeparator}super_resolution_models'
+      '${Platform.pathSeparator}waifu2x-cunet-2x'
+      '${Platform.pathSeparator}20250915',
+    );
+    await directory.create(recursive: true);
+    await File(
+      '${directory.path}${Platform.pathSeparator}$superResolutionParamFileName',
+    ).writeAsString('param');
+    await File(
+      '${directory.path}${Platform.pathSeparator}$superResolutionWeightsFileName',
+    ).writeAsString('weights');
+    await File(
+      '${directory.path}${Platform.pathSeparator}install.json',
+    ).writeAsString(jsonEncode({
+      'id': 'waifu2x-cunet-2x',
+      'version': '20250915',
+      'installed_at': DateTime.now().millisecondsSinceEpoch,
+    }));
+
+    expect(await findInstalledSuperResolutionModel(home.path), isNull);
   });
 
   test('published manifest matches the checked-in model package', () async {

@@ -1041,6 +1041,9 @@ class Methods {
     required int threads,
     required int tileSize,
     String backend = 'auto',
+    String inputName = 'in0',
+    String outputName = 'out0',
+    int prepadding = 18,
   }) async {
     final result = await _channel.invokeMethod<String>("superResolutionImage", {
       "input_path": inputPath,
@@ -1048,6 +1051,9 @@ class Methods {
       "threads": threads,
       "tile_size": tileSize,
       "backend": backend,
+      "input_name": inputName,
+      "output_name": outputName,
+      "prepadding": prepadding,
     });
     if (result == null || result.trim().isEmpty) {
       throw StateError('super-resolution native bridge returned no path');

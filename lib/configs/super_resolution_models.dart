@@ -14,7 +14,7 @@ final superResolutionManifestUrls = List<String>.unmodifiable(
   githubDownloadCandidates([_superResolutionManifestOfficialUrl]),
 );
 const _bundledManifestAsset = 'lib/assets/super_resolution_manifest.json';
-const _manifestSchema = 1;
+const _manifestSchema = 2;
 const _maxArchiveBytes = 512 * 1024 * 1024;
 const _modelRequestTimeout = Duration(seconds: 12);
 const _modelProgressInterval = Duration(milliseconds: 120);
@@ -22,15 +22,24 @@ const _modelMinimumSpeedWindow = Duration(seconds: 4);
 const _modelMinimumBytesPerSecond = 64 * 1024;
 const superResolutionParamFileName = 'scale2.0x_model.param';
 const superResolutionWeightsFileName = 'scale2.0x_model.bin';
+const superResolutionModelFormatRealCugan = 'realcugan-ncnn-v1';
 
 class InstalledSuperResolutionModel {
   final String id;
   final String version;
+  final String modelFormat;
+  final String inputName;
+  final String outputName;
+  final int prepadding;
   final Directory directory;
 
   const InstalledSuperResolutionModel({
     required this.id,
     required this.version,
+    required this.modelFormat,
+    required this.inputName,
+    required this.outputName,
+    required this.prepadding,
     required this.directory,
   });
 
@@ -49,6 +58,10 @@ class SuperResolutionModel {
   final String name;
   final String description;
   final int scale;
+  final String modelFormat;
+  final String inputName;
+  final String outputName;
+  final int prepadding;
   final List<String> downloadUrls;
   final String sha256;
   final int archiveBytes;
@@ -62,6 +75,10 @@ class SuperResolutionModel {
     required this.name,
     required this.description,
     required this.scale,
+    required this.modelFormat,
+    required this.inputName,
+    required this.outputName,
+    required this.prepadding,
     required this.downloadUrls,
     required this.sha256,
     required this.archiveBytes,
@@ -85,6 +102,10 @@ class SuperResolutionModel {
         RegExp(r'^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$').hasMatch(version);
     final validSha = RegExp(r'^[0-9a-f]{64}$').hasMatch(sha);
     final scale = (json['scale'] as num?)?.toInt() ?? 0;
+    final modelFormat = '${json['model_format'] ?? ''}'.trim();
+    final inputName = '${json['input_name'] ?? ''}'.trim();
+    final outputName = '${json['output_name'] ?? ''}'.trim();
+    final prepadding = (json['prepadding'] as num?)?.toInt() ?? -1;
     final archiveBytes = (json['archive_bytes'] as num?)?.toInt() ?? 0;
     final extractedBytes = (json['extracted_bytes'] as num?)?.toInt() ?? 0;
     final licenseName = '${json['license_name'] ?? ''}'.trim();
@@ -97,6 +118,11 @@ class SuperResolutionModel {
         urls.any((url) => !url.startsWith('https://')) ||
         scale < 1 ||
         scale > 4 ||
+        modelFormat != superResolutionModelFormatRealCugan ||
+        !RegExp(r'^[A-Za-z0-9_.-]{1,64}$').hasMatch(inputName) ||
+        !RegExp(r'^[A-Za-z0-9_.-]{1,64}$').hasMatch(outputName) ||
+        prepadding < 0 ||
+        prepadding > 64 ||
         archiveBytes <= 0 ||
         archiveBytes > _maxArchiveBytes ||
         extractedBytes <= 0 ||
@@ -111,6 +137,10 @@ class SuperResolutionModel {
       name: name,
       description: '${json['description'] ?? ''}'.trim(),
       scale: scale,
+      modelFormat: modelFormat,
+      inputName: inputName,
+      outputName: outputName,
+      prepadding: prepadding,
       downloadUrls: urls,
       sha256: sha,
       archiveBytes: archiveBytes,
@@ -171,17 +201,32 @@ bool isSuperResolutionModelInstalled(
     '${superResolutionModelDirectory(homeDir, model.id).path}'
     '${Platform.pathSeparator}${model.version}',
   );
-  return File(
-        '${versionDirectory.path}${Platform.pathSeparator}install.json',
-      ).existsSync() &&
-      File(
+  final installFile = File(
+    '${versionDirectory.path}${Platform.pathSeparator}install.json',
+  );
+  if (!installFile.existsSync() ||
+      !File(
         '${versionDirectory.path}'
         '${Platform.pathSeparator}$superResolutionParamFileName',
-      ).existsSync() &&
-      File(
+      ).existsSync() ||
+      !File(
         '${versionDirectory.path}'
         '${Platform.pathSeparator}$superResolutionWeightsFileName',
-      ).existsSync();
+      ).existsSync()) {
+    return false;
+  }
+  try {
+    final metadata = jsonDecode(installFile.readAsStringSync());
+    return metadata is Map &&
+        '${metadata['id'] ?? ''}' == model.id &&
+        '${metadata['version'] ?? ''}' == model.version &&
+        '${metadata['model_format'] ?? ''}' == model.modelFormat &&
+        '${metadata['input_name'] ?? ''}' == model.inputName &&
+        '${metadata['output_name'] ?? ''}' == model.outputName &&
+        (metadata['prepadding'] as num?)?.toInt() == model.prepadding;
+  } catch (_) {
+    return false;
+  }
 }
 
 Future<InstalledSuperResolutionModel?> findInstalledSuperResolutionModel(
@@ -222,7 +267,19 @@ Future<InstalledSuperResolutionModel?> findInstalledSuperResolutionModel(
         if (metadata is! Map) continue;
         final id = '${metadata['id'] ?? ''}'.trim();
         final version = '${metadata['version'] ?? ''}'.trim();
-        if (id.isEmpty || version.isEmpty) continue;
+        final modelFormat = '${metadata['model_format'] ?? ''}'.trim();
+        final inputName = '${metadata['input_name'] ?? ''}'.trim();
+        final outputName = '${metadata['output_name'] ?? ''}'.trim();
+        final prepadding = (metadata['prepadding'] as num?)?.toInt() ?? -1;
+        if (id.isEmpty ||
+            version.isEmpty ||
+            modelFormat != superResolutionModelFormatRealCugan ||
+            inputName.isEmpty ||
+            outputName.isEmpty ||
+            prepadding < 0 ||
+            prepadding > 64) {
+          continue;
+        }
         final installedAt = (metadata['installed_at'] as num?)?.toInt() ?? 0;
         candidates.add((
           modified: installedAt > 0
@@ -231,6 +288,10 @@ Future<InstalledSuperResolutionModel?> findInstalledSuperResolutionModel(
           model: InstalledSuperResolutionModel(
             id: id,
             version: version,
+            modelFormat: modelFormat,
+            inputName: inputName,
+            outputName: outputName,
+            prepadding: prepadding,
             directory: versionEntity,
           ),
         ));
@@ -463,6 +524,10 @@ Future<void> _extractModelArchive(
       'id': model.id,
       'version': model.version,
       'sha256': model.sha256,
+      'model_format': model.modelFormat,
+      'input_name': model.inputName,
+      'output_name': model.outputName,
+      'prepadding': model.prepadding,
       'installed_at': DateTime.now().millisecondsSinceEpoch,
     }),
     flush: true,

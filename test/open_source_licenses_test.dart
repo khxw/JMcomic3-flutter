@@ -17,7 +17,7 @@ void main() {
     }
 
     expect(packages, contains('Tencent ncnn'));
-    expect(packages, contains('waifu2x-ncnn-vulkan'));
+    expect(packages, contains('realcugan-ncnn-vulkan'));
     expect(packages, contains('zoomable_positioned_list'));
     expect(
       packages,

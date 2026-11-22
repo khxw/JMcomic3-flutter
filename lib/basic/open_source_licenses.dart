@@ -12,8 +12,8 @@ const _bundledLicenses = <({
     packages: ['Tencent ncnn'],
   ),
   (
-    asset: 'third_party/waifu2x-ncnn-vulkan/LICENSE.txt',
-    packages: ['waifu2x-ncnn-vulkan'],
+    asset: 'third_party/realcugan-ncnn-vulkan/LICENSE.txt',
+    packages: ['realcugan-ncnn-vulkan'],
   ),
   (
     asset: 'third_party/zoomable_positioned_list/LICENSE',

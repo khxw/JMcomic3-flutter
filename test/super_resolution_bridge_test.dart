@@ -56,6 +56,9 @@ void main() {
       'threads': 4,
       'tile_size': 384,
       'backend': 'gpu',
+      'input_name': 'in0',
+      'output_name': 'out0',
+      'prepadding': 18,
     });
   });
 }

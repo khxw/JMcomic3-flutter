@@ -11,7 +11,7 @@ import 'components/app_back_button.dart';
 
 const _featuredPackages = <String>[
   'Tencent ncnn',
-  'waifu2x-ncnn-vulkan',
+  'realcugan-ncnn-vulkan',
   'zoomable_positioned_list',
   'zoomable_positioned_list Fuchsia components',
 ];
@@ -348,9 +348,9 @@ class _LicenseHeader extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             context.l10n.tr(
-              '本应用基于 Flutter 构建，并包含 NCNN、Waifu2x 及其他开源组件。'
+              '本应用基于 Flutter 构建，并包含 NCNN、Real-CUGAN 及其他开源组件。'
               '各组件版权归原作者所有，点击组件可查看完整许可证。',
-              en: 'This app is built with Flutter and includes NCNN, Waifu2x '
+              en: 'This app is built with Flutter and includes NCNN, Real-CUGAN '
                   'and other open-source components. Copyright belongs to the '
                   'respective authors; tap a component for the full license.',
             ),
@@ -369,7 +369,7 @@ class _LicenseHeader extends StatelessWidget {
                 text: 'Flutter / Dart',
               ),
               _HeaderChip(icon: Icons.memory_rounded, text: 'NCNN'),
-              _HeaderChip(icon: Icons.auto_awesome_rounded, text: 'Waifu2x'),
+              _HeaderChip(icon: Icons.auto_awesome_rounded, text: 'Real-CUGAN'),
             ],
           ),
         ],
@@ -733,7 +733,7 @@ String _packageSlug(String package) =>
 String _displayPackageName(String package) {
   return switch (package) {
     'Tencent ncnn' => 'NCNN',
-    'waifu2x-ncnn-vulkan' => 'Waifu2x',
+    'realcugan-ncnn-vulkan' => 'Real-CUGAN',
     'zoomable_positioned_list' => 'Zoomable Positioned List',
     'zoomable_positioned_list Fuchsia components' => 'Fuchsia components',
     _ => package,
@@ -743,7 +743,7 @@ String _displayPackageName(String package) {
 (IconData, String) _featuredMetadata(String package) {
   return switch (package) {
     'Tencent ncnn' => (Icons.memory_rounded, 'BSD 3-Clause'),
-    'waifu2x-ncnn-vulkan' => (Icons.auto_awesome_rounded, 'MIT'),
+    'realcugan-ncnn-vulkan' => (Icons.auto_awesome_rounded, 'MIT'),
     'zoomable_positioned_list' => (Icons.view_carousel_outlined, 'MIT'),
     'zoomable_positioned_list Fuchsia components' => (
         Icons.flutter_dash_rounded,

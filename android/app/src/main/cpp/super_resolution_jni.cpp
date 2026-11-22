@@ -13,7 +13,6 @@
 
 namespace {
 
-constexpr int kPrePadding = 18;
 constexpr char kLogTag[] = "SuperResolution";
 constexpr int kBackendAuto = 0;
 constexpr int kBackendGpu = 1;
@@ -161,7 +160,10 @@ bool process_bitmap(
     int height,
     int input_stride,
     int output_stride,
-    int tile_size)
+    int tile_size,
+    const std::string& input_name,
+    const std::string& output_name,
+    int prepadding)
 {
     const int output_width = width * 2;
     const int x_tiles = (width + tile_size - 1) / tile_size;
@@ -171,8 +173,8 @@ bool process_bitmap(
         const int output_y0 = tile_y * tile_size;
         const int output_h =
             std::min((tile_y + 1) * tile_size, height) - output_y0;
-        int bottom_padding = kPrePadding + (output_h + 1) / 2 * 2 - output_h;
-        const int input_y0 = std::max(output_y0 - kPrePadding, 0);
+        int bottom_padding = prepadding + (output_h + 1) / 2 * 2 - output_h;
+        const int input_y0 = std::max(output_y0 - prepadding, 0);
         const int input_y1 =
             std::min((tile_y + 1) * tile_size + bottom_padding, height);
 
@@ -181,8 +183,8 @@ bool process_bitmap(
             const int output_w =
                 std::min((tile_x + 1) * tile_size, width) - output_x0;
             int right_padding =
-                kPrePadding + (output_w + 1) / 2 * 2 - output_w;
-            const int input_x0 = std::max(output_x0 - kPrePadding, 0);
+                prepadding + (output_w + 1) / 2 * 2 - output_w;
+            const int input_x0 = std::max(output_x0 - prepadding, 0);
             const int input_x1 =
                 std::min((tile_x + 1) * tile_size + right_padding, width);
 
@@ -198,13 +200,13 @@ bool process_bitmap(
                 input_h,
                 input_stride);
 
-            const int top = std::max(kPrePadding - output_y0, 0);
+            const int top = std::max(prepadding - output_y0, 0);
             const int bottom = std::max(
                 std::min(
                     (tile_y + 1) * tile_size + bottom_padding - height,
                     bottom_padding),
                 0);
-            const int left = std::max(kPrePadding - output_x0, 0);
+            const int left = std::max(prepadding - output_x0, 0);
             const int right = std::max(
                 std::min(
                     (tile_x + 1) * tile_size + right_padding - width,
@@ -222,11 +224,11 @@ bool process_bitmap(
                 net.opt);
 
             ncnn::Extractor extractor = net.create_extractor();
-            if (extractor.input("Input1", padded) != 0)
+            if (extractor.input(input_name.c_str(), padded) != 0)
                 return false;
 
             ncnn::Mat result;
-            if (extractor.extract("Eltwise4", result) != 0)
+            if (extractor.extract(output_name.c_str(), result) != 0)
                 return false;
 
             const int destination_x = output_x0 * 2;
@@ -271,7 +273,10 @@ bool run_backend(
     const std::string& param_path,
     const std::string& weights_path,
     int threads,
-    int tile_size)
+    int tile_size,
+    const std::string& input_name,
+    const std::string& output_name,
+    int prepadding)
 {
     std::lock_guard<std::mutex> lock(backend.mutex);
     if (!load_model(
@@ -290,7 +295,10 @@ bool run_backend(
         height,
         input_stride,
         output_stride,
-        tile_size);
+        tile_size,
+        input_name,
+        output_name,
+        prepadding);
 }
 
 }  // namespace
@@ -323,7 +331,10 @@ Java_com_jmcomic3_yee_SuperResolutionBridge_nativeUpscale(
     jstring weights_path,
     jint threads,
     jint tile_size,
-    jint backend_preference)
+    jint backend_preference,
+    jstring input_name,
+    jstring output_name,
+    jint prepadding)
 {
     AndroidBitmapInfo input_info{};
     AndroidBitmapInfo output_info{};
@@ -357,6 +368,13 @@ Java_com_jmcomic3_yee_SuperResolutionBridge_nativeUpscale(
 
     const std::string resolved_param_path = to_string(env, param_path);
     const std::string resolved_weights_path = to_string(env, weights_path);
+    const std::string resolved_input_name = to_string(env, input_name);
+    const std::string resolved_output_name = to_string(env, output_name);
+    if (resolved_input_name.empty() || resolved_output_name.empty()) {
+        AndroidBitmap_unlockPixels(env, output_bitmap);
+        AndroidBitmap_unlockPixels(env, input_bitmap);
+        return JNI_FALSE;
+    }
     const int resolved_tile_size =
         std::max(64, std::min(512, static_cast<int>(tile_size)));
     const bool try_gpu =
@@ -377,7 +395,10 @@ Java_com_jmcomic3_yee_SuperResolutionBridge_nativeUpscale(
             resolved_param_path,
             resolved_weights_path,
             threads,
-            resolved_tile_size);
+            resolved_tile_size,
+            resolved_input_name,
+            resolved_output_name,
+            std::max(0, std::min(64, static_cast<int>(prepadding))));
         if (success) {
             __android_log_write(
                 ANDROID_LOG_INFO,
@@ -409,7 +430,10 @@ Java_com_jmcomic3_yee_SuperResolutionBridge_nativeUpscale(
             resolved_param_path,
             resolved_weights_path,
             threads,
-            resolved_tile_size);
+            resolved_tile_size,
+            resolved_input_name,
+            resolved_output_name,
+            std::max(0, std::min(64, static_cast<int>(prepadding))));
         if (success) {
             __android_log_write(
                 ANDROID_LOG_INFO,

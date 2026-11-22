@@ -7,9 +7,9 @@ GitHub is temporarily unreachable.
 
 Current package:
 
-- `waifu2x-cunet-2x` version `20250915`
-- waifu2x CUnet 2×, noise level 0
-- source: https://github.com/nihui/waifu2x-ncnn-vulkan
+- `realcugan-pro-2x-conservative` version `20261122`
+- Real-CUGAN Pro 2× conservative
+- source: https://github.com/nihui/realcugan-ncnn-vulkan
 - model license: MIT
 
 Every model entry includes its ID, version, scale, HTTPS download URLs, exact
@@ -17,4 +17,4 @@ archive size and SHA-256, maximum extracted size, and license information.
 Archives are checked for path traversal, symbolic links, extraction size,
 checksum and the required NCNN model files before installation.
 
-See `WAIFU2X-CUNET-2X.md` for the upstream files and checksums.
+See `REAL-CUGAN-2X-CONSERVATIVE.md` for the upstream files and checksums.
