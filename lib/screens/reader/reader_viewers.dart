@@ -74,6 +74,8 @@ class _ContinuousReaderState extends _ComicReaderState {
     final viewport = _viewportKey.currentContext?.findRenderObject();
     if (viewport is RenderBox && viewport.hasSize) {
       final bounds = viewport.localToGlobal(Offset.zero) & viewport.size;
+      var bestIndex = positions.isEmpty ? _current : positions.first.index;
+      var bestVisibleArea = 0.0;
       for (final position in positions) {
         final context = _pageContexts[position.index];
         if (context == null || !context.mounted) continue;
@@ -81,11 +83,16 @@ class _ContinuousReaderState extends _ComicReaderState {
         if (box is! RenderBox || !box.hasSize || !box.attached) continue;
         final rect = MatrixUtils.transformRect(
             box.getTransformTo(null), Offset.zero & box.size);
-        if (rect.intersect(bounds).width > .5 &&
-            rect.intersect(bounds).height > .5) {
-          return position.index;
+        final visible = rect.intersect(bounds);
+        if (visible.width > .5 && visible.height > .5) {
+          final area = visible.width * visible.height;
+          if (area > bestVisibleArea) {
+            bestVisibleArea = area;
+            bestIndex = position.index;
+          }
         }
       }
+      if (bestVisibleArea > 0) return bestIndex;
     }
     return positions.isEmpty ? _current : positions.first.index;
   }

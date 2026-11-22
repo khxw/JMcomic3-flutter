@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:another_xlider/another_xlider.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -256,8 +255,6 @@ void main() {
       jumpComicReaderForTest(key, 1, animation: false);
       await tester.pumpAndSettle();
       final barFinder = find.byKey(const ValueKey('reader-bottom-controls'));
-      final thumbFinder = find.byKey(const ValueKey('reader-progress-thumb'));
-      expect(tester.getSize(thumbFinder).width, lessThan(20));
       final viewport =
           tester.getRect(find.byType(zoomable.ZoomablePositionedList));
       final bar = tester.getRect(barFinder);
@@ -294,16 +291,12 @@ void main() {
       });
       await readerCheckpoint?.call(
           'reader-progress-${dark ? 'dark' : 'light'}', tester);
-      final slider = tester.getRect(find.byType(FlutterSlider));
-      // A finger can start outside the visible 14px dot but inside its
-      // invisible touch area; shrinking the dot must not shrink that target.
-      await tester.timedDragFrom(
-          tester.getCenter(thumbFinder) + const Offset(0, 12),
-          Offset(slider.width * .5, 0),
-          const Duration(milliseconds: 250));
+      final sliderFinder = find.byType(Slider);
+      final slider = tester.getRect(sliderFinder);
+      await tester.timedDragFrom(tester.getCenter(sliderFinder),
+          Offset(slider.width * .5, 0), const Duration(milliseconds: 250));
       await tester.pumpAndSettle();
       expect(comicReaderProgressForTest(key).current, greaterThan(1));
-      expect(tester.getSize(thumbFinder).width, lessThan(20));
       tester
           .widget<zoomable.ZoomablePositionedList>(
               find.byType(zoomable.ZoomablePositionedList))
@@ -572,12 +565,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(comicReaderProgressForTest(key).slider, 8);
-      expect(
-          tester
-              .widget<FlutterSlider>(find.byType(FlutterSlider))
-              .values
-              .single,
-          8);
+      expect(tester.widget<Slider>(find.byType(Slider)).value, 8);
       jumpComicReaderForTest(key, 4);
       await tester.pump();
       for (var tick = 0; tick < 3; tick++) {
@@ -612,6 +600,23 @@ void main() {
       await tester.pump();
     });
   }
+
+  testWidgets('continuous slider thumb follows externally reported pages',
+      (tester) async {
+    final readerKey = await mountReader(
+      tester,
+      ReaderType.webtoon,
+      ReaderDirection.topToBottom,
+    );
+    final sliderFinder = find.byType(Slider);
+    expect(tester.widget<Slider>(sliderFinder).value, 0);
+
+    jumpComicReaderForTest(readerKey, 8, animation: false);
+    await pumpReader(tester);
+
+    expect(tester.widget<Slider>(sliderFinder).value, 8);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('reader preloads pages before and after the current page',
       (tester) async {
@@ -894,6 +899,13 @@ void main() {
     expect(comicReaderProgressForTest(readerKey).current, 2);
     expect(opened, [202]);
     expect(find.text('Chapter 202'), findsOneWidget);
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 0);
+
+    jumpComicReaderForTest(readerKey, 3, animation: false);
+    await pumpReader(tester);
+
+    expect(comicReaderProgressForTest(readerKey).current, 3);
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 1);
     expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox.shrink());

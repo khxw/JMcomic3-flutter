@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:ui' as ui;
 
-import 'package:another_xlider/another_xlider.dart';
 import 'package:event/event.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1362,46 +1361,46 @@ abstract class _ComicReaderState extends State<_ComicReader>
     if (chapterRef.pages.length <= 1 || chapterStart < 0) {
       return const SizedBox.shrink();
     }
-    return FlutterSlider(
-      axis: axis,
-      handlerWidth: 14,
-      handlerHeight: 14,
-      touchSize: 17,
-      handler: FlutterSliderHandler(
-        decoration: const BoxDecoration(),
-        child: const DecoratedBox(
-          key: ValueKey('reader-progress-thumb'),
-          decoration:
-              BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-          child: SizedBox.expand(),
+    final slider = SliderTheme(
+      data: SliderTheme.of(context).copyWith(
+        trackHeight: 3,
+        activeTrackColor: Theme.of(context).colorScheme.secondary,
+        inactiveTrackColor: Colors.grey.shade300,
+        thumbColor: Colors.white,
+        overlayColor:
+            Theme.of(context).colorScheme.secondary.withValues(alpha: .14),
+        thumbShape: const RoundSliderThumbShape(
+          enabledThumbRadius: 7,
+          elevation: 0,
+          pressedElevation: 0,
         ),
+        overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+        tickMarkShape: SliderTickMarkShape.noTickMark,
+        showValueIndicator: ShowValueIndicator.never,
       ),
-      handlerAnimation: const FlutterSliderHandlerAnimation(scale: 1),
-      trackBar: FlutterSliderTrackBar(
-        activeTrackBarHeight: 3,
-        inactiveTrackBarHeight: 3,
-        inactiveTrackBar: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: Colors.grey.shade300,
+      child: Slider(
+        key: ValueKey(
+          'reader-progress-slider-${chapterRef.chapter.id}-${axis.name}',
         ),
-        activeTrackBar: BoxDecoration(
-          borderRadius: BorderRadius.circular(4),
-          color: Theme.of(context).colorScheme.secondary,
+        value: _displayChapterPageIndex.toDouble(),
+        min: 0,
+        max: (chapterRef.pages.length - 1).toDouble(),
+        divisions: chapterRef.pages.length - 1,
+        onChangeStart: (_) => setState(() => _position.preview = _current),
+        onChanged: (value) => setState(
+          () => _position.preview = _position.clamp(
+            chapterStart + value.round(),
+          ),
         ),
+        onChangeEnd: (value) =>
+            _needJumpTo(chapterStart + value.round(), false),
       ),
-      values: [_displayChapterPageIndex.toDouble()],
-      min: 0,
-      max: (chapterRef.pages.length - 1).toDouble(),
-      onDragStarted: (_, __, ___) =>
-          setState(() => _position.preview = _current),
-      onDragging: (_, value, __) =>
-          setState(() => _position.preview = _position.clamp(
-                chapterStart + (value as num).round(),
-              )),
-      onDragCompleted: (_, value, __) =>
-          _needJumpTo(chapterStart + (value as num).round(), false),
-      step: const FlutterSliderStep(step: 1, isPercentRange: false),
-      tooltip: FlutterSliderTooltip(disabled: true),
+    );
+    if (axis == Axis.horizontal) return slider;
+    return RotatedBox(
+      key: ValueKey('reader-progress-control-${chapterRef.chapter.id}'),
+      quarterTurns: 3,
+      child: slider,
     );
   }
 
