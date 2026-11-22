@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <android/bitmap.h>
+#include <cstring>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include "ncnn/net.h"
 
@@ -79,6 +81,8 @@ bool process_bitmap(
     uint8_t* output,
     int width,
     int height,
+    int input_stride,
+    int output_stride,
     int tile_size)
 {
     const int output_width = width * 2;
@@ -104,18 +108,17 @@ bool process_bitmap(
             const int input_x1 =
                 std::min((tile_x + 1) * tile_size + right_padding, width);
 
-            ncnn::Mat source(input_x1 - input_x0, input_y1 - input_y0, 3);
-            for (int channel = 0; channel < 3; ++channel) {
-                float* channel_data = source.channel(channel);
-                for (int y = input_y0; y < input_y1; ++y) {
-                    float* row = channel_data + (y - input_y0) * source.w;
-                    const uint8_t* pixels =
-                        input + (static_cast<size_t>(y) * width + input_x0) * 4;
-                    for (int x = 0; x < source.w; ++x) {
-                        row[x] = pixels[x * 4 + channel] * (1.f / 255.f);
-                    }
-                }
-            }
+            const int input_w = input_x1 - input_x0;
+            const int input_h = input_y1 - input_y0;
+            const uint8_t* tile_pixels =
+                input +
+                static_cast<size_t>(input_y0) * input_stride + input_x0 * 4;
+            ncnn::Mat source = ncnn::Mat::from_pixels(
+                tile_pixels,
+                ncnn::Mat::PIXEL_RGBA2RGB,
+                input_w,
+                input_h,
+                input_stride);
 
             const int top =
                 std::max(kPrePadding - output_y0, 0);
@@ -142,33 +145,31 @@ bool process_bitmap(
             ncnn::Mat result;
             if (extractor.extract("Eltwise4", result) != 0)
                 return false;
-            result = result.clone();
 
             const int destination_x = output_x0 * 2;
             const int destination_y = output_y0 * 2;
             const int destination_w = output_w * 2;
             const int destination_h = output_h * 2;
+            if (result.w < destination_w || result.h < destination_h)
+                return false;
+
+            std::vector<uint8_t> rgba(
+                static_cast<size_t>(result.w) * result.h * 4);
+            result.to_pixels(
+                rgba.data(),
+                ncnn::Mat::PIXEL_RGB2RGBA,
+                result.w * 4);
             for (int y = 0; y < destination_h; ++y) {
-                uint8_t* destination =
+                const uint8_t* source_row =
+                    rgba.data() + static_cast<size_t>(y) * result.w * 4;
+                uint8_t* destination_row =
                     output +
-                    (static_cast<size_t>(destination_y + y) * output_width +
-                     destination_x) *
-                        4;
-                for (int x = 0; x < destination_w; ++x) {
-                    const int source_x = x;
-                    const int source_y = y;
-                    if (source_x < 0 || source_y < 0 ||
-                        source_x >= result.w || source_y >= result.h) {
-                        return false;
-                    }
-                    for (int channel = 0; channel < 3; ++channel) {
-                        float value = result.channel(channel).row(source_y)[source_x];
-                        value = std::max(0.f, std::min(255.f, value * 255.f + .5f));
-                        destination[x * 4 + channel] =
-                            static_cast<uint8_t>(value);
-                    }
-                    destination[x * 4 + 3] = 255;
-                }
+                    static_cast<size_t>(destination_y + y) * output_stride +
+                    destination_x * 4;
+                std::memcpy(
+                    destination_row,
+                    source_row,
+                    static_cast<size_t>(destination_w) * 4);
             }
         }
     }
@@ -227,6 +228,8 @@ Java_com_jmcomic3_yee_SuperResolutionBridge_nativeUpscale(
                 static_cast<uint8_t*>(output_pixels),
                 static_cast<int>(input_info.width),
                 static_cast<int>(input_info.height),
+                static_cast<int>(input_info.stride),
+                static_cast<int>(output_info.stride),
                 std::max(64, std::min(512, static_cast<int>(tile_size))));
         }
     }

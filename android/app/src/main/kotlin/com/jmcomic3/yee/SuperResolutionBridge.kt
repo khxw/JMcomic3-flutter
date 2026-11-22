@@ -46,9 +46,10 @@ object SuperResolutionBridge {
                 paramFile.lastModified().toString(),
                 weightsFile.length().toString(),
                 weightsFile.lastModified().toString(),
+                "jpeg-95",
             ).joinToString("|"),
         )
-        val outputFile = File(outputDirectory, "$identity.png")
+        val outputFile = File(outputDirectory, "$identity.jpg")
         if (outputFile.isFile && outputFile.length() > 0L) {
             return outputFile.absolutePath
         }
@@ -90,7 +91,7 @@ object SuperResolutionBridge {
                 throw IllegalStateException("Super-resolution inference failed")
             }
             FileOutputStream(temporary).use { stream ->
-                if (!output.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
+                if (!output.compress(Bitmap.CompressFormat.JPEG, 95, stream)) {
                     throw IllegalStateException("Unable to encode super-resolution result")
                 }
                 stream.flush()

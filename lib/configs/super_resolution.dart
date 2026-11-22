@@ -16,7 +16,7 @@ const _superResolutionPreloadPropertyName =
 
 bool _enabledPreference = false;
 int _selectedThreads = 0;
-int _selectedTileSize = 256;
+int _selectedTileSize = 384;
 bool _preloadEnabled = false;
 InstalledSuperResolutionModel? _installedModel;
 Future<void>? _loading;
@@ -92,8 +92,8 @@ int _parseThreads(String raw) {
 }
 
 int _parseTileSize(String raw) {
-  final value = int.tryParse(raw.trim()) ?? 256;
-  return const {128, 256, 384}.contains(value) ? value : 256;
+  final value = int.tryParse(raw.trim()) ?? 384;
+  return const {128, 256, 384}.contains(value) ? value : 384;
 }
 
 Future<void> setSuperResolutionEnabled(bool enabled) async {
