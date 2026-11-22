@@ -13,6 +13,8 @@ class AboutScreen extends StatelessWidget {
   const AboutScreen({Key? key}) : super(key: key);
 
   static const _projectUrl = 'https://github.com/khxw/JMcomic3-flutter';
+  static const _upstreamUrl =
+      'https://github.com/MrYu-JMComic/JMcomic3-flutter';
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +62,20 @@ class AboutScreen extends StatelessWidget {
                           subtitle: const Text(_projectUrl),
                           trailing: const Icon(Icons.open_in_new_rounded),
                           onTap: () => openUrl(_projectUrl),
+                        ),
+                        const Divider(height: 1),
+                        ListTile(
+                          key: const ValueKey('about-upstream-repository'),
+                          leading: const Icon(Icons.account_tree_outlined),
+                          title: Text(
+                            context.l10n.tr(
+                              '上游作者仓库',
+                              en: 'Upstream repository',
+                            ),
+                          ),
+                          subtitle: const Text(_upstreamUrl),
+                          trailing: const Icon(Icons.open_in_new_rounded),
+                          onTap: () => openUrl(_upstreamUrl),
                         ),
                         const Divider(height: 1),
                         ListTile(

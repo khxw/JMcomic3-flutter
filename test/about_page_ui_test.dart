@@ -44,6 +44,10 @@ void main() {
     expect(find.byKey(const ValueKey('about-page')), findsOneWidget);
     expect(find.byKey(const ValueKey('about-app-info')), findsOneWidget);
     expect(find.byKey(const ValueKey('about-project-link')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('about-upstream-repository')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('about-update-entry')), findsOneWidget);
     expect(find.byKey(const ValueKey('about-license-entry')), findsOneWidget);
     expect(find.byKey(const ValueKey('about-disclaimer')), findsOneWidget);

@@ -41,7 +41,6 @@ import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
 import 'init_screen.dart';
 import 'runtime_log_screen.dart';
-import 'open_source_license_screen.dart';
 import 'super_resolution_model_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -487,6 +486,12 @@ class _SettingsState extends State<SettingsScreen> {
                     ),
                     const Divider(height: 1),
                     userAgreementSetting(context),
+                    if (!updatesTemporarilyDisabled && hasProAccess) ...[
+                      const Divider(height: 1),
+                      autoUpdateCheckSetting(),
+                      ignoreUpgradePopSetting(),
+                    ],
+                    const Divider(height: 1),
                     ListTile(
                       key: const ValueKey('settings-about'),
                       leading: const Icon(Icons.info_outline_rounded),
@@ -495,8 +500,9 @@ class _SettingsState extends State<SettingsScreen> {
                       ),
                       subtitle: Text(
                         l10n.tr(
-                          '应用信息、版本与项目主页',
-                          en: 'App information, version and project homepage',
+                          '应用信息、版本、项目主页与开源许可',
+                          en: 'App information, version, project links and '
+                              'open-source licenses',
                         ),
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
@@ -508,32 +514,6 @@ class _SettingsState extends State<SettingsScreen> {
                         );
                       },
                     ),
-                    ListTile(
-                      key: const ValueKey('settings-open-source-licenses'),
-                      leading: const Icon(Icons.policy_outlined),
-                      title: Text(
-                        l10n.tr('开源许可', en: 'Open-source licenses'),
-                      ),
-                      subtitle: Text(
-                        l10n.tr(
-                          '查看应用和第三方组件使用的许可证',
-                          en: 'View licenses used by the app and its components',
-                        ),
-                      ),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const OpenSourceLicenseScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    if (!updatesTemporarilyDisabled && hasProAccess) ...[
-                      const Divider(height: 1),
-                      autoUpdateCheckSetting(),
-                      ignoreUpgradePopSetting(),
-                    ],
                   ],
                 ),
               ],
