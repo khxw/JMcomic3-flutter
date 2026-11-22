@@ -20,7 +20,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 ## Current release
 
-**v1.8.125+254** · Android ARM64 · API 24+
+**v1.8.140+269** · Android ARM64 · API 24+
 
 - [Latest GitHub Release](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - [Changelog](CHANGELOG.md)
@@ -30,7 +30,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 | File | Purpose |
 | --- | --- |
-| `JMComic3-Mod-v1.8.125-arm64-v8a-release.apk` | Android ARM64 devices |
+| `JMComic3-Mod-v1.8.140-arm64-v8a-release.apk` | Android ARM64 devices |
 | `SHA256SUMS.txt` | APK integrity verification |
 
 This fork currently publishes only an **Android ARM64 APK**. ARM32, Windows,
@@ -53,7 +53,7 @@ Back up bookshelf, history, and download settings before upgrading.
 - Chapter selection, select all, clear, batch export, and export result states.
 - Custom download directory selection, storage permissions, write checks, and
   restoration of saved paths.
-- Continuous, zoomable continuous, single-page, and double-page readers.
+- Infinite and zoomable webtoon readers automatically continue into the next chapter.
 - Redesigned reader app bar, paging controls, chapter list, and settings panels.
 - Configurable image preloading in both directions or forward-only.
 - The onboarding page uses a slow animated gradient, soft glows, and a reduced layout.
@@ -61,20 +61,19 @@ Back up bookshelf, history, and download settings before upgrading.
 - Comic details resolve the same original publish date shown on the web,
   avoiding the latest update time being displayed as the publish date.
 - Bookshelf folders and comic covers show update dots when new chapters arrive.
-- Experimental 2× upscaling supports thread, tile-size, and preload settings,
-  prioritising the current page by default.
-- Upscale model downloads share the update mirrors with stall timeout and
-  automatic low-speed route switching.
-- The reader reports `2× processing / 2× active / original` and can compare
-  original and upscaled pages.
+- Comic upscaling is temporarily disabled and no longer appears in settings or
+  triggers local inference from the reader.
 - The bottom-left reading status bar shows chapter progress, network type,
   battery percentage, and current time.
 - The in-app open-source license center supports component search and full license details.
 - Bottom navigation keeps a single sliding indicator with lighter page transitions.
-- Full release notes are shown consistently in the startup prompt and About page.
+- Full release notes are shown consistently in the startup prompt and Updates page.
 - Redesigned update download progress with target version, percentage, file size,
   route, and verification state.
-- The Pro, Settings, and About/update entries use one compact segmented control.
+- The Pro, Settings, and Updates entries use one compact segmented control;
+  About is available at the bottom of the settings page.
+- The About page lists app information, project links, the upstream repository,
+  open-source licenses, and the unofficial-fork disclaimer.
 - Visible-page reading progress and safe reader cache/resource cleanup.
 - The oversized reader image-error placeholder is fixed.
 - Themes, locales, fonts, display refresh modes, network routes, and WebDAV.
@@ -96,13 +95,13 @@ Back up bookshelf, history, and download settings before upgrading.
 PowerShell verification:
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.8.125-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.8.140-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 Current APK SHA-256:
 
 ```text
-f2b870e00bce9fe3179571a6dad01db912cd58eef13e5006197ba4ee2033b4a7
+885bf7091d32e62eea9c1874ae2667fa71752031fcb0cef74cb72f5ef7cfdb78
 ```
 
 ## Build

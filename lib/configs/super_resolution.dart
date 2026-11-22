@@ -13,6 +13,7 @@ const _superResolutionThreadsPropertyName =
 const _superResolutionTilePropertyName = 'reader_super_resolution_tile_v1';
 const _superResolutionPreloadPropertyName =
     'reader_super_resolution_preload_v1';
+const superResolutionFeatureAvailable = false;
 
 bool _enabledPreference = false;
 int _selectedThreads = 0;
@@ -39,7 +40,9 @@ class SuperResolutionPageResult {
 }
 
 bool get superResolutionEnabled =>
-    _enabledPreference && _installedModel != null;
+    superResolutionFeatureAvailable &&
+    _enabledPreference &&
+    _installedModel != null;
 
 bool get superResolutionModelInstalled => _installedModel != null;
 

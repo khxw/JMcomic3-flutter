@@ -1018,6 +1018,10 @@ void main() {
     expect(find.byKey(const ValueKey('settings-page')), findsOneWidget);
     expect(find.byKey(const ValueKey('settings-common')), findsOneWidget);
     expect(
+      find.byKey(const ValueKey('settings-super-resolution')),
+      findsNothing,
+    );
+    expect(
       find.byKey(const ValueKey('settings-common-expanded')),
       findsOneWidget,
     );
@@ -1038,7 +1042,6 @@ void main() {
     );
     for (final key in [
       'settings-reading',
-      'settings-super-resolution',
       'settings-storage',
       'settings-bookshelf-backup',
       'settings-account',

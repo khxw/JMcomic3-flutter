@@ -174,126 +174,127 @@ class _SettingsState extends State<SettingsScreen> {
                     noAnimationSetting(),
                   ],
                 ),
-                _SettingsSection(
-                  sectionKey: const ValueKey('settings-super-resolution'),
-                  icon: Icons.auto_awesome_rounded,
-                  title: l10n.tr(
-                    '漫画超分（实验性）',
-                    en: 'Comic upscaling (experimental)',
+                if (superResolutionFeatureAvailable)
+                  _SettingsSection(
+                    sectionKey: const ValueKey('settings-super-resolution'),
+                    icon: Icons.auto_awesome_rounded,
+                    title: l10n.tr(
+                      '漫画超分（实验性）',
+                      en: 'Comic upscaling (experimental)',
+                    ),
+                    subtitle: l10n.tr(
+                      '实验性功能：按需下载模型，处理速度受设备性能影响',
+                      en: 'Experimental: models are downloaded on demand and '
+                          'performance depends on the device',
+                    ),
+                    panelKey:
+                        const ValueKey('settings-super-resolution-expanded'),
+                    children: [
+                      SwitchListTile.adaptive(
+                        key: const ValueKey(
+                          'settings-super-resolution-enabled',
+                        ),
+                        secondary: const Icon(Icons.hd_rounded),
+                        title: Text(
+                          l10n.tr(
+                            '2× 超分（实验性）',
+                            en: '2× upscaling (experimental)',
+                          ),
+                        ),
+                        subtitle: Text(
+                          _superResolutionLoading
+                              ? l10n.tr('正在检测模型…', en: 'Checking model…')
+                              : !_superResolutionModelInstalled
+                                  ? l10n.tr(
+                                      '下载模型后可用于阅读页',
+                                      en: 'Download a model to use it in the reader',
+                                    )
+                                  : l10n.tr(
+                                      '首次处理较慢，失败时自动显示原图',
+                                      en: 'First use is slower; failures fall back '
+                                          'to the original image',
+                                    ),
+                        ),
+                        value: _superResolutionEnabled,
+                        onChanged: _superResolutionLoading ||
+                                !_superResolutionModelInstalled
+                            ? null
+                            : _setSuperResolution,
+                      ),
+                      ListTile(
+                        key: const ValueKey(
+                          'settings-super-resolution-threads',
+                        ),
+                        leading: const Icon(Icons.speed_rounded),
+                        title: Text(
+                          l10n.tr('推理线程', en: 'Inference threads'),
+                        ),
+                        subtitle: Text(superResolutionThreadsName(context)),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: _chooseSuperResolutionThreads,
+                      ),
+                      ListTile(
+                        key: const ValueKey('settings-super-resolution-tile'),
+                        leading: const Icon(Icons.grid_view_rounded),
+                        title: Text(
+                          l10n.tr('分块大小', en: 'Tile size'),
+                        ),
+                        subtitle: Text(
+                          _superResolutionTileSize == 128
+                              ? l10n.tr(
+                                  '低内存 · 128',
+                                  en: 'Low memory · 128',
+                                )
+                              : _superResolutionTileSize == 384
+                                  ? l10n.tr('高速 · 384', en: 'Fast · 384')
+                                  : l10n.tr(
+                                      '均衡 · 256',
+                                      en: 'Balanced · 256',
+                                    ),
+                        ),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: _chooseSuperResolutionTileSize,
+                      ),
+                      SwitchListTile.adaptive(
+                        key: const ValueKey(
+                          'settings-super-resolution-preload',
+                        ),
+                        secondary: const Icon(Icons.fast_forward_rounded),
+                        title: Text(
+                          l10n.tr('超分预加载', en: 'Upscale preloading'),
+                        ),
+                        subtitle: Text(
+                          l10n.tr(
+                            '开启后会提前处理邻近页面，但当前页可能更慢',
+                            en: 'Processes nearby pages early, but may delay the '
+                                'current page',
+                          ),
+                        ),
+                        value: _superResolutionPreloadEnabled,
+                        onChanged: _superResolutionModelInstalled
+                            ? _setSuperResolutionPreload
+                            : null,
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        key: const ValueKey(
+                          'settings-super-resolution-models',
+                        ),
+                        leading: const Icon(Icons.memory_rounded),
+                        title: Text(
+                          l10n.tr('超分模型管理', en: 'Upscale model manager'),
+                        ),
+                        subtitle: Text(
+                          l10n.tr(
+                            '查看、下载、校验或删除 2× 超分模型',
+                            en: 'View, download, verify or delete 2× models',
+                          ),
+                        ),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: _openSuperResolutionModels,
+                      ),
+                    ],
                   ),
-                  subtitle: l10n.tr(
-                    '实验性功能：按需下载模型，处理速度受设备性能影响',
-                    en: 'Experimental: models are downloaded on demand and '
-                        'performance depends on the device',
-                  ),
-                  panelKey:
-                      const ValueKey('settings-super-resolution-expanded'),
-                  children: [
-                    SwitchListTile.adaptive(
-                      key: const ValueKey(
-                        'settings-super-resolution-enabled',
-                      ),
-                      secondary: const Icon(Icons.hd_rounded),
-                      title: Text(
-                        l10n.tr(
-                          '2× 超分（实验性）',
-                          en: '2× upscaling (experimental)',
-                        ),
-                      ),
-                      subtitle: Text(
-                        _superResolutionLoading
-                            ? l10n.tr('正在检测模型…', en: 'Checking model…')
-                            : !_superResolutionModelInstalled
-                                ? l10n.tr(
-                                    '下载模型后可用于阅读页',
-                                    en: 'Download a model to use it in the reader',
-                                  )
-                                : l10n.tr(
-                                    '首次处理较慢，失败时自动显示原图',
-                                    en: 'First use is slower; failures fall back '
-                                        'to the original image',
-                                  ),
-                      ),
-                      value: _superResolutionEnabled,
-                      onChanged: _superResolutionLoading ||
-                              !_superResolutionModelInstalled
-                          ? null
-                          : _setSuperResolution,
-                    ),
-                    ListTile(
-                      key: const ValueKey(
-                        'settings-super-resolution-threads',
-                      ),
-                      leading: const Icon(Icons.speed_rounded),
-                      title: Text(
-                        l10n.tr('推理线程', en: 'Inference threads'),
-                      ),
-                      subtitle: Text(superResolutionThreadsName(context)),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: _chooseSuperResolutionThreads,
-                    ),
-                    ListTile(
-                      key: const ValueKey('settings-super-resolution-tile'),
-                      leading: const Icon(Icons.grid_view_rounded),
-                      title: Text(
-                        l10n.tr('分块大小', en: 'Tile size'),
-                      ),
-                      subtitle: Text(
-                        _superResolutionTileSize == 128
-                            ? l10n.tr(
-                                '低内存 · 128',
-                                en: 'Low memory · 128',
-                              )
-                            : _superResolutionTileSize == 384
-                                ? l10n.tr('高速 · 384', en: 'Fast · 384')
-                                : l10n.tr(
-                                    '均衡 · 256',
-                                    en: 'Balanced · 256',
-                                  ),
-                      ),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: _chooseSuperResolutionTileSize,
-                    ),
-                    SwitchListTile.adaptive(
-                      key: const ValueKey(
-                        'settings-super-resolution-preload',
-                      ),
-                      secondary: const Icon(Icons.fast_forward_rounded),
-                      title: Text(
-                        l10n.tr('超分预加载', en: 'Upscale preloading'),
-                      ),
-                      subtitle: Text(
-                        l10n.tr(
-                          '开启后会提前处理邻近页面，但当前页可能更慢',
-                          en: 'Processes nearby pages early, but may delay the '
-                              'current page',
-                        ),
-                      ),
-                      value: _superResolutionPreloadEnabled,
-                      onChanged: _superResolutionModelInstalled
-                          ? _setSuperResolutionPreload
-                          : null,
-                    ),
-                    const Divider(height: 1),
-                    ListTile(
-                      key: const ValueKey(
-                        'settings-super-resolution-models',
-                      ),
-                      leading: const Icon(Icons.memory_rounded),
-                      title: Text(
-                        l10n.tr('超分模型管理', en: 'Upscale model manager'),
-                      ),
-                      subtitle: Text(
-                        l10n.tr(
-                          '查看、下载、校验或删除 2× 超分模型',
-                          en: 'View, download, verify or delete 2× models',
-                        ),
-                      ),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: _openSuperResolutionModels,
-                    ),
-                  ],
-                ),
                 _SettingsSection(
                   sectionKey: const ValueKey('settings-storage'),
                   icon: Icons.download_for_offline_rounded,
