@@ -4,7 +4,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/configs/categories_sort.dart';
-import 'package:jmcomic3/configs/login.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'package:jmcomic3/screens/category_comics_screen.dart';
 import 'package:jmcomic3/screens/comic_info_screen.dart';
@@ -13,58 +12,19 @@ import 'package:jmcomic3/screens/components/comic_floating_search_bar.dart'
     show blockStore;
 import 'package:jmcomic3/screens/components/compose_ui.dart';
 import 'package:jmcomic3/screens/components/content_builder.dart';
-import 'package:jmcomic3/screens/components/content_error.dart';
 import 'package:jmcomic3/screens/components/images.dart';
 import 'package:jmcomic3/screens/week_screen.dart';
 
-class BrowserScreenWrapper extends StatefulWidget {
+class BrowserScreenWrapper extends StatelessWidget {
   final VoidCallback onSearchRequested;
 
   const BrowserScreenWrapper({Key? key, required this.onSearchRequested})
       : super(key: key);
 
   @override
-  State<BrowserScreenWrapper> createState() => _BrowserScreenWrapperState();
-}
-
-class _BrowserScreenWrapperState extends State<BrowserScreenWrapper> {
-  @override
-  void initState() {
-    loginEvent.subscribe(_setState);
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    loginEvent.unsubscribe(_setState);
-    super.dispose();
-  }
-
-  void _setState(_) {
-    if (mounted) setState(() {});
-  }
-
   @override
   Widget build(BuildContext context) {
-    switch (loginStatus) {
-      case LoginStatus.loginSuccess:
-      case LoginStatus.guest:
-        return BrowserScreen(onSearchRequested: widget.onSearchRequested);
-      case LoginStatus.loginField:
-        return ContentError(
-          error: context.l10n.pleaseLogin,
-          stackTrace: StackTrace.current,
-          onRefresh: () async {},
-        );
-      case LoginStatus.logging:
-        return BrowserScreen(onSearchRequested: widget.onSearchRequested);
-      case LoginStatus.notSet:
-        return ContentError(
-          error: context.l10n.pleaseLogin,
-          stackTrace: StackTrace.current,
-          onRefresh: () async {},
-        );
-    }
+    return BrowserScreen(onSearchRequested: onSearchRequested);
   }
 }
 

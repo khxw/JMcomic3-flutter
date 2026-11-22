@@ -943,36 +943,17 @@ class _JMPageImageState extends State<JMPageImage> {
         return _path;
       }
       if (onTrueSize != null) {
-        // Check again immediately before the size bridge call. The path Future
-        // can complete while a newer widget/reload is being installed; without
-        // this second guard the stale request would still perform I/O and could
-        // populate the size cache for a page that is no longer mounted.
-        if (!mounted ||
-            generation != _generation ||
-            widget.id != id ||
-            widget.imageName != imageName ||
-            widget.pageIndex != pageIndex ||
-            widget.localOnly != localOnly ||
-            widget.localPath?.trim() != suppliedPath) {
-          return _path;
-        }
-        final size = await _cachedPageImageTrueSize(
-          id,
-          imageName,
-          _path,
+        unawaited(_publishTrueSize(
+          generation: generation,
+          id: id,
+          imageName: imageName,
+          pageIndex: pageIndex,
+          localOnly: localOnly,
+          suppliedPath: suppliedPath,
+          path: _path,
           forceRefresh: forceRefresh,
-        );
-        // Do not let an old request publish into a reused State whose widget
-        // identity has changed while the request was in flight.
-        if (mounted &&
-            generation == _generation &&
-            widget.id == id &&
-            widget.imageName == imageName &&
-            widget.pageIndex == pageIndex &&
-            widget.localOnly == localOnly &&
-            widget.localPath?.trim() == suppliedPath) {
-          onTrueSize(size);
-        }
+          onTrueSize: onTrueSize,
+        ));
       }
       return _path;
     } catch (error, stackTrace) {
@@ -983,6 +964,44 @@ class _JMPageImageState extends State<JMPageImage> {
       );
       debugPrient('page image load stack: $stackTrace');
       rethrow;
+    }
+  }
+
+  Future<void> _publishTrueSize({
+    required int generation,
+    required int id,
+    required String imageName,
+    required int? pageIndex,
+    required bool localOnly,
+    required String? suppliedPath,
+    required String path,
+    required bool forceRefresh,
+    required Function(Size size) onTrueSize,
+  }) async {
+    // True dimensions improve list layout but are not required to display an
+    // already-resolved image. Keep the size bridge off the visible-image path
+    // so fast scrolling cannot wait ~200 ms on image_size before painting.
+    try {
+      final size = await _cachedPageImageTrueSize(
+        id,
+        imageName,
+        path,
+        forceRefresh: forceRefresh,
+      );
+      if (mounted &&
+          generation == _generation &&
+          widget.id == id &&
+          widget.imageName == imageName &&
+          widget.pageIndex == pageIndex &&
+          widget.localOnly == localOnly &&
+          widget.localPath?.trim() == suppliedPath) {
+        onTrueSize(size);
+      }
+    } catch (error) {
+      debugPrient(
+        'page image size lookup failed chapter=$id '
+        'page=${pageIndex ?? -1}: ${error.runtimeType}',
+      );
     }
   }
 

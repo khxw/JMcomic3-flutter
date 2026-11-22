@@ -1437,7 +1437,7 @@ abstract class _ComicReaderState extends State<_ComicReader>
             ),
             const SizedBox(height: 10),
             Text(
-              context.l10n.tr('正在加载后续内容', en: 'Loading more pages'),
+              context.l10n.tr('正在加载', en: 'Loading'),
               style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ],

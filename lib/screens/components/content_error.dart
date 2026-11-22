@@ -3,7 +3,7 @@ import 'package:jmcomic3/basic/log.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 import 'error_types.dart';
 
-class ContentError extends StatelessWidget {
+class ContentError extends StatefulWidget {
   final Object? error;
   final StackTrace? stackTrace;
   final Future<void> Function() onRefresh;
@@ -16,91 +16,172 @@ class ContentError extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<ContentError> createState() => _ContentErrorState();
+}
+
+class _ContentErrorState extends State<ContentError> {
+  bool _refreshing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _logError();
+  }
+
+  @override
+  void didUpdateWidget(covariant ContentError oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.error != widget.error) _logError();
+  }
+
+  void _logError() {
+    debugPrient('${widget.error}');
+    debugPrient('${widget.stackTrace}');
+  }
+
+  Future<void> _refresh() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try {
+      await widget.onRefresh();
+    } catch (error, stackTrace) {
+      debugPrient(
+        'content refresh failed: ${error.runtimeType}/${stackTrace.runtimeType}',
+      );
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    var type = errorType("$error");
-    late String message;
-    late IconData iconData;
+    final type = errorType('${widget.error}');
+    final scheme = Theme.of(context).colorScheme;
+    late final IconData icon;
+    late final String title;
+    late final String detail;
+
     switch (type) {
       case ERROR_TYPE_NETWORK:
-        iconData = Icons.wifi_off_rounded;
-        message = context.l10n.tr(
-          "连接不上啦, 请检查网络",
-          en: "Cannot connect. Please check your network",
+        icon = Icons.wifi_off_rounded;
+        title = context.l10n.tr('网络连接失败', en: 'Connection failed');
+        detail = context.l10n.tr(
+          '请检查网络后重新加载',
+          en: 'Check your network and try again',
         );
         break;
       case ERROR_TYPE_PERMISSION:
-        iconData = Icons.highlight_off;
-        message = context.l10n.tr(
-          "没有权限或路径不可用",
-          en: "No permission or path unavailable",
+        icon = Icons.folder_off_outlined;
+        title = context.l10n.tr('无法访问内容', en: 'Unable to access content');
+        detail = context.l10n.tr(
+          '请检查存储权限或路径设置',
+          en: 'Check storage permissions or path settings',
         );
         break;
       case ERROR_TYPE_TIME:
-        iconData = Icons.timer_off;
-        message = context.l10n.tr("请检查设备时间", en: "Please check device time");
+        icon = Icons.schedule_rounded;
+        title = context.l10n.tr('设备时间异常', en: 'Check device time');
+        detail = context.l10n.tr(
+          '请将系统时间校准后重新加载',
+          en: 'Correct the system time and try again',
+        );
         break;
       case ERROR_TYPE_UNDER_REVIEW:
-        iconData = Icons.highlight_off;
-        message = context.l10n.tr(
-          "资源未审核或不可用",
-          en: "Resource is unavailable or under review",
+        icon = Icons.hourglass_top_rounded;
+        title = context.l10n.tr('内容暂不可用', en: 'Content unavailable');
+        detail = context.l10n.tr(
+          '资源可能正在审核，请稍后再试',
+          en: 'This resource may be under review. Try again later',
         );
         break;
       default:
-        iconData = Icons.highlight_off;
-        message = context.l10n.tr("啊哦, 被玩坏了", en: "Oops, something went wrong");
+        icon = Icons.cloud_off_rounded;
+        title = context.l10n.tr('内容加载失败', en: 'Unable to load content');
+        detail = context.l10n.tr(
+          '服务暂时没有响应，请稍后重新加载',
+          en: 'The service did not respond. Try again shortly',
+        );
         break;
     }
+
     return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        debugPrient("$error");
-        debugPrient("$stackTrace");
-        var width = constraints.maxWidth;
-        var height = constraints.maxHeight;
-        var min = width < height ? width : height;
-        var iconSize = min / 2.3;
-        var textSize = min / 16;
-        var tipSize = min / 20;
-        var infoSize = min / 30;
-        return GestureDetector(
-          onTap: onRefresh,
-          child: ListView(
-            children: [
-              Container(
-                height: height,
-                child: Column(
-                  children: [
-                    Expanded(child: Container()),
-                    Container(
-                      child: Icon(
-                        iconData,
-                        size: iconSize,
-                        color: Colors.grey.shade600,
-                      ),
+      builder: (context, constraints) {
+        return SizedBox(
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 20,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(24, 26, 24, 22),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainer.withValues(alpha: .84),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: scheme.outlineVariant.withValues(alpha: .56),
                     ),
-                    Container(height: min / 10),
-                    Container(
-                      padding: const EdgeInsets.only(
-                        left: 30,
-                        right: 30,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 68,
+                        height: 68,
+                        decoration: BoxDecoration(
+                          color: scheme.primaryContainer.withValues(alpha: .62),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(icon, size: 34, color: scheme.primary),
                       ),
-                      child: Text(
-                        message,
-                        style: TextStyle(fontSize: textSize),
+                      const SizedBox(height: 18),
+                      Text(
+                        title,
                         textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
-                    ),
-                    Text(
-                      context.l10n.tr('(点击刷新)', en: '(Tap to refresh)'),
-                      style: TextStyle(fontSize: tipSize),
-                    ),
-                    Container(height: min / 15),
-                    Text('$error', style: TextStyle(fontSize: infoSize)),
-                    Expanded(child: Container()),
-                  ],
+                      const SizedBox(height: 8),
+                      Text(
+                        detail,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                              height: 1.45,
+                            ),
+                      ),
+                      const SizedBox(height: 22),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          key: const ValueKey('content-error-refresh'),
+                          onPressed: _refreshing ? null : _refresh,
+                          icon: _refreshing
+                              ? const SizedBox(
+                                  width: 17,
+                                  height: 17,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.refresh_rounded, size: 19),
+                          label: Text(
+                            _refreshing
+                                ? context.l10n.tr('正在刷新', en: 'Refreshing')
+                                : context.l10n.tr('重新加载', en: 'Reload'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
+            ),
           ),
         );
       },
