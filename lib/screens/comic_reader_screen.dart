@@ -1709,6 +1709,7 @@ class _ReaderSuperResolutionStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final active = result?.upscaled;
+    final failureReason = result?.failureReason?.trim();
     final color =
         active == true ? const Color(0xFF7EE7F4) : const Color(0xFFB8BCC4);
     final text = active == null
@@ -1722,10 +1723,14 @@ class _ReaderSuperResolutionStatus extends StatelessWidget {
             en: 'Upscaling active; tap to compare',
           )
         : active == false
-            ? context.l10n.tr(
-                '当前页超分未生效，正在显示原图',
-                en: 'Upscaling unavailable; showing the original',
-              )
+            ? [
+                context.l10n.tr(
+                  '当前页超分未生效，正在显示原图',
+                  en: 'Upscaling unavailable; showing the original',
+                ),
+                if (failureReason != null && failureReason.isNotEmpty)
+                  failureReason,
+              ].join('\n')
             : context.l10n.tr(
                 '正在处理 2× 超分',
                 en: 'Preparing 2× upscaling',

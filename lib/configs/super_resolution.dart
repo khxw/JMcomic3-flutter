@@ -21,17 +21,20 @@ bool _preloadEnabled = false;
 InstalledSuperResolutionModel? _installedModel;
 Future<void>? _loading;
 bool _loaded = false;
-final Map<String, Future<String>> _superResolutionPathCache = {};
+final Map<String, Future<SuperResolutionPageResult>> _superResolutionPathCache =
+    {};
 
 class SuperResolutionPageResult {
   final String sourcePath;
   final String displayPath;
   final bool upscaled;
+  final String? failureReason;
 
   const SuperResolutionPageResult({
     required this.sourcePath,
     required this.displayPath,
     required this.upscaled,
+    this.failureReason,
   });
 }
 
@@ -195,6 +198,9 @@ Future<SuperResolutionPageResult> superResolutionPageResult(
       sourcePath: sourcePath,
       displayPath: sourcePath,
       upscaled: false,
+      failureReason: model == null
+          ? 'super-resolution model is not installed'
+          : 'super-resolution is disabled',
     );
   }
   final source = File(sourcePath);
@@ -202,35 +208,37 @@ Future<SuperResolutionPageResult> superResolutionPageResult(
       '${source.path}|${source.lengthSync()}|${source.lastModifiedSync().microsecondsSinceEpoch}';
   final existing = _superResolutionPathCache[key];
   if (existing != null) {
-    final displayPath = await existing;
-    return SuperResolutionPageResult(
-      sourcePath: sourcePath,
-      displayPath: displayPath,
-      upscaled: displayPath != sourcePath,
-    );
+    return existing;
   }
-  late final Future<String> future;
+  late final Future<SuperResolutionPageResult> future;
   future = methods
       .superResolutionImage(
-    inputPath: sourcePath,
-    modelDirectory: model.directory.path,
-    threads: currentSuperResolutionThreads,
-    tileSize: currentSuperResolutionTileSize,
-  )
+        inputPath: sourcePath,
+        modelDirectory: model.directory.path,
+        threads: currentSuperResolutionThreads,
+        tileSize: currentSuperResolutionTileSize,
+      )
+      .then(
+        (displayPath) => SuperResolutionPageResult(
+          sourcePath: sourcePath,
+          displayPath: displayPath,
+          upscaled: displayPath != sourcePath,
+        ),
+      )
       .catchError((Object error, StackTrace stack) {
     if (identical(_superResolutionPathCache[key], future)) {
       _superResolutionPathCache.remove(key);
     }
     debugPrient('super-resolution fallback: ${error.runtimeType}');
-    return sourcePath;
+    return SuperResolutionPageResult(
+      sourcePath: sourcePath,
+      displayPath: sourcePath,
+      upscaled: false,
+      failureReason: '$error',
+    );
   });
   _superResolutionPathCache[key] = future;
-  final displayPath = await future;
-  return SuperResolutionPageResult(
-    sourcePath: sourcePath,
-    displayPath: displayPath,
-    upscaled: displayPath != sourcePath,
-  );
+  return future;
 }
 
 Future<String> superResolutionPagePath(String sourcePath) async =>

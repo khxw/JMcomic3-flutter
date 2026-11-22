@@ -145,6 +145,7 @@ String _response(Object? data, {String error = ''}) => jsonEncode({
 
 class _Fixture {
   AlbumResponse album = _album();
+  List<Series>? chapterSeries;
   ViewLog? viewLog;
   bool signedIn = false;
   int albumFailures = 0;
@@ -265,7 +266,9 @@ class _Fixture {
       case 'chapter':
         return _response({
           'id': int.parse(params),
-          'series': album.series.map((chapter) => chapter.toJson()).toList(),
+          'series': (chapterSeries ?? album.series)
+              .map((chapter) => chapter.toJson())
+              .toList(),
           'tags': '',
           'name': 'Reader entry fixture',
           'images': <Object>[],
@@ -989,6 +992,33 @@ void main() {
     await _tapVisible(tester, _key('chapter-${chapters[1].id}'));
     expect(reads, [(chapters[1].id, 0)]);
     expect(album.series, orderedEquals(chapters));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'detail restores the eleventh chapter from the chapter response',
+      (tester) async {
+    final truncated = List.generate(
+      10,
+      (index) => Series(
+        id: 92000 + index,
+        name: 'Chapter ${index + 1}',
+        sort: '${index + 1}',
+      ),
+    );
+    final complete = [
+      ...truncated,
+      Series(id: 92010, name: 'Chapter 11', sort: '11'),
+    ];
+    final fixture = await _prepare(tester);
+    fixture.album = _album(series: truncated);
+    fixture.chapterSeries = complete;
+
+    await _mount(tester, fixture);
+
+    expect(fixture.calls('chapter'), hasLength(1));
+    expect(_key('chapter-92010'), findsOneWidget);
+    expect(find.text('11 - Chapter 11'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

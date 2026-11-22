@@ -36,6 +36,7 @@ import '../basic/commons.dart';
 import '../basic/web_dav_sync.dart';
 import '../configs/Authentication.dart';
 import '../configs/disable_recommend_content.dart';
+import 'about_screen.dart';
 import 'components/app_back_button.dart';
 import 'components/right_click_pop.dart';
 import 'init_screen.dart';
@@ -486,6 +487,27 @@ class _SettingsState extends State<SettingsScreen> {
                     ),
                     const Divider(height: 1),
                     userAgreementSetting(context),
+                    ListTile(
+                      key: const ValueKey('settings-about'),
+                      leading: const Icon(Icons.info_outline_rounded),
+                      title: Text(
+                        l10n.tr('关于', en: 'About'),
+                      ),
+                      subtitle: Text(
+                        l10n.tr(
+                          '应用信息、版本与项目主页',
+                          en: 'App information, version and project homepage',
+                        ),
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const AboutScreen(),
+                          ),
+                        );
+                      },
+                    ),
                     ListTile(
                       key: const ValueKey('settings-open-source-licenses'),
                       leading: const Icon(Icons.policy_outlined),

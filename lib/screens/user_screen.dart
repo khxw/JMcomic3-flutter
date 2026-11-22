@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/configs/login.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
-import 'package:jmcomic3/screens/about_screen.dart';
+import 'package:jmcomic3/screens/update_screen.dart';
 import 'package:jmcomic3/screens/comments_screen.dart';
 import 'package:jmcomic3/screens/components/avatar.dart';
 import 'package:jmcomic3/screens/pro_oh_screen.dart';
@@ -1101,7 +1101,7 @@ class _UserScreenState extends State<UserScreen>
         },
         icon: const Icon(Icons.settings_rounded, size: 20),
       ),
-      if (normalPlatform) _buildAboutIcon(),
+      if (normalPlatform) _buildUpdateIcon(),
     ];
     return Padding(
       padding: const EdgeInsets.only(left: 4, right: 8),
@@ -1156,14 +1156,14 @@ class _UserScreenState extends State<UserScreen>
     );
   }
 
-  Widget _buildAboutIcon() {
+  Widget _buildUpdateIcon() {
     return _buildProfileActionButton(
-      key: const ValueKey('profile-about-entry'),
-      tooltip: context.l10n.tr('关于与更新', en: 'About & updates'),
+      key: const ValueKey('profile-update-entry'),
+      tooltip: context.l10n.tr('更新', en: 'Updates'),
       onPressed: () {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => const AboutScreen(),
+            builder: (_) => const UpdateScreen(),
           ),
         );
       },

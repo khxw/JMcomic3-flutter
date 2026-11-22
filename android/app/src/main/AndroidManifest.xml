@@ -28,6 +28,7 @@
         android:label="JMComic3 Mod"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:largeHeap="true"
         android:requestLegacyExternalStorage="true"
         android:preserveLegacyExternalStorage="true"
         android:enableOnBackInvokedCallback="false">

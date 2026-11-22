@@ -36,6 +36,15 @@ int comicDetailUpdateChapterId(AlbumResponse album) {
   return album.latestUpdateChapterId;
 }
 
+AlbumResponse comicDetailAlbumWithSeries(
+  AlbumResponse album,
+  List<Series> series,
+) {
+  final json = album.toJson();
+  json['series'] = series.map((chapter) => chapter.toJson()).toList();
+  return AlbumResponse.fromJson(json);
+}
+
 String? comicDetailPublishedDateQuery(
   AlbumResponse album,
   ComicBasic? simple,
@@ -107,11 +116,24 @@ class _ComicInfoScreenState extends State<ComicInfoScreen> {
 
   Future<AlbumResponse> _loadAlbum({bool forceRefresh = false}) async {
     final bookshelfFuture = loadLocalBookshelf();
-    final album = await methods.album(
+    var album = await methods.album(
       widget.comicId,
       ignoreViewLog: currentIgnoreVewLog(),
       forceRefresh: forceRefresh,
     );
+    // The album endpoint can cap its embedded series list at ten even when the
+    // chapter endpoint exposes the complete list. Repair only this suspicious
+    // boundary so normal albums keep their existing single-request load path.
+    if (album.series.length == 10) {
+      try {
+        final chapter = await methods.chapter(album.latestUpdateChapterId);
+        if (chapter.series.length > album.series.length) {
+          album = comicDetailAlbumWithSeries(album, chapter.series);
+        }
+      } catch (_) {
+        // Keep the ten returned chapters instead of failing the detail page.
+      }
+    }
     if (!_accountFavoriteLoading) {
       _accountFavorite = album.isFavorite;
     }

@@ -11,6 +11,7 @@ class _ContinuousReaderState extends _ComicReaderState {
   late final List<Size?> _sizes;
   bool _reportQueued = false;
   Timer? _settledTimer;
+  bool _pinInitialProgress = true;
 
   bool get _zoomEnabled => widget.readerType == ReaderType.webToonFreeZoom;
   bool get _vertical => widget.readerDirection == ReaderDirection.topToBottom;
@@ -54,7 +55,7 @@ class _ContinuousReaderState extends _ComicReaderState {
   }
 
   void _queuePositionReport() {
-    if (!mounted || _reportQueued) return;
+    if (!mounted || _reportQueued || _pinInitialProgress) return;
     _reportQueued = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _reportQueued = false;
@@ -99,6 +100,7 @@ class _ContinuousReaderState extends _ComicReaderState {
 
   @override
   Future<void> _moveTo(int page, bool animation) async {
+    _unpinInitialProgress();
     if (!_scroll.isAttached) return;
     if (animation) {
       await _scroll.scrollTo(
@@ -109,6 +111,12 @@ class _ContinuousReaderState extends _ComicReaderState {
       _scroll.jumpTo(index: page);
       await WidgetsBinding.instance.endOfFrame;
     }
+    _queuePositionReport();
+  }
+
+  void _unpinInitialProgress() {
+    if (!_pinInitialProgress) return;
+    _pinInitialProgress = false;
     _queuePositionReport();
   }
 
@@ -194,9 +202,16 @@ class _ContinuousReaderState extends _ComicReaderState {
         return SizedBox.expand(
           key: _viewportKey,
           child: Listener(
-            onPointerDown: (_) => _cancelJump(),
-            onPointerMove: (_) => _queuePositionReport(),
+            onPointerDown: (_) {
+              _unpinInitialProgress();
+              _cancelJump();
+            },
+            onPointerMove: (_) {
+              _unpinInitialProgress();
+              _queuePositionReport();
+            },
             onPointerUp: (_) {
+              _unpinInitialProgress();
               _settledTimer?.cancel();
               _settledTimer = Timer(
                   const Duration(milliseconds: 240), _queuePositionReport);

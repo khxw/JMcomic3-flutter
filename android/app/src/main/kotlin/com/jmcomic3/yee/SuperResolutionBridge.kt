@@ -7,7 +7,7 @@ import java.io.FileOutputStream
 import java.security.MessageDigest
 
 object SuperResolutionBridge {
-    private const val MAX_INPUT_PIXELS = 5_000_000L
+    private const val MAX_INPUT_PIXELS = 10_000_000L
 
     init {
         System.loadLibrary("ncnn")
@@ -72,11 +72,16 @@ object SuperResolutionBridge {
         val resolvedThreads = threads.coerceIn(1, 8)
         val resolvedTileSize = tileSize.coerceIn(64, 512)
 
-        val output = Bitmap.createBitmap(
-            input.width * 2,
-            input.height * 2,
-            Bitmap.Config.ARGB_8888,
-        )
+        val output = try {
+            Bitmap.createBitmap(
+                input.width * 2,
+                input.height * 2,
+                Bitmap.Config.ARGB_8888,
+            )
+        } catch (error: Throwable) {
+            input.recycle()
+            throw error
+        }
         val temporary = File(outputDirectory, ".$identity-${System.nanoTime()}.part")
         try {
             if (!nativeUpscale(

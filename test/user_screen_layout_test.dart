@@ -232,7 +232,7 @@ void main() {
     await _loadProfile(tester);
     await _capture(tester, 'profile-mobile-signed-in');
 
-    final aboutEntry = find.byKey(const ValueKey('profile-about-entry'));
+    final aboutEntry = find.byKey(const ValueKey('profile-update-entry'));
     final proEntry = find.byKey(const ValueKey('profile-pro-entry'));
     final settingsEntry = find.byKey(
       const ValueKey('profile-settings-entry'),
@@ -241,7 +241,7 @@ void main() {
     expect(proEntry, findsOneWidget);
     expect(settingsEntry, findsOneWidget);
     expect(aboutEntry, findsOneWidget);
-    expect(tester.widget<IconButton>(aboutEntry).tooltip, 'About & updates');
+    expect(tester.widget<IconButton>(aboutEntry).tooltip, 'Updates');
     final actionRects = [
       tester.getRect(proEntry),
       tester.getRect(settingsEntry),

@@ -618,6 +618,31 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('resumed progress stays pinned until the user navigates',
+      (tester) async {
+    final readerKey = await mountReader(
+      tester,
+      ReaderType.webtoon,
+      ReaderDirection.topToBottom,
+      startIndex: 8,
+    );
+    expect(comicReaderProgressForTest(readerKey).current, 8);
+
+    tester
+        .widget<zoomable.ZoomablePositionedList>(
+          find.byType(zoomable.ZoomablePositionedList),
+        )
+        .itemScrollController!
+        .jumpTo(index: 0);
+    await pumpReader(tester);
+    expect(comicReaderProgressForTest(readerKey).current, 8);
+
+    jumpComicReaderForTest(readerKey, 3, animation: false);
+    await pumpReader(tester);
+    expect(comicReaderProgressForTest(readerKey).current, 3);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('reader preloads pages before and after the current page',
       (tester) async {
     await mountReader(

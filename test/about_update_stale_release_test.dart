@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jmcomic3/configs/theme.dart';
 import 'package:jmcomic3/configs/versions.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
-import 'package:jmcomic3/screens/about_screen.dart';
+import 'package:jmcomic3/screens/update_screen.dart';
 
 const _channel = MethodChannel('methods');
 
@@ -70,7 +70,7 @@ void main() {
     addTearDown(() => messenger.setMockMethodCallHandler(_channel, null));
     await initVersion();
 
-    await tester.pumpWidget(_host(const AboutScreen()));
+    await tester.pumpWidget(_host(const UpdateScreen()));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 

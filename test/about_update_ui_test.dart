@@ -10,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jmcomic3/configs/theme.dart';
 import 'package:jmcomic3/configs/versions.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
-import 'package:jmcomic3/screens/about_screen.dart';
+import 'package:jmcomic3/screens/update_screen.dart';
 
 const _channel = MethodChannel('methods');
 const _captureKey = ValueKey('about-update-preview');
@@ -87,7 +87,7 @@ void main() {
 
     await tester.pumpWidget(_host(RepaintBoundary(
       key: _captureKey,
-      child: const AboutScreen(),
+      child: const UpdateScreen(),
     )));
     await tester.pumpAndSettle();
 
