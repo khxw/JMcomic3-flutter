@@ -1040,17 +1040,21 @@ class Methods {
     required String modelDirectory,
     required int threads,
     required int tileSize,
-  }) {
-    return _invoke("superResolutionImage", {
+  }) async {
+    final result = await _channel.invokeMethod<String>("superResolutionImage", {
       "input_path": inputPath,
       "model_directory": modelDirectory,
       "threads": threads,
       "tile_size": tileSize,
     });
+    if (result == null || result.trim().isEmpty) {
+      throw StateError('super-resolution native bridge returned no path');
+    }
+    return result;
   }
 
-  Future clearSuperResolutionCache() {
-    return _invoke("clearSuperResolutionCache", null);
+  Future<void> clearSuperResolutionCache() async {
+    await _channel.invokeMethod<void>("clearSuperResolutionCache");
   }
 
   Future<Map<String, dynamic>> imageCacheDays() async {
