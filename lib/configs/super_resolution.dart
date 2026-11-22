@@ -15,7 +15,7 @@ const _superResolutionPreloadPropertyName =
     'reader_super_resolution_preload_v1';
 const _superResolutionBackendPropertyName =
     'reader_super_resolution_backend_v1';
-const superResolutionFeatureAvailable = true;
+const superResolutionFeatureAvailable = false;
 
 enum SuperResolutionBackendMode {
   auto,
@@ -84,6 +84,14 @@ bool get superResolutionVulkanAvailable => _vulkanAvailable;
 String get superResolutionVulkanDeviceName => _vulkanDeviceName;
 
 Future<void> loadSuperResolutionState({bool force = false}) {
+  if (!superResolutionFeatureAvailable) {
+    _enabledPreference = false;
+    _installedModel = null;
+    _vulkanAvailable = false;
+    _vulkanDeviceName = '';
+    _loaded = true;
+    return Future.value();
+  }
   if (_loaded && !force) return Future.value();
   if (_loading != null && !force) return _loading!;
   final future = _loadSuperResolutionState();
@@ -322,6 +330,14 @@ Future<SuperResolutionPageResult> superResolutionPageResult(
   String sourcePath, {
   bool preload = false,
 }) async {
+  if (!superResolutionFeatureAvailable) {
+    return SuperResolutionPageResult(
+      sourcePath: sourcePath,
+      displayPath: sourcePath,
+      upscaled: false,
+      failureReason: 'super-resolution is temporarily disabled',
+    );
+  }
   await loadSuperResolutionState();
   final model = _installedModel;
   if (!_enabledPreference || model == null) {

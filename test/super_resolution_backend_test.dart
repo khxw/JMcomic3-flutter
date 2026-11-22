@@ -2,6 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jmcomic3/configs/super_resolution.dart';
 
 void main() {
+  test('super-resolution is temporarily disabled', () {
+    expect(superResolutionFeatureAvailable, isFalse);
+  });
+
   test('automatic mode prefers Vulkan and falls back to native auto', () {
     expect(
       superResolutionBackendRequest(
