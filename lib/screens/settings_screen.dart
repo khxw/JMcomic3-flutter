@@ -22,7 +22,6 @@ import 'package:jmcomic3/configs/proxy.dart';
 import 'package:jmcomic3/configs/search_title_words.dart';
 import 'package:jmcomic3/configs/super_resolution.dart';
 import 'package:jmcomic3/configs/theme.dart';
-import 'package:jmcomic3/configs/two_page_direction.dart';
 import 'package:jmcomic3/configs/using_right_click_pop.dart';
 import 'package:jmcomic3/configs/versions.dart';
 import 'package:jmcomic3/configs/volume_key_control.dart';
@@ -166,15 +165,13 @@ class _SettingsState extends State<SettingsScreen> {
                   icon: Icons.menu_book_rounded,
                   title: l10n.sectionReading,
                   subtitle: l10n.tr(
-                    '阅读操作与双页方向',
-                    en: 'Reading controls and spread direction',
+                    '阅读操作与页面动画',
+                    en: 'Reading controls and page animation',
                   ),
                   panelKey: const ValueKey('settings-reading-expanded'),
                   children: [
                     volumeKeyControlSetting(),
                     noAnimationSetting(),
-                    const Divider(height: 1),
-                    twoGalleryDirectionSetting(context),
                   ],
                 ),
                 _SettingsSection(

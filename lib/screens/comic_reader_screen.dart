@@ -65,7 +65,12 @@ class ComicReaderScreen extends StatefulWidget {
   State<StatefulWidget> createState() => _ComicReaderScreenState();
 }
 
-class _ComicReaderScreenState extends State<ComicReaderScreen> {
+class _ComicReaderScreenState extends State<ComicReaderScreen>
+    with WidgetsBindingObserver {
+  static const _readerSystemStatusChannel = EventChannel(
+    'reader_system_status',
+  );
+
   late ReaderType _readerType;
   late ReaderDirection _readerDirection;
   late int _chapterId;
@@ -78,6 +83,27 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
   int _chapterRequest = 0;
   int _readerRevision = 0;
   bool _navigationInFlight = false;
+  StreamSubscription<dynamic>? _readerSystemStatusSubscription;
+  Map<String, dynamic>? _readerSystemStatus;
+  Timer? _readerClockTimer;
+  DateTime _readerClock = DateTime.now();
+
+  void _subscribeReaderSystemStatus() {
+    _readerSystemStatusSubscription =
+        _readerSystemStatusChannel.receiveBroadcastStream().listen(
+      (event) {
+        if (!mounted || event is! Map) return;
+        setState(() {
+          _readerSystemStatus = {
+            'network': event['network']?.toString() ?? 'unknown',
+            'battery': (event['battery'] as num?)?.toInt() ?? -1,
+            'charging': event['charging'] == true,
+          };
+        });
+      },
+      onError: (_) {},
+    );
+  }
 
   /// Preserve the server-side history behavior. Local page progress is written
   /// exclusively by the mounted reader after its starting index is validated.
@@ -199,6 +225,7 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _readerType = currentReaderType;
     _readerDirection = currentReaderDirection;
     _chapterId = widget.chapterId;
@@ -211,7 +238,24 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
       preserveCurrent: false,
       resetPosition: false,
     ));
+    if (Platform.isAndroid || Platform.isIOS) {
+      _subscribeReaderSystemStatus();
+    }
+    _readerClockTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) {
+        if (mounted) setState(() => _readerClock = DateTime.now());
+      },
+    );
     unawaited(_recordServerHistory());
+  }
+
+  @override
+  void dispose() {
+    _readerClockTimer?.cancel();
+    unawaited(_readerSystemStatusSubscription?.cancel());
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
@@ -302,6 +346,7 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
               comicId: widget.comic.id,
               chapter: chapter,
               fallbackSeries: widget.series,
+              loadChapter: _loadChapter,
               startIndex: safeStartIndex,
               key: ValueKey(
                 'reader_${widget.comic.id}_${chapter.id}_$_readerType'
@@ -310,9 +355,12 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
               ),
               reload: _reloadReader,
               onChangeEp: _changeChapter,
+              onChapterOpened: widget.onChapterOpened,
               readerType: _readerType,
               readerDirection: _readerDirection,
               fullScreenOnInit: _readerFullScreen,
+              systemStatus: _readerSystemStatus,
+              readerClock: _readerClock,
             ),
           ),
           if (_chapterLoading)
@@ -470,27 +518,57 @@ class _ReaderControllerEventArgs extends EventArgs {
   _ReaderControllerEventArgs(this.key);
 }
 
+class _ReaderChapterData {
+  _ReaderChapterData({
+    required this.chapter,
+    required this.pages,
+  });
+
+  final ChapterResponse chapter;
+  final List<PageDescriptor> pages;
+}
+
+class _ReaderPageRef {
+  const _ReaderPageRef({
+    required this.chapter,
+    required this.chapterPageIndex,
+    required this.page,
+  });
+
+  final _ReaderChapterData chapter;
+  final int chapterPageIndex;
+  final PageDescriptor page;
+}
+
 class _ComicReader extends StatefulWidget {
   final int comicId;
   final ChapterResponse chapter;
   final List<Series> fallbackSeries;
+  final Future<ChapterResponse> Function(int chapterId) loadChapter;
   final FutureOr Function(int, bool) reload;
   final FutureOr Function(int, bool) onChangeEp;
+  final ValueChanged<int>? onChapterOpened;
   final int startIndex;
   final ReaderType readerType;
   final ReaderDirection readerDirection;
   final bool fullScreenOnInit;
+  final Map<String, dynamic>? systemStatus;
+  final DateTime? readerClock;
 
   const _ComicReader({
     required this.comicId,
     required this.chapter,
     this.fallbackSeries = const [],
+    required this.loadChapter,
     required this.reload,
     required this.onChangeEp,
+    this.onChapterOpened,
     required this.startIndex,
     required this.readerType,
     required this.readerDirection,
     required this.fullScreenOnInit,
+    this.systemStatus,
+    this.readerClock,
     Key? key,
   }) : super(key: key);
 
@@ -517,12 +595,18 @@ Widget buildComicReaderForTest({
   required ChapterResponse chapter,
   required ReaderType readerType,
   required ReaderDirection direction,
+  List<Series> fallbackSeries = const [],
+  Future<ChapterResponse> Function(int chapterId)? loadChapter,
+  ValueChanged<int>? onChapterOpened,
   int startIndex = 0,
 }) =>
     _ComicReader(
       key: key,
       comicId: chapter.id,
       chapter: chapter,
+      fallbackSeries: fallbackSeries,
+      loadChapter: loadChapter ?? (_) async => chapter,
+      onChapterOpened: onChapterOpened,
       startIndex: startIndex,
       readerType: readerType,
       readerDirection: direction,
@@ -543,6 +627,20 @@ void controlComicReaderForTest(String direction) {
 }
 
 @visibleForTesting
+PageImageProvider comicReaderVisibleProviderForTest(
+  GlobalKey key,
+  int index,
+) =>
+    (key.currentState! as _ComicReaderState)._readerVisibleProvider(index);
+
+@visibleForTesting
+PageImageProvider comicReaderPreloadProviderForTest(
+  GlobalKey key,
+  int index,
+) =>
+    (key.currentState! as _ComicReaderState)._readerPreloadProvider(index);
+
+@visibleForTesting
 ({int current, int slider, int? jumpTarget}) comicReaderProgressForTest(
     GlobalKey key) {
   final state = key.currentState! as _ComicReaderState;
@@ -556,9 +654,6 @@ void controlComicReaderForTest(String direction) {
 abstract class _ComicReaderState extends State<_ComicReader>
     with WidgetsBindingObserver {
   static const double _bottomControlsHeight = 58;
-  static const _readerSystemStatusChannel = EventChannel(
-    'reader_system_status',
-  );
 
   late ReaderPosition _position;
   late ReaderProgressWriter _progressWriter;
@@ -574,15 +669,20 @@ abstract class _ComicReaderState extends State<_ComicReader>
   final Map<int, SuperResolutionPageResult> _superResolutionResults = {};
   bool _readerSuperResolutionEnabled = false;
   bool _readerSuperResolutionPreload = false;
-  StreamSubscription<dynamic>? _readerSystemStatusSubscription;
-  Map<String, dynamic>? _readerSystemStatus;
-  Timer? _readerClockTimer;
-  DateTime _readerClock = DateTime.now();
+  final List<_ReaderChapterData> _chapters = [];
   late List<PageDescriptor> _pages;
+  late List<_ReaderPageRef> _pageRefs;
+  bool _nextChapterLoading = false;
+  Object? _nextChapterError;
+  bool _reachedLastChapter = false;
+  int? _lastOpenedChapterId;
 
   int get _current => _position.current;
   int get _slider => _position.displayPage;
   int? get _jumpTarget => _position.target;
+  _ReaderPageRef get _displayPageRef => _pageRefAt(_position.clamp(_slider));
+  int get _displayChapterPageIndex => _displayPageRef.chapterPageIndex;
+  int get _displayChapterPageCount => _displayPageRef.chapter.pages.length;
   bool get _doubleTapFullscreen =>
       currentReaderControllerType == ReaderControllerType.touchDouble ||
       currentReaderControllerType == ReaderControllerType.touchDoubleOnceNext;
@@ -591,6 +691,7 @@ abstract class _ComicReaderState extends State<_ComicReader>
       currentReaderControllerType == ReaderControllerType.touchDoubleOnceNext ||
       currentReaderControllerType == ReaderControllerType.threeArea;
   bool get _paired => widget.readerType == ReaderType.twoPageGallery;
+  bool get _autoAppendChapters => true;
   int _normalizePage(int page) =>
       _paired ? (_position.clamp(page) ~/ 2) * 2 : _position.clamp(page);
 
@@ -601,20 +702,35 @@ abstract class _ComicReaderState extends State<_ComicReader>
   @override
   void initState() {
     super.initState();
-    _position = ReaderPosition(widget.chapter.images.length, widget.startIndex);
+    final initialChapter = _buildChapterData(widget.chapter);
+    _chapters.add(initialChapter);
+    _pages = initialChapter.pages;
+    _pageRefs = [
+      for (var index = 0; index < _pages.length; index++)
+        _ReaderPageRef(
+          chapter: initialChapter,
+          chapterPageIndex: index,
+          page: _pages[index],
+        ),
+    ];
+    _lastOpenedChapterId = widget.chapter.id;
+    _position = ReaderPosition(_pages.length, widget.startIndex);
     _position.report(_normalizePage(widget.startIndex));
     _fullScreen = widget.fullScreenOnInit;
     final comicId = widget.comicId;
-    final chapterId = widget.chapter.id;
     _progressWriter = ReaderProgressWriter(
       comicId: comicId,
-      save: (page) async => methods.updateViewLog(comicId, chapterId, page),
+      save: (page) async {
+        final ref = _pageRefAt(_position.clamp(page));
+        await methods.updateViewLog(
+          comicId,
+          ref.chapter.chapter.id,
+          ref.chapterPageIndex,
+        );
+      },
       onError: (error, stack) =>
           debugPrient('reader progress write failed: ${error.runtimeType}'),
     );
-    _pages = widget.chapter.offlineImages == null
-        ? ReaderPageRepository.fromOnline(widget.chapter.images)
-        : ReaderPageRepository.fromOffline(widget.chapter.offlineImages!);
     WidgetsBinding.instance.addObserver(this);
     _readerControllerEvent.subscribe(_onPageControl);
     if (Platform.isAndroid && currentVolumeKeyControl()) {
@@ -625,23 +741,114 @@ abstract class _ComicReaderState extends State<_ComicReader>
       _systemUiLease = enterReaderSystemUi(fullScreen: _fullScreen);
     }
     unawaited(_loadReaderSuperResolutionState());
-    if (Platform.isAndroid || Platform.isIOS) {
-      _subscribeReaderSystemStatus();
-    }
-    _readerClockTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) {
-        if (mounted) setState(() => _readerClock = DateTime.now());
-      },
-    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _progressWriter.schedule(_current);
       _preloadAround(_current);
+      _maybeAppendNextChapter();
     });
   }
 
-  PageDescriptor _pageAt(int index) => _pages[index];
+  _ReaderPageRef _pageRefAt(int index) => _pageRefs[index];
+
+  _ReaderChapterData _buildChapterData(ChapterResponse chapter) {
+    final pages = chapter.offlineImages == null
+        ? ReaderPageRepository.fromOnline(chapter.images)
+        : ReaderPageRepository.fromOffline(chapter.offlineImages!);
+    return _ReaderChapterData(chapter: chapter, pages: pages);
+  }
+
+  void _appendChapter(_ReaderChapterData data) {
+    final previousLength = _pages.length;
+    final previousCurrent = _position.current;
+    _chapters.add(data);
+    _pages = [..._pages, ...data.pages];
+    _pageRefs = [
+      ..._pageRefs,
+      for (var index = 0; index < data.pages.length; index++)
+        _ReaderPageRef(
+          chapter: data,
+          chapterPageIndex: index,
+          page: data.pages[index],
+        ),
+    ];
+    _position = ReaderPosition(_pages.length, previousCurrent);
+    _nextChapterError = null;
+    _reachedLastChapter = false;
+    _onPagesAppended(previousLength);
+  }
+
+  void _onPagesAppended(int previousLength) {}
+  void _onPageCachePruned(Set<int> indices) {}
+
+  List<Series> _seriesFor(_ReaderChapterData data) =>
+      data.chapter.series.isEmpty ? widget.fallbackSeries : data.chapter.series;
+
+  int? _nextChapterIdFor(_ReaderChapterData data) {
+    final entries = _sortReaderSeries(_seriesFor(data));
+    final index = entries.indexWhere(
+      (entry) => entry.id == data.chapter.id,
+    );
+    return index >= 0 && index + 1 < entries.length
+        ? entries[index + 1].id
+        : null;
+  }
+
+  _ReaderChapterData get _currentChapter =>
+      _pageRefAt(_position.navigationPage).chapter;
+
+  Future<void> _maybeAppendNextChapter({bool force = false}) async {
+    if (!_autoAppendChapters ||
+        _nextChapterLoading ||
+        _reachedLastChapter ||
+        (!force && _current < _pages.length - 4)) {
+      return;
+    }
+    final nextId = _nextChapterIdFor(_currentChapter);
+    if (nextId == null) {
+      if (mounted) setState(() => _reachedLastChapter = true);
+      return;
+    }
+    if (_chapters.any((entry) => entry.chapter.id == nextId)) return;
+
+    setState(() {
+      _nextChapterLoading = true;
+      _nextChapterError = null;
+    });
+    try {
+      var targetId = nextId;
+      _ReaderChapterData? loaded;
+      final visited = <int>{};
+      while (visited.add(targetId)) {
+        final chapter = await widget.loadChapter(targetId);
+        if (!mounted) return;
+        final data = _buildChapterData(chapter);
+        if (data.pages.isNotEmpty) {
+          loaded = data;
+          break;
+        }
+        final followingId = _nextChapterIdFor(data);
+        if (followingId == null) break;
+        targetId = followingId;
+      }
+      if (!mounted) return;
+      if (loaded == null) {
+        setState(() => _reachedLastChapter = true);
+        return;
+      }
+      setState(() => _appendChapter(loaded!));
+      _preloadAround(_current);
+    } catch (error, stack) {
+      if (!mounted) return;
+      debugPrient(
+        'reader next chapter append failed: '
+        '${error.runtimeType}/${stack.runtimeType}',
+      );
+      setState(() => _nextChapterError = error);
+    } finally {
+      if (mounted) setState(() => _nextChapterLoading = false);
+    }
+  }
 
   Future<void> _loadReaderSuperResolutionState() async {
     await loadSuperResolutionState();
@@ -652,25 +859,13 @@ abstract class _ComicReaderState extends State<_ComicReader>
     });
   }
 
-  void _subscribeReaderSystemStatus() {
-    _readerSystemStatusSubscription =
-        _readerSystemStatusChannel.receiveBroadcastStream().listen(
-      (event) {
-        if (!mounted || event is! Map) return;
-        setState(() {
-          _readerSystemStatus = {
-            'network': event['network']?.toString() ?? 'unknown',
-            'battery': (event['battery'] as num?)?.toInt() ?? -1,
-            'charging': event['charging'] == true,
-          };
-        });
-      },
-      onError: (_) {},
-    );
-  }
-
   PageImageProvider _readerPageProvider(int index) =>
       _pageProvider(index, superResolution: true);
+
+  PageImageProvider _readerVisibleProvider(int index) => _pageProvider(
+        index,
+        superResolution: _readerSuperResolutionEnabled,
+      );
 
   PageImageProvider _readerPreloadProvider(int index) => _pageProvider(
         index,
@@ -684,8 +879,9 @@ abstract class _ComicReaderState extends State<_ComicReader>
   }) {
     final cache = superResolution ? _providers : _originalProviders;
     return cache.putIfAbsent(index, () {
-      final page = _pageAt(index);
-      return PageImageProvider(widget.chapter.id, page.name,
+      final ref = _pageRefAt(index);
+      final page = ref.page;
+      return PageImageProvider(ref.chapter.chapter.id, page.name,
           pageIndex: page.sourceIndex,
           localPath: page.localAvailable ? page.localPath : null,
           localOnly: page.localPath != null,
@@ -712,7 +908,7 @@ abstract class _ComicReaderState extends State<_ComicReader>
       showDialog<void>(
         context: context,
         builder: (_) => _SuperResolutionComparisonDialog(
-          pageNumber: index + 1,
+          pageNumber: _pageRefAt(index).chapterPageIndex + 1,
           result: result,
         ),
       ),
@@ -779,10 +975,40 @@ abstract class _ComicReaderState extends State<_ComicReader>
     final previousTarget = _jumpTarget;
     final changed = _position.report(index);
     if (changed) {
+      _pruneDistantPageCaches(_current);
       _progressWriter.schedule(_current);
       _preloadAround(_current);
+      _maybeAppendNextChapter();
+      _reportCurrentChapterOpened();
     }
     if (changed || previousTarget != _jumpTarget) _repaint();
+  }
+
+  void _reportCurrentChapterOpened() {
+    final chapterId = _currentChapter.chapter.id;
+    if (_lastOpenedChapterId == chapterId) return;
+    _lastOpenedChapterId = chapterId;
+    widget.onChapterOpened?.call(chapterId);
+  }
+
+  void _pruneDistantPageCaches(int current) {
+    const retainedPageRange = 24;
+    bool isStale(int index) => (index - current).abs() > retainedPageRange;
+    final stale = {
+      ..._providers.keys.where(isStale),
+      ..._originalProviders.keys.where(isStale),
+    };
+    if (stale.isEmpty) return;
+    for (final index in stale) {
+      final provider = _providers.remove(index);
+      final originalProvider = _originalProviders.remove(index);
+      if (provider != null) imageCache.evict(provider, includeLive: true);
+      if (originalProvider != null) {
+        imageCache.evict(originalProvider, includeLive: true);
+      }
+      _superResolutionResults.remove(index);
+    }
+    _onPageCachePruned(stale);
   }
 
   void _needJumpTo(int index, bool animation) {
@@ -799,6 +1025,7 @@ abstract class _ComicReaderState extends State<_ComicReader>
         await _moveTo(target, animation && !replacing && !currentNoAnimation());
         if (!mounted || !_position.isCurrent(revision)) return;
         _position.finish(revision, _visiblePage());
+        _reportCurrentChapterOpened();
         _progressWriter.schedule(_current);
         _repaint();
       } catch (error) {
@@ -841,8 +1068,6 @@ abstract class _ComicReaderState extends State<_ComicReader>
   @override
   void dispose() {
     _preloadRevision++;
-    _readerClockTimer?.cancel();
-    unawaited(_readerSystemStatusSubscription?.cancel());
     _position.cancel();
     _progressWriter.schedule(_current);
     unawaited(_progressWriter.close());
@@ -851,10 +1076,13 @@ abstract class _ComicReaderState extends State<_ComicReader>
     if (_didAddVolumeListen) delVolumeListen();
     unawaited(_systemUiLease?.release());
     final providers = _providers.values.toList();
-    final chapter = widget.chapter;
+    final chapters =
+        _chapters.map((entry) => entry.chapter).toList(growable: false);
     void release() {
-      for (final name in chapter.images) {
-        evictPageImageMemoryCache(chapter.id, name, includeLive: true);
+      for (final chapter in chapters) {
+        for (final name in chapter.images) {
+          evictPageImageMemoryCache(chapter.id, name, includeLive: true);
+        }
       }
       for (final provider in providers) {
         imageCache.evict(provider, includeLive: true);
@@ -934,12 +1162,12 @@ abstract class _ComicReaderState extends State<_ComicReader>
                   MediaQuery.paddingOf(context).bottom,
           child: IgnorePointer(
             child: _ReaderInfoBar(
-              currentPage: _current + 1,
-              totalPages: _pages.length,
-              network: _readerSystemStatus?['network']?.toString() ?? 'unknown',
-              battery: (_readerSystemStatus?['battery'] as int?) ?? -1,
-              charging: _readerSystemStatus?['charging'] == true,
-              time: _readerClock,
+              currentPage: _displayChapterPageIndex + 1,
+              totalPages: _displayChapterPageCount,
+              network: widget.systemStatus?['network']?.toString() ?? 'unknown',
+              battery: (widget.systemStatus?['battery'] as int?) ?? -1,
+              charging: widget.systemStatus?['charging'] == true,
+              time: widget.readerClock ?? DateTime.now(),
             ),
           ),
         ),
@@ -960,7 +1188,7 @@ abstract class _ComicReaderState extends State<_ComicReader>
                       const SizedBox(width: 16),
                       Expanded(
                         child: Text(
-                          widget.chapter.name,
+                          _currentChapter.chapter.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -1042,21 +1270,14 @@ abstract class _ComicReaderState extends State<_ComicReader>
                           borderRadius: BorderRadius.circular(99),
                         ),
                         child: Text(
-                          '${_slider + 1} / ${widget.chapter.images.length}',
+                          '${_displayChapterPageIndex + 1} / '
+                          '$_displayChapterPageCount',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 5),
-                      _readerIconButton(
-                        tooltip: _nextChapterId != null
-                            ? context.l10n.tr('下一章', en: 'Next chapter')
-                            : context.l10n.tr('结束阅读', en: 'Finish reading'),
-                        icon: Icons.skip_next_rounded,
-                        onPressed: _onNextAction,
                       ),
                     ]),
                   ),
@@ -1104,7 +1325,8 @@ abstract class _ComicReaderState extends State<_ComicReader>
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.white.withValues(alpha: .12)),
             ),
-            child: Text('${_slider + 1} / ${widget.chapter.images.length}',
+            child: Text(
+                '${_displayChapterPageIndex + 1} / $_displayChapterPageCount',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 24,
@@ -1134,7 +1356,12 @@ abstract class _ComicReaderState extends State<_ComicReader>
   }
 
   Widget _buildSliderWidget(Axis axis) {
-    if (widget.chapter.images.length <= 1) return const SizedBox.shrink();
+    final chapterRef = _displayPageRef.chapter;
+    final int chapterStart =
+        _pageRefs.indexWhere((entry) => identical(entry.chapter, chapterRef));
+    if (chapterRef.pages.length <= 1 || chapterStart < 0) {
+      return const SizedBox.shrink();
+    }
     return FlutterSlider(
       axis: axis,
       handlerWidth: 14,
@@ -1162,25 +1389,24 @@ abstract class _ComicReaderState extends State<_ComicReader>
           color: Theme.of(context).colorScheme.secondary,
         ),
       ),
-      values: [_slider.toDouble()],
+      values: [_displayChapterPageIndex.toDouble()],
       min: 0,
-      max: (widget.chapter.images.length - 1).toDouble(),
+      max: (chapterRef.pages.length - 1).toDouble(),
       onDragStarted: (_, __, ___) =>
           setState(() => _position.preview = _current),
       onDragging: (_, value, __) =>
-          setState(() => _position.preview = _position.clamp(value.toInt())),
-      onDragCompleted: (_, value, __) => _needJumpTo(value.toInt(), false),
+          setState(() => _position.preview = _position.clamp(
+                chapterStart + (value as num).round(),
+              )),
+      onDragCompleted: (_, value, __) =>
+          _needJumpTo(chapterStart + (value as num).round(), false),
       step: const FlutterSliderStep(step: 1, isPercentRange: false),
       tooltip: FlutterSliderTooltip(disabled: true),
     );
   }
 
   int? get _nextChapterId {
-    final entries = _sortReaderSeries(_series);
-    final index = entries.indexWhere((entry) => entry.id == widget.chapter.id);
-    return index >= 0 && index + 1 < entries.length
-        ? entries[index + 1].id
-        : null;
+    return _nextChapterIdFor(_currentChapter);
   }
 
   Future<void> _navigate(int id) async {
@@ -1197,38 +1423,66 @@ abstract class _ComicReaderState extends State<_ComicReader>
     }
   }
 
-  Future<void> _onNextAction() async {
-    final next = _nextChapterId;
-    if (next != null) {
-      await _navigate(next);
-    } else if (mounted) {
-      defaultToast(
-          context, context.l10n.tr('已经到头了', en: 'You have reached the end'));
-    }
-  }
-
-  Widget _buildNextEp() => Padding(
-      padding: EdgeInsets.only(
-          bottom: !_fullScreen &&
-                  currentReaderSliderPosition == ReaderSliderPosition.bottom
-              ? _bottomControlsHeight + MediaQuery.viewPaddingOf(context).bottom
-              : 0),
-      child: SizedBox(
-          height: 100,
-          child: Center(
-            child: TextButton(
-              onPressed: _nextChapterId != null
-                  ? _onNextAction
-                  : () => Navigator.maybePop(context),
-              child: Text(_nextChapterId != null
-                  ? context.l10n.tr('下一章', en: 'Next chapter')
-                  : context.l10n.tr('结束阅读', en: 'Finish reading')),
+  Widget _buildContinuousFooter() {
+    late final Widget content;
+    if (_nextChapterLoading) {
+      content = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2.2),
             ),
-          )));
-
-  List<Series> get _series => widget.chapter.series.isEmpty
-      ? widget.fallbackSeries
-      : widget.chapter.series;
+            const SizedBox(height: 10),
+            Text(
+              context.l10n.tr('正在加载后续内容', en: 'Loading more pages'),
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ],
+        ),
+      );
+    } else if (_nextChapterError != null) {
+      content = Center(
+        child: TextButton.icon(
+          onPressed: () => unawaited(
+            _maybeAppendNextChapter(force: true),
+          ),
+          icon: const Icon(Icons.refresh_rounded, size: 18),
+          label: Text(
+            context.l10n.tr('后续内容加载失败，点击重试', en: 'Retry loading'),
+          ),
+        ),
+      );
+    } else if (_reachedLastChapter || _nextChapterId == null) {
+      content = Center(
+        child: Text(
+          context.l10n.tr('已经到最后了', en: 'You have reached the end'),
+          style: const TextStyle(color: Colors.white54, fontSize: 12),
+        ),
+      );
+    } else {
+      content = Center(
+        child: Text(
+          context.l10n.tr(
+            '继续向下滚动以加载后续内容',
+            en: 'Keep scrolling to load more pages',
+          ),
+          style: const TextStyle(color: Colors.white54, fontSize: 12),
+        ),
+      );
+    }
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: !_fullScreen &&
+                currentReaderSliderPosition == ReaderSliderPosition.bottom
+            ? _bottomControlsHeight + MediaQuery.viewPaddingOf(context).bottom
+            : 0,
+      ),
+      child: content,
+    );
+  }
 
   Future<void> _onChooseEp() async {
     if (_modalInFlight || _navigationInFlight) return;
@@ -1251,9 +1505,9 @@ abstract class _ComicReaderState extends State<_ComicReader>
           child: SafeArea(
             top: false,
             child: _EpChooser(
-              widget.chapter,
+              _currentChapter.chapter,
               (id, _) => _navigate(id),
-              series: _series,
+              series: _seriesFor(_currentChapter),
             ),
           ),
         ),

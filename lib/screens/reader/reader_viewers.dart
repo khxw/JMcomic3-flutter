@@ -35,6 +35,24 @@ class _ContinuousReaderState extends _ComicReaderState {
     super.dispose();
   }
 
+  @override
+  void _onPagesAppended(int previousLength) {
+    _sizes.addAll(
+      _pages.skip(previousLength).map(
+            (page) => page.hasDimensions
+                ? Size(page.width.toDouble(), page.height.toDouble())
+                : null,
+          ),
+    );
+  }
+
+  @override
+  void _onPageCachePruned(Set<int> indices) {
+    for (final index in indices) {
+      _pageContexts.remove(index);
+    }
+  }
+
   void _queuePositionReport() {
     if (!mounted || _reportQueued) return;
     _reportQueued = true;
@@ -48,7 +66,7 @@ class _ContinuousReaderState extends _ComicReaderState {
   int _visiblePage() {
     final positions = _positions.itemPositions.value
         .where((p) =>
-            p.index < widget.chapter.images.length &&
+            p.index < _pages.length &&
             p.itemTrailingEdge > 0 &&
             p.itemLeadingEdge < 1)
         .toList()
@@ -112,11 +130,14 @@ class _ContinuousReaderState extends _ComicReaderState {
           reverse: widget.readerDirection == ReaderDirection.rightToLeft,
           minCacheExtent: 0,
           physics: const ClampingScrollPhysics(),
-          itemCount: widget.chapter.images.length + 1,
+          itemCount: _pages.length + 1,
           itemBuilder: (context, index) {
-            if (index == widget.chapter.images.length) {
+            if (index == _pages.length) {
               return SizedBox(
-                  width: _vertical ? size.width : 180, child: _buildNextEp());
+                width: _vertical ? size.width : 180,
+                height: _vertical ? 160 : size.height,
+                child: _buildContinuousFooter(),
+              );
             }
             final source = _sizes[index];
             final ratio = source == null
@@ -125,13 +146,21 @@ class _ContinuousReaderState extends _ComicReaderState {
             final extent = _vertical
                 ? Size(size.width, size.width / ratio)
                 : Size(size.height * ratio, size.height);
-            final page = _pageAt(index);
+            final ref = _pageRefAt(index);
+            final page = ref.page;
+            final pageKeyIndex = ref.chapter.chapter.id == widget.chapter.id
+                ? index
+                : ref.chapterPageIndex;
             return Builder(builder: (pageContext) {
               _pageContexts[index] = pageContext;
               return JMPageImage(
-                widget.chapter.id,
+                ref.chapter.chapter.id,
                 page.name,
-                key: ValueKey('reader-page-${widget.chapter.id}-$index'),
+                key: ValueKey(
+                  'reader-page-${ref.chapter.chapter.id}-'
+                  '$pageKeyIndex',
+                ),
+                imageProvider: _readerVisibleProvider(index),
                 pageIndex: page.sourceIndex,
                 localPath: page.localAvailable ? page.localPath : null,
                 localOnly: page.localPath != null,
@@ -226,18 +255,19 @@ class _PagedReaderState extends _ComicReaderState {
   Future<void> _reloadImage(int index) async {
     final provider = _readerPageProvider(index);
     imageCache.evict(provider, includeLive: true);
-    final page = _pageAt(index);
+    final ref = _pageRefAt(index);
+    final page = ref.page;
     // Retry only this page's path/decode lookup. Never delete downloaded files
     // or clear unrelated caches as a side effect of a reader retry.
-    evictPageImageMemoryCache(widget.chapter.id, page.name);
+    evictPageImageMemoryCache(ref.chapter.chapter.id, page.name);
     if (!mounted) return;
     _providers.remove(index);
     setState(() => _reloadVersions[index] = (_reloadVersions[index] ?? 0) + 1);
   }
 
   Widget _image(int index) => Image(
-        key: ValueKey(
-            'reader-page-${widget.chapter.id}-$index-${_reloadVersions[index] ?? 0}'),
+        key: ValueKey('reader-page-${_pageRefAt(index).chapter.chapter.id}-'
+            '$index-${_reloadVersions[index] ?? 0}'),
         image: _readerPageProvider(index),
         fit: BoxFit.contain,
         errorBuilder: (context, error, stack) => LayoutBuilder(
@@ -251,7 +281,7 @@ class _PagedReaderState extends _ComicReaderState {
   @override
   Widget _buildViewer() => LayoutBuilder(builder: (context, constraints) {
         final size = constraints.biggest;
-        final pairs = buildPagePairs(widget.chapter.images.length,
+        final pairs = buildPagePairs(_pages.length,
             cover: false,
             rtl: currentTwoPageDirection == TwoPageDirection.rightToLeft);
         return Listener(
@@ -259,8 +289,7 @@ class _PagedReaderState extends _ComicReaderState {
             child: Stack(children: [
               PhotoViewGallery.builder(
                 pageController: _pageController,
-                itemCount:
-                    _paired ? pairs.length : widget.chapter.images.length,
+                itemCount: _paired ? pairs.length : _pages.length,
                 scrollDirection:
                     widget.readerDirection == ReaderDirection.topToBottom
                         ? Axis.vertical
@@ -321,13 +350,6 @@ class _PagedReaderState extends _ComicReaderState {
                   );
                 },
               ),
-              if (_current >=
-                  (_paired
-                      ? (widget.chapter.images.length - 1) ~/ 2 * 2
-                      : widget.chapter.images.length - 1))
-                Align(
-                    alignment: Alignment.bottomRight,
-                    child: SizedBox(width: 150, child: _buildNextEp())),
             ]));
       });
 }

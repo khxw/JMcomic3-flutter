@@ -19,7 +19,6 @@ import 'package:jmcomic3/configs/proxy.dart';
 import 'package:jmcomic3/configs/recommend_links.dart';
 import 'package:jmcomic3/configs/search_title_words.dart';
 import 'package:jmcomic3/configs/theme.dart';
-import 'package:jmcomic3/configs/two_page_direction.dart';
 import 'package:jmcomic3/configs/using_right_click_pop.dart';
 import 'package:jmcomic3/configs/volume_key_control.dart';
 import 'package:jmcomic3/configs/web_dav_password.dart';
@@ -62,7 +61,6 @@ Future initConfigs(BuildContext context) async {
     initPagerControllerMode(),
     initPagerViewMode(),
     initReaderType(),
-    initTwoPageDirection(),
     initReaderDirection(),
     initReaderControllerType(),
     initReaderPreload(),

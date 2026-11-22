@@ -6,10 +6,17 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 
 enum ReaderType {
   webtoon,
+  // Legacy values remain parseable so older local/WebDAV snapshots can be
+  // migrated without losing the user's other reader preferences.
   gallery,
   webToonFreeZoom,
   twoPageGallery,
 }
+
+const selectableReaderTypes = [
+  ReaderType.webtoon,
+  ReaderType.webToonFreeZoom,
+];
 
 const _propertyName = "readerType";
 late ReaderType _readerType;
@@ -19,11 +26,12 @@ Future initReaderType() async {
 }
 
 ReaderType _fromString(String valueForm) {
-  return parseEnumPropertyValue(
+  final parsed = parseEnumPropertyValue(
     valueForm,
     ReaderType.values,
     ReaderType.webtoon,
   );
+  return selectableReaderTypes.contains(parsed) ? parsed : ReaderType.webtoon;
 }
 
 ReaderType get currentReaderType => _readerType;
@@ -31,13 +39,13 @@ ReaderType get currentReaderType => _readerType;
 String readerTypeName(ReaderType type, BuildContext context) {
   switch (type) {
     case ReaderType.webtoon:
-      return "WebToon";
+      return context.l10n.tr("无限瀑布流", en: "Infinite webtoon");
     case ReaderType.gallery:
       return context.l10n.tr("相册", en: "Gallery");
     case ReaderType.webToonFreeZoom:
       return context.l10n.tr(
-        "自由缩放翻页",
-        en: "Free zoom paging",
+        "自由缩放瀑布流",
+        en: "Zoomable webtoon",
       );
     case ReaderType.twoPageGallery:
       return context.l10n.tr("双页相册", en: "Two-page gallery");
@@ -46,7 +54,7 @@ String readerTypeName(ReaderType type, BuildContext context) {
 
 Future chooseReaderType(BuildContext context) async {
   final Map<String, ReaderType> map = {};
-  for (var element in ReaderType.values) {
+  for (final element in selectableReaderTypes) {
     map[readerTypeName(element, context)] = element;
   }
   final newReaderType = await chooseMapDialog(

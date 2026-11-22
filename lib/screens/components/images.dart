@@ -864,6 +864,10 @@ class JMPageImage extends StatefulWidget {
   final double? height;
   final Function(Size size)? onTrueSize;
 
+  /// Optional provider shared with the reader's preload cache. When supplied,
+  /// the visible page and its speculative decode use the exact same cache key.
+  final ImageProvider? imageProvider;
+
   const JMPageImage(this.id, this.imageName,
       {Key? key,
       this.pageIndex,
@@ -872,7 +876,8 @@ class JMPageImage extends StatefulWidget {
       this.preserveSourceAspectRatio = false,
       this.width,
       this.height,
-      this.onTrueSize})
+      this.onTrueSize,
+      this.imageProvider})
       : super(key: key);
 
   @override
@@ -1017,6 +1022,7 @@ class _JMPageImageState extends State<JMPageImage> {
       widget.height,
       offlineOnly: widget.localOnly,
       preserveSourceAspectRatio: widget.preserveSourceAspectRatio,
+      imageProvider: widget.imageProvider,
       onReload: _reload,
       onDecodeError: _autoRetryOnDecodeError,
       onImageProvider: (provider) =>
@@ -1047,7 +1053,8 @@ Widget pathFutureImage(
     ValueChanged<ImageProvider>? onImageProvider,
     bool offlineOnly = false,
     bool preserveSourceAspectRatio = false,
-    bool fitDecodeToBounds = false}) {
+    bool fitDecodeToBounds = false,
+    ImageProvider? imageProvider}) {
   // 使用 FutureBuilder 渲染加载/错误/成功状态
   return FutureBuilder<String>(
       future: future,
@@ -1085,6 +1092,7 @@ Widget pathFutureImage(
             onImageProvider: onImageProvider,
             preserveSourceAspectRatio: preserveSourceAspectRatio,
             fitDecodeToBounds: fitDecodeToBounds,
+            imageProvider: imageProvider,
           );
         }
         if (snapshot.connectionState == ConnectionState.done) {
@@ -1392,16 +1400,19 @@ Widget buildFile(
     VoidCallback? onDecodeError,
     ValueChanged<ImageProvider>? onImageProvider,
     bool preserveSourceAspectRatio = false,
-    bool fitDecodeToBounds = false}) {
+    bool fitDecodeToBounds = false,
+    ImageProvider? imageProvider}) {
   final devicePixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
   final cacheWidth = _cacheExtent(width, devicePixelRatio);
   final cacheHeight = _cacheExtent(height, devicePixelRatio);
   // Cover frames and padding are independent of the source image ratio.
   // Preserve the decoded cover pixels, then let BoxFit scale and crop them.
   // Exact width/height decode targets would distort the image before painting.
-  final source = FileImage(File(file));
+  final source = imageProvider ?? FileImage(File(file));
   final ImageProvider provider;
-  if (preserveSourceAspectRatio) {
+  if (imageProvider != null) {
+    provider = imageProvider;
+  } else if (preserveSourceAspectRatio) {
     provider = source;
   } else if (fitDecodeToBounds && (cacheWidth != null || cacheHeight != null)) {
     provider = ResizeImage(
@@ -1418,6 +1429,7 @@ Widget buildFile(
     image: provider,
     width: width,
     height: height,
+    gaplessPlayback: true,
     errorBuilder: (a, b, c) {
       debugPrient("image decode failed: $b");
       debugPrient("image decode stack: $c");

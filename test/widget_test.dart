@@ -170,15 +170,17 @@ void main() {
     }
 
     await tester.pumpWidget(buildReader(10));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
     await tester.pumpWidget(buildReader(11));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(loaded, [10, 11]);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('next chapter uses entry series when chapter response omits it',
+  testWidgets('next chapter auto-appends when response omits the entry series',
       (tester) async {
     final loaded = <int>[];
     final readerKey = GlobalKey();
@@ -213,24 +215,23 @@ void main() {
         },
       ),
     ));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
     final readerState = readerKey.currentState;
     expect(readerState, isNotNull);
-    await tester.tap(find.byIcon(Icons.skip_next_rounded));
-    await tester.pump();
-
-    expect(readerKey.currentState, same(readerState));
-    expect(
-        find.byKey(const ValueKey('reader-chapter-loading')), findsOneWidget);
+    expect(loaded, [10, 20]);
+    expect(find.byIcon(Icons.skip_next_rounded), findsNothing);
     expect(find.text('Chapter 10'), findsOneWidget);
 
     secondChapter.complete(chapterResponse(20));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
     expect(loaded, [10, 20]);
     expect(readerKey.currentState, same(readerState));
-    expect(find.text('Chapter 20'), findsOneWidget);
+    expect(find.text('Chapter 10'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
   });
 }

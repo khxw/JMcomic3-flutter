@@ -310,8 +310,8 @@ void main() {
           .itemScrollController!
           .jumpTo(index: 10);
       await tester.pumpAndSettle();
-      final end = find.text('Finish reading');
-      expect(end.hitTestable(), findsOneWidget);
+      final end = find.text('You have reached the end');
+      expect(end, findsOneWidget);
       expect(
           tester.getRect(end).bottom, lessThan(tester.getRect(barFinder).top));
       expect(tester.takeException(), isNull);
@@ -669,6 +669,24 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('continuous visible pages reuse the preload image cache key',
+      (tester) async {
+    final readerKey = await mountReader(
+      tester,
+      ReaderType.webtoon,
+      ReaderDirection.topToBottom,
+      startIndex: 5,
+      preloadDistance: 2,
+    );
+
+    final visible = comicReaderVisibleProviderForTest(readerKey, 6);
+    final preloaded = comicReaderPreloadProviderForTest(readerKey, 6);
+
+    expect(identical(visible, preloaded), isTrue);
+    expect(visible, isA<PageImageProvider>());
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('exit during an animated jump persists the actual visible page',
       (tester) async {
     int? actualAtRemoval;
@@ -773,6 +791,7 @@ void main() {
     );
     expect(pageFinder, findsOneWidget);
     final provider = tester.widget<Image>(pageFinder).image;
+    expect(provider, isA<PageImageProvider>());
     final providerKey = await provider.obtainKey(ImageConfiguration.empty);
     var status = imageCache.statusForKey(providerKey);
     expect(status.live || status.keepAlive || status.pending, isTrue);
@@ -805,6 +824,80 @@ void main() {
 
     expect(temporaryCacheClears, 1);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'continuous reader appends the next chapter without replacing the page',
+      (tester) async {
+    await initReaderControllerType();
+    await initReaderDirection();
+    await initReaderType();
+    await initReaderSliderPosition();
+    await initNoAnimation();
+    await initVolumeKeyControl();
+    await initTwoPageDirection();
+    await initReaderPreload();
+
+    final readerKey = GlobalKey();
+    final loaded = <int>[];
+    final opened = <int>[];
+    final first = ChapterResponse(
+      id: 201,
+      series: [],
+      tags: '',
+      name: 'Chapter 201',
+      images: const ['0.png', '1.png'],
+      seriesId: 201,
+      isFavorite: false,
+      liked: false,
+    );
+    final second = ChapterResponse(
+      id: 202,
+      series: [],
+      tags: '',
+      name: 'Chapter 202',
+      images: const ['2.png', '3.png'],
+      seriesId: 202,
+      isFavorite: false,
+      liked: false,
+    );
+    final series = [
+      Series(id: 201, name: 'Chapter 201', sort: '1'),
+      Series(id: 202, name: 'Chapter 202', sort: '2'),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: const [AppLocalizations.delegate],
+      home: Scaffold(
+        body: buildComicReaderForTest(
+          key: readerKey,
+          chapter: first,
+          fallbackSeries: series,
+          readerType: ReaderType.webtoon,
+          direction: ReaderDirection.topToBottom,
+          startIndex: 0,
+          loadChapter: (id) async {
+            loaded.add(id);
+            return second;
+          },
+          onChapterOpened: opened.add,
+        ),
+      ),
+    ));
+    await pumpReader(tester);
+
+    expect(loaded, [202]);
+
+    jumpComicReaderForTest(readerKey, 2, animation: false);
+    await pumpReader(tester);
+
+    expect(comicReaderProgressForTest(readerKey).current, 2);
+    expect(opened, [202]);
+    expect(find.text('Chapter 202'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   });
 }
 
