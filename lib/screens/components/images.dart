@@ -118,6 +118,7 @@ class PageImageProvider extends ImageProvider<PageImageProvider> {
   /// Enables the optional reader-only super-resolution path. Cover images and
   /// test fixtures keep their original bytes and never pay the inference cost.
   final bool superResolution;
+  final bool superResolutionPreload;
   final ValueChanged<SuperResolutionPageResult>? onSuperResolutionResolved;
 
   PageImageProvider(
@@ -130,6 +131,7 @@ class PageImageProvider extends ImageProvider<PageImageProvider> {
     String? localPath,
     this.localOnly = false,
     this.superResolution = false,
+    this.superResolutionPreload = false,
     this.onSuperResolutionResolved,
   })  : pageIndex = _normalizePageIndex(pageIndex),
         cacheWidth = _normalizeDecodeTarget(cacheWidth),
@@ -147,7 +149,10 @@ class PageImageProvider extends ImageProvider<PageImageProvider> {
       path = await _cachedPageImagePath(key.id, key.imageName);
     }
     if (key.superResolution) {
-      final result = await superResolutionPageResult(path);
+      final result = await superResolutionPageResult(
+        path,
+        preload: key.superResolutionPreload,
+      );
       key.onSuperResolutionResolved?.call(result);
       return result.displayPath;
     }
@@ -269,12 +274,22 @@ class PageImageProvider extends ImageProvider<PageImageProvider> {
         cacheHeight == typedOther.cacheHeight &&
         localPath == typedOther.localPath &&
         localOnly == typedOther.localOnly &&
-        superResolution == typedOther.superResolution;
+        superResolution == typedOther.superResolution &&
+        superResolutionPreload == typedOther.superResolutionPreload;
   }
 
   @override
-  int get hashCode => Object.hash(id, imageName, scale, pageIndex, cacheWidth,
-      cacheHeight, localPath, localOnly, superResolution);
+  int get hashCode => Object.hash(
+      id,
+      imageName,
+      scale,
+      pageIndex,
+      cacheWidth,
+      cacheHeight,
+      localPath,
+      localOnly,
+      superResolution,
+      superResolutionPreload);
 
   @override
   String toString() => '$runtimeType('
@@ -286,6 +301,7 @@ class PageImageProvider extends ImageProvider<PageImageProvider> {
       ' cacheHeight: $cacheHeight,'
       ' localPath: ${localPath == null ? '<cache>' : describeIdentity(localPath)},'
       ' superResolution: $superResolution,'
+      ' superResolutionPreload: $superResolutionPreload,'
       ' localOnly: $localOnly'
       ')';
 }

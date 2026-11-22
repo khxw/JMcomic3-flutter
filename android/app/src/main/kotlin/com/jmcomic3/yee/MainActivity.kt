@@ -39,6 +39,7 @@ import opensource.jenny.Jni
 import java.util.concurrent.LinkedBlockingQueue
 import android.hardware.biometrics.BiometricPrompt
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import android.os.CancellationSignal
 import java.security.MessageDigest
 import kotlin.math.roundToInt
@@ -57,9 +58,13 @@ class MainActivity : FlutterActivity() {
     private val uiThreadHandler = Handler(Looper.getMainLooper())
     private val pool =
         Executors.newCachedThreadPool { runnable -> Thread(runnable).also { it.isDaemon = true } }
+    private val superResolutionThreadIndex = AtomicInteger(0)
     private val superResolutionPool: ExecutorService =
-        Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "jmcomic-super-resolution").also { it.isDaemon = true }
+        Executors.newFixedThreadPool(2) { runnable ->
+            Thread(
+                runnable,
+                "jmcomic-super-resolution-${superResolutionThreadIndex.getAndIncrement()}",
+            ).also { it.isDaemon = true }
         }
     private var pendingDirectoryResult: MethodChannel.Result? = null
     private var pendingCreateDocumentResult: MethodChannel.Result? = null
@@ -141,6 +146,7 @@ class MainActivity : FlutterActivity() {
                 val modelDirectory = args["model_directory"]?.toString()?.trim() ?: ""
                 val threads = (args["threads"] as? Number)?.toInt() ?: 4
                 val tileSize = (args["tile_size"] as? Number)?.toInt() ?: 256
+                val backend = args["backend"]?.toString()?.trim() ?: "auto"
                 if (inputPath.isEmpty() || modelDirectory.isEmpty()) {
                     result.error("invalid_args", "Missing super-resolution path", null)
                     return
@@ -153,6 +159,7 @@ class MainActivity : FlutterActivity() {
                             cacheDir,
                             threads,
                             tileSize,
+                            backend,
                         )
                         uiThreadHandler.post { result.success(outputPath) }
                     } catch (error: Throwable) {
@@ -161,6 +168,24 @@ class MainActivity : FlutterActivity() {
                             result.error(
                                 "super_resolution_failed",
                                 error.message ?: "Super-resolution inference failed",
+                                null,
+                            )
+                        }
+                    }
+                }
+                return
+            }
+            "superResolutionCapabilities" -> {
+                superResolutionPool.execute {
+                    try {
+                        val capabilities = SuperResolutionBridge.capabilities()
+                        uiThreadHandler.post { result.success(capabilities) }
+                    } catch (error: Throwable) {
+                        Log.e("SuperResolution", "Capability check failed", error)
+                        uiThreadHandler.post {
+                            result.error(
+                                "super_resolution_capabilities_failed",
+                                error.message ?: "Unable to inspect Vulkan support",
                                 null,
                             )
                         }

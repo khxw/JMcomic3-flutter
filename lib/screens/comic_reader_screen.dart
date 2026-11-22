@@ -870,11 +870,13 @@ abstract class _ComicReaderState extends State<_ComicReader>
         index,
         superResolution:
             _readerSuperResolutionEnabled && _readerSuperResolutionPreload,
+        preload: true,
       );
 
   PageImageProvider _pageProvider(
     int index, {
     required bool superResolution,
+    bool preload = false,
   }) {
     final cache = superResolution ? _providers : _originalProviders;
     return cache.putIfAbsent(index, () {
@@ -885,6 +887,7 @@ abstract class _ComicReaderState extends State<_ComicReader>
           localPath: page.localAvailable ? page.localPath : null,
           localOnly: page.localPath != null,
           superResolution: superResolution,
+          superResolutionPreload: superResolution && preload,
           onSuperResolutionResolved: superResolution
               ? (result) {
                   if (!mounted) return;

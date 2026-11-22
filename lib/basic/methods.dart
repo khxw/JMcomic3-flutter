@@ -1040,17 +1040,34 @@ class Methods {
     required String modelDirectory,
     required int threads,
     required int tileSize,
+    String backend = 'auto',
   }) async {
     final result = await _channel.invokeMethod<String>("superResolutionImage", {
       "input_path": inputPath,
       "model_directory": modelDirectory,
       "threads": threads,
       "tile_size": tileSize,
+      "backend": backend,
     });
     if (result == null || result.trim().isEmpty) {
       throw StateError('super-resolution native bridge returned no path');
     }
     return result;
+  }
+
+  Future<Map<String, dynamic>> superResolutionCapabilities() async {
+    try {
+      final raw = await _channel.invokeMethod<Map<Object?, Object?>>(
+        "superResolutionCapabilities",
+      );
+      if (raw == null) return const {};
+      return raw.map((key, value) => MapEntry('$key', value));
+    } catch (error) {
+      debugPrient(
+        "super-resolution capabilities unavailable: ${error.runtimeType}",
+      );
+      return const {};
+    }
   }
 
   Future<void> clearSuperResolutionCache() async {

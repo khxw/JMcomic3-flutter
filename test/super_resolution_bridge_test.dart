@@ -17,6 +17,11 @@ void main() {
           return '/tmp/upscaled.jpg';
         case 'clearSuperResolutionCache':
           return null;
+        case 'superResolutionCapabilities':
+          return <String, Object>{
+            'vulkan_available': true,
+            'device_name': 'Test Vulkan GPU',
+          };
         default:
           throw StateError('unexpected bridge method: ${call.method}');
       }
@@ -30,12 +35,19 @@ void main() {
       modelDirectory: '/tmp/model',
       threads: 4,
       tileSize: 384,
+      backend: 'gpu',
     );
+    final capabilities = await methods.superResolutionCapabilities();
     await methods.clearSuperResolutionCache();
 
     expect(output, '/tmp/upscaled.jpg');
+    expect(capabilities, {
+      'vulkan_available': true,
+      'device_name': 'Test Vulkan GPU',
+    });
     expect(calls.map((call) => call.method), [
       'superResolutionImage',
+      'superResolutionCapabilities',
       'clearSuperResolutionCache',
     ]);
     expect(calls.first.arguments, {
@@ -43,6 +55,7 @@ void main() {
       'model_directory': '/tmp/model',
       'threads': 4,
       'tile_size': 384,
+      'backend': 'gpu',
     });
   });
 }

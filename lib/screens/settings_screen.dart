@@ -56,6 +56,7 @@ class _SettingsState extends State<SettingsScreen> {
   bool _superResolutionModelInstalled = false;
   bool _superResolutionPreloadEnabled = false;
   int _superResolutionTileSize = 256;
+  bool _superResolutionVulkanAvailable = false;
 
   @override
   void initState() {
@@ -72,6 +73,7 @@ class _SettingsState extends State<SettingsScreen> {
       _superResolutionModelInstalled = superResolutionModelInstalled;
       _superResolutionPreloadEnabled = currentSuperResolutionPreload;
       _superResolutionTileSize = currentSuperResolutionTileSize;
+      _superResolutionVulkanAvailable = superResolutionVulkanAvailable;
     });
   }
 
@@ -104,6 +106,12 @@ class _SettingsState extends State<SettingsScreen> {
 
   Future<void> _chooseSuperResolutionThreads() async {
     if (await chooseSuperResolutionThreads(context) && mounted) {
+      await _refreshSuperResolution();
+    }
+  }
+
+  Future<void> _chooseSuperResolutionBackendMode() async {
+    if (await chooseSuperResolutionBackendMode(context) && mounted) {
       await _refreshSuperResolution();
     }
   }
@@ -220,6 +228,24 @@ class _SettingsState extends State<SettingsScreen> {
                                 !_superResolutionModelInstalled
                             ? null
                             : _setSuperResolution,
+                      ),
+                      ListTile(
+                        key: const ValueKey(
+                          'settings-super-resolution-backend',
+                        ),
+                        leading: Icon(
+                          _superResolutionVulkanAvailable
+                              ? Icons.developer_board_rounded
+                              : Icons.memory_rounded,
+                        ),
+                        title: Text(
+                          l10n.tr('处理模式', en: 'Processing mode'),
+                        ),
+                        subtitle: Text(
+                          superResolutionBackendModeName(context),
+                        ),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: _chooseSuperResolutionBackendMode,
                       ),
                       ListTile(
                         key: const ValueKey(

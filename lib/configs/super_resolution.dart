@@ -13,12 +13,23 @@ const _superResolutionThreadsPropertyName =
 const _superResolutionTilePropertyName = 'reader_super_resolution_tile_v1';
 const _superResolutionPreloadPropertyName =
     'reader_super_resolution_preload_v1';
-const superResolutionFeatureAvailable = false;
+const _superResolutionBackendPropertyName =
+    'reader_super_resolution_backend_v1';
+const superResolutionFeatureAvailable = true;
+
+enum SuperResolutionBackendMode {
+  auto,
+  gpu,
+  hybrid,
+}
 
 bool _enabledPreference = false;
 int _selectedThreads = 0;
 int _selectedTileSize = 384;
 bool _preloadEnabled = false;
+SuperResolutionBackendMode _backendPreference = SuperResolutionBackendMode.auto;
+bool _vulkanAvailable = false;
+String _vulkanDeviceName = '';
 InstalledSuperResolutionModel? _installedModel;
 Future<void>? _loading;
 bool _loaded = false;
@@ -57,6 +68,21 @@ int get currentSuperResolutionTileSize => _selectedTileSize;
 
 bool get currentSuperResolutionPreload => _preloadEnabled;
 
+SuperResolutionBackendMode get superResolutionBackendPreference =>
+    _backendPreference;
+
+SuperResolutionBackendMode get currentSuperResolutionBackendMode {
+  if (_backendPreference != SuperResolutionBackendMode.auto &&
+      !_vulkanAvailable) {
+    return SuperResolutionBackendMode.auto;
+  }
+  return _backendPreference;
+}
+
+bool get superResolutionVulkanAvailable => _vulkanAvailable;
+
+String get superResolutionVulkanDeviceName => _vulkanDeviceName;
+
 Future<void> loadSuperResolutionState({bool force = false}) {
   if (_loaded && !force) return Future.value();
   if (_loading != null && !force) return _loading!;
@@ -69,18 +95,24 @@ Future<void> loadSuperResolutionState({bool force = false}) {
 
 Future<void> _loadSuperResolutionState() async {
   try {
+    final capabilitiesFuture = methods.superResolutionCapabilities();
     final values = await Future.wait([
       methods.loadProperty(_superResolutionPropertyName),
       methods.loadProperty(_superResolutionThreadsPropertyName),
       methods.loadProperty(_superResolutionTilePropertyName),
       methods.loadProperty(_superResolutionPreloadPropertyName),
+      methods.loadProperty(_superResolutionBackendPropertyName),
       methods.getHomeDir(),
     ]);
+    final capabilities = await capabilitiesFuture;
     final preference = values[0].trim().toLowerCase() == 'true';
     _selectedThreads = _parseThreads(values[1]);
     _selectedTileSize = _parseTileSize(values[2]);
     _preloadEnabled = values[3].trim().toLowerCase() == 'true';
-    final model = await findInstalledSuperResolutionModel(values[4]);
+    _backendPreference = _parseBackendMode(values[4]);
+    _vulkanAvailable = capabilities['vulkan_available'] == true;
+    _vulkanDeviceName = '${capabilities['device_name'] ?? ''}'.trim();
+    final model = await findInstalledSuperResolutionModel(values[5]);
     _enabledPreference = preference;
     _installedModel = model;
     _loaded = true;
@@ -88,6 +120,8 @@ Future<void> _loadSuperResolutionState() async {
     debugPrient('super-resolution state load failed: ${error.runtimeType}');
     _enabledPreference = false;
     _installedModel = null;
+    _vulkanAvailable = false;
+    _vulkanDeviceName = '';
     _loaded = false;
   }
 }
@@ -102,6 +136,14 @@ int _parseTileSize(String raw) {
   return const {128, 256, 384}.contains(value) ? value : 384;
 }
 
+SuperResolutionBackendMode _parseBackendMode(String raw) {
+  return switch (raw.trim().toLowerCase()) {
+    'gpu' => SuperResolutionBackendMode.gpu,
+    'hybrid' => SuperResolutionBackendMode.hybrid,
+    _ => SuperResolutionBackendMode.auto,
+  };
+}
+
 Future<void> setSuperResolutionEnabled(bool enabled) async {
   await loadSuperResolutionState();
   if (enabled && _installedModel == null) {
@@ -109,6 +151,21 @@ Future<void> setSuperResolutionEnabled(bool enabled) async {
   }
   await methods.saveProperty(_superResolutionPropertyName, '$enabled');
   _enabledPreference = enabled;
+  invalidateSuperResolutionCache();
+}
+
+Future<void> setSuperResolutionBackendMode(
+  SuperResolutionBackendMode mode,
+) async {
+  await loadSuperResolutionState();
+  if (mode != SuperResolutionBackendMode.auto && !_vulkanAvailable) {
+    throw StateError('Vulkan is unavailable on this device');
+  }
+  await methods.saveProperty(
+    _superResolutionBackendPropertyName,
+    mode.name,
+  );
+  _backendPreference = mode;
   invalidateSuperResolutionCache();
 }
 
@@ -157,6 +214,62 @@ String superResolutionTileName(BuildContext context) {
   };
 }
 
+String superResolutionBackendModeName(BuildContext context) {
+  final mode = currentSuperResolutionBackendMode;
+  return switch (mode) {
+    SuperResolutionBackendMode.gpu => _vulkanDeviceName.isEmpty
+        ? context.l10n.tr('GPU 加速（Vulkan）', en: 'GPU acceleration (Vulkan)')
+        : context.l10n.tr(
+            'GPU 加速 · $_vulkanDeviceName',
+            en: 'GPU acceleration · $_vulkanDeviceName',
+          ),
+    SuperResolutionBackendMode.hybrid => context.l10n.tr(
+        '混合 · 当前页 GPU / 预加载 CPU',
+        en: 'Hybrid · visible GPU / preload CPU',
+      ),
+    _ => _vulkanAvailable
+        ? context.l10n.tr(
+            '自动（GPU 优先）',
+            en: 'Auto (GPU preferred)',
+          )
+        : context.l10n.tr('自动（CPU）', en: 'Auto (CPU)'),
+  };
+}
+
+Future<bool> chooseSuperResolutionBackendMode(BuildContext context) async {
+  if (!_vulkanAvailable) {
+    defaultToast(
+      context,
+      context.l10n.tr(
+        '当前设备未检测到可用的 Vulkan GPU，将继续使用 CPU。',
+        en: 'No compatible Vulkan GPU was detected; CPU will be used.',
+      ),
+    );
+    return false;
+  }
+  final selected = await chooseMapDialog<SuperResolutionBackendMode>(
+    context,
+    title: context.l10n.tr('超分处理模式', en: 'Upscale processing mode'),
+    values: {
+      context.l10n.tr(
+        '自动（GPU 优先）',
+        en: 'Auto (GPU preferred)',
+      ): SuperResolutionBackendMode.auto,
+      context.l10n.tr(
+        'GPU 加速',
+        en: 'GPU acceleration',
+      ): SuperResolutionBackendMode.gpu,
+      context.l10n.tr(
+        '混合（当前页 GPU / 预加载 CPU）',
+        en: 'Hybrid (visible GPU / preload CPU)',
+      ): SuperResolutionBackendMode.hybrid,
+    },
+  );
+  if (selected == null) return false;
+  await setSuperResolutionBackendMode(selected);
+  return true;
+}
+
 Future<bool> chooseSuperResolutionThreads(BuildContext context) async {
   final selected = await chooseMapDialog<int>(
     context,
@@ -191,9 +304,24 @@ Future<bool> chooseSuperResolutionTileSize(BuildContext context) async {
   return true;
 }
 
+@visibleForTesting
+String superResolutionBackendRequest(
+  SuperResolutionBackendMode mode, {
+  required bool preload,
+  required bool vulkanAvailable,
+}) {
+  if (!vulkanAvailable) return 'auto';
+  return switch (mode) {
+    SuperResolutionBackendMode.auto => 'auto',
+    SuperResolutionBackendMode.gpu => 'gpu',
+    SuperResolutionBackendMode.hybrid => preload ? 'cpu' : 'gpu',
+  };
+}
+
 Future<SuperResolutionPageResult> superResolutionPageResult(
-  String sourcePath,
-) async {
+  String sourcePath, {
+  bool preload = false,
+}) async {
   await loadSuperResolutionState();
   final model = _installedModel;
   if (!_enabledPreference || model == null) {
@@ -207,8 +335,14 @@ Future<SuperResolutionPageResult> superResolutionPageResult(
     );
   }
   final source = File(sourcePath);
+  final backend = superResolutionBackendRequest(
+    currentSuperResolutionBackendMode,
+    preload: preload,
+    vulkanAvailable: _vulkanAvailable,
+  );
   final key = '${model.directory.path}|${model.version}|'
-      '${source.path}|${source.lengthSync()}|${source.lastModifiedSync().microsecondsSinceEpoch}';
+      '${source.path}|${source.lengthSync()}|'
+      '${source.lastModifiedSync().microsecondsSinceEpoch}|$backend';
   final existing = _superResolutionPathCache[key];
   if (existing != null) {
     return existing;
@@ -220,6 +354,7 @@ Future<SuperResolutionPageResult> superResolutionPageResult(
         modelDirectory: model.directory.path,
         threads: currentSuperResolutionThreads,
         tileSize: currentSuperResolutionTileSize,
+        backend: backend,
       )
       .then(
         (displayPath) => SuperResolutionPageResult(

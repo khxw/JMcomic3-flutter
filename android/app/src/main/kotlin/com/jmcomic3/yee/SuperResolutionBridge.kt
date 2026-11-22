@@ -20,6 +20,7 @@ object SuperResolutionBridge {
         cacheDirectory: File,
         threads: Int,
         tileSize: Int,
+        backend: String,
     ): String {
         val inputFile = File(inputPath)
         val modelDir = File(modelDirectory)
@@ -46,6 +47,7 @@ object SuperResolutionBridge {
                 paramFile.lastModified().toString(),
                 weightsFile.length().toString(),
                 weightsFile.lastModified().toString(),
+                "backend-$backend",
                 "jpeg-95",
             ).joinToString("|"),
         )
@@ -71,6 +73,11 @@ object SuperResolutionBridge {
         }
         val resolvedThreads = threads.coerceIn(1, 8)
         val resolvedTileSize = tileSize.coerceIn(64, 512)
+        val backendPreference = when (backend) {
+            "gpu" -> 1
+            "cpu" -> 2
+            else -> 0
+        }
 
         val output = try {
             Bitmap.createBitmap(
@@ -91,6 +98,7 @@ object SuperResolutionBridge {
                     weightsFile.absolutePath,
                     resolvedThreads,
                     resolvedTileSize,
+                    backendPreference,
                 )
             ) {
                 throw IllegalStateException("Super-resolution inference failed")
@@ -113,6 +121,14 @@ object SuperResolutionBridge {
         }
     }
 
+    fun capabilities(): Map<String, Any> {
+        val available = nativeIsVulkanAvailable()
+        return mapOf(
+            "vulkan_available" to available,
+            "device_name" to if (available) nativeVulkanDeviceName() else "",
+        )
+    }
+
     fun clearCache(cacheDirectory: File) {
         val directory = File(cacheDirectory, "super_resolution")
         directory.listFiles()?.forEach { file ->
@@ -133,5 +149,10 @@ object SuperResolutionBridge {
         weightsPath: String,
         threads: Int,
         tileSize: Int,
+        backendPreference: Int,
     ): Boolean
+
+    private external fun nativeIsVulkanAvailable(): Boolean
+
+    private external fun nativeVulkanDeviceName(): String
 }
