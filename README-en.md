@@ -20,7 +20,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 ## Current release
 
-**v1.8.140+269** · Android ARM64 · API 24+
+**v1.8.151+280** · Android ARM64 · API 24+
 
 - [Latest GitHub Release](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - [Changelog](CHANGELOG.md)
@@ -30,7 +30,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 | File | Purpose |
 | --- | --- |
-| `JMComic3-Mod-v1.8.140-arm64-v8a-release.apk` | Android ARM64 devices |
+| `JMComic3-Mod-v1.8.151-arm64-v8a-release.apk` | Android ARM64 devices |
 | `SHA256SUMS.txt` | APK integrity verification |
 
 This fork currently publishes only an **Android ARM64 APK**. ARM32, Windows,
@@ -50,6 +50,10 @@ Back up bookshelf, history, and download settings before upgrading.
 - Successful downloads open the download list and highlight the new task.
 - Download tasks support pause, resume, resumable existing images, and
   configurable 1–8 worker threads.
+- Update downloads support pause, resume, and cancel; cancelling stops the
+  request and removes temporary files.
+- Before installation, the app verifies file size, SHA-256, package name,
+  version, path, and signing certificate. Any mismatch rejects installation.
 - Chapter selection, select all, clear, batch export, and export result states.
 - Custom download directory selection, storage permissions, write checks, and
   restoration of saved paths.
@@ -68,6 +72,14 @@ Back up bookshelf, history, and download settings before upgrading.
 - The in-app open-source license center supports component search and full license details.
 - Bottom navigation keeps a single sliding indicator with lighter page transitions.
 - Full release notes are shown consistently in the startup prompt and Updates page.
+- Login API 404, HTML, and network failures now rotate to another API route;
+  a short message is shown when every route is unavailable.
+- Profile details refresh automatically only once at startup. Pull-to-refresh is
+  available afterward with a 30-second cooldown.
+- The local bookshelf supports pull-to-refresh, uses eight concurrent update
+  checks, coalesces duplicate refreshes, and avoids unnecessary detail cache writes.
+- The bookshelf displays local content immediately and keeps the current list
+  visible while refresh checks run, avoiding flicker.
 - Redesigned update download progress with target version, percentage, file size,
   route, and verification state.
 - The Pro, Settings, and Updates entries use one compact segmented control;
@@ -80,8 +92,14 @@ Back up bookshelf, history, and download settings before upgrading.
 - Automatic cover-cache pruning keeps covers below about 48 MB and 30 days
   without removing downloaded comics or reading data.
 - Reader pages use temporary caching, with date-based cache statistics and cleanup.
+- Home, comic detail, and list API caches now have TTL and size limits; cache
+  cleanup also removes disk response caches.
+- Configuration, history, and cache files use recoverable atomic writes to reduce
+  corruption risk after unexpected process termination.
 - Startup compares all API/image routes in parallel, selects the fastest within
   an 800 ms window, and prefetches home feeds concurrently.
+- Backend initialization runs off the main thread and cache cleanup is asynchronous.
+  Route probes use real backend deadlines and only read response headers.
 - Rust v2 backend source and the Flutter app are maintained in this repository.
 
 ## Installation
@@ -95,13 +113,13 @@ Back up bookshelf, history, and download settings before upgrading.
 PowerShell verification:
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.8.140-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.8.151-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 Current APK SHA-256:
 
 ```text
-885bf7091d32e62eea9c1874ae2667fa71752031fcb0cef74cb72f5ef7cfdb78
+970c8349d9fb27a2922fe65b2b2e78bf5205845e8d1e8d4785a6b8d5b8a72943
 ```
 
 ## Build
