@@ -96,12 +96,18 @@ void main() {
     const page = PageDescriptor(position: 0, name: '1.jpg');
     expect(page.localPath, isNull);
     expect(page.localAvailable, isFalse);
+    expect(page.hasAvailableLocalFile, isFalse);
     final resolved = page.copyWith(
       localPath: 'C:/cache/1.jpg',
       localAvailable: true,
     );
     expect(resolved.localPath, 'C:/cache/1.jpg');
     expect(resolved.localAvailable, isTrue);
+    expect(resolved.hasAvailableLocalFile, isTrue);
+    final stale = page.copyWith(localPath: 'C:/stale/1.jpg');
+    expect(stale.localPath, 'C:/stale/1.jpg');
+    expect(stale.localAvailable, isFalse);
+    expect(stale.hasAvailableLocalFile, isFalse);
   });
 
   test('offline empty local path is metadata-only even when flagged available',

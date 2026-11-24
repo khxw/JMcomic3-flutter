@@ -37,6 +37,8 @@ class PageDescriptor {
 
   bool get hasName => name.trim().isNotEmpty;
   bool get hasDimensions => width > 0 && height > 0;
+  bool get hasAvailableLocalFile =>
+      localAvailable && localPath?.trim().isNotEmpty == true;
 
   /// A repeated filename is still a valid page: the source index is part of
   /// the identity and prevents one page from silently hiding another.  Keep

@@ -884,8 +884,8 @@ abstract class _ComicReaderState extends State<_ComicReader>
       final page = ref.page;
       return PageImageProvider(ref.chapter.chapter.id, page.name,
           pageIndex: page.sourceIndex,
-          localPath: page.localAvailable ? page.localPath : null,
-          localOnly: page.localPath != null,
+          localPath: page.hasAvailableLocalFile ? page.localPath : null,
+          localOnly: page.hasAvailableLocalFile,
           superResolution: superResolution,
           superResolutionPreload: superResolution && preload,
           onSuperResolutionResolved: superResolution

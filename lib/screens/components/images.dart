@@ -129,14 +129,15 @@ class PageImageProvider extends ImageProvider<PageImageProvider> {
     int? cacheWidth,
     int? cacheHeight,
     String? localPath,
-    this.localOnly = false,
+    bool localOnly = false,
     this.superResolution = false,
     this.superResolutionPreload = false,
     this.onSuperResolutionResolved,
   })  : pageIndex = _normalizePageIndex(pageIndex),
         cacheWidth = _normalizeDecodeTarget(cacheWidth),
         cacheHeight = _normalizeDecodeTarget(cacheHeight),
-        localPath = _normalizeLocalPath(localPath);
+        localPath = _normalizeLocalPath(localPath),
+        localOnly = localOnly && _normalizeLocalPath(localPath) != null;
 
   Future<String> _pathForKey(PageImageProvider key) async {
     final supplied = key.localPath;
@@ -936,7 +937,9 @@ class _JMPageImageState extends State<JMPageImage> {
       final localOnly = widget.localOnly;
       final onTrueSize = widget.onTrueSize;
       final suppliedPath = widget.localPath?.trim();
-      if ((suppliedPath == null || suppliedPath.isEmpty) && localOnly) {
+      if ((suppliedPath == null || suppliedPath.isEmpty) &&
+          localOnly &&
+          widget.imageProvider == null) {
         throw StateError('local image unavailable');
       }
       final _path = suppliedPath == null || suppliedPath.isEmpty

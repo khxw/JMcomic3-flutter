@@ -14,6 +14,18 @@ void main() {
     clearAllImageMemoryCaches();
   });
 
+  test('localOnly without a usable path falls back to the network provider',
+      () {
+    final provider = PageImageProvider(
+      42,
+      'page.jpg',
+      localOnly: true,
+    );
+
+    expect(provider.localPath, isNull);
+    expect(provider.localOnly, isFalse);
+  });
+
   testWidgets(
     'localOnly page with no local path shows offline-unavailable state without bridge calls',
     (tester) async {
