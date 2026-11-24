@@ -965,9 +965,11 @@ class Methods {
     int id, {
     bool ignoreViewLog = false,
     bool forceRefresh = false,
+    bool persistToDisk = true,
   }) async {
     final cacheKey = "$id|$ignoreViewLog";
-    final persistentKey = _albumPersistentPropertyKey(cacheKey);
+    final persistentKey =
+        persistToDisk ? _albumPersistentPropertyKey(cacheKey) : null;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final current = _albumCache[cacheKey];
     if (!forceRefresh &&
@@ -979,7 +981,7 @@ class Methods {
         AlbumResponse.fromJson,
       );
     }
-    if (!forceRefresh) {
+    if (!forceRefresh && persistentKey != null) {
       final persisted = await _loadPersistentCache(
         persistentKey,
         _albumPersistentCacheTtl,
@@ -1009,7 +1011,9 @@ class Methods {
           "id": id,
           "ignore_view_log": ignoreViewLog,
         });
-        await _savePersistentCache(persistentKey, value);
+        if (persistentKey != null) {
+          await _savePersistentCache(persistentKey, value);
+        }
         return value;
       },
       allowStaleOnError: true,

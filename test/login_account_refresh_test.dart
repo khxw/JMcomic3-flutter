@@ -241,6 +241,71 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('profile refresh requires a pull gesture and respects cooldown',
+      (tester) async {
+    var preLoginCalls = 0;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      switch (request['method']) {
+        case 'pre_login':
+          preLoginCalls++;
+          return _response({
+            'pre_set': true,
+            'pre_login': true,
+            'message': '',
+            'self_info': _selfInfo(preLoginCalls >= 2 ? 10 : 1),
+          });
+        case 'daily_status':
+          return _response({'record': <Object>[]});
+        case 'favorite':
+          return _response({
+            'total': 0,
+            'count': 0,
+            'list': <Object>[],
+            'folder_list': <Object>[],
+          });
+        default:
+          return _response('');
+      }
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+      resetDailySignStatus();
+    });
+
+    await enterGuestMode();
+    await tester.pumpWidget(const MaterialApp(
+      locale: Locale('en'),
+      localizationsDelegates: [AppLocalizations.delegate],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: UserScreen(),
+    ));
+    await initLogin(tester.element(find.byType(UserScreen)));
+    await tester.pumpAndSettle();
+
+    expect(preLoginCalls, 1);
+    expect(selfInfo.level, 1);
+
+    final scrollable = find.byType(SingleChildScrollView).first;
+    await tester.drag(scrollable, const Offset(0, 360));
+    await tester.pumpAndSettle();
+
+    expect(preLoginCalls, 2);
+    expect(selfInfo.level, 10);
+
+    await tester.drag(scrollable, const Offset(0, 360));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1800));
+    await tester.pump(const Duration(milliseconds: 1800));
+    await tester.pumpAndSettle();
+
+    expect(preLoginCalls, 2);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('expired account requests refresh login and retry once',
       (tester) async {
     var favoriteCalls = 0;

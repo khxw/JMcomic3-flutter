@@ -10,6 +10,7 @@ const _storageKey = "local_bookshelf_v1";
 const _groupsStorageKey = "local_bookshelf_groups_v1";
 const _updatesCheckedAtKey = "local_bookshelf_updates_checked_at";
 const _updatesRefreshInterval = Duration(minutes: 10);
+const _updatesRefreshConcurrency = 8;
 
 final Event localBookshelfEvent = Event();
 final List<LocalBookshelfItem> localBookshelfItems = [];
@@ -17,6 +18,7 @@ final List<String> localBookshelfGroups = [];
 
 bool _loaded = false;
 Future<void>? _loading;
+Future<int>? _updatesRefreshing;
 
 class LocalBookshelfItem {
   final ComicBasic comic;
@@ -298,7 +300,19 @@ Future<void> markLocalBookshelfItemSeen(int comicId) async {
   await _saveStorage();
 }
 
-Future<int> refreshLocalBookshelfUpdates({bool force = false}) async {
+Future<int> refreshLocalBookshelfUpdates({bool force = false}) {
+  final running = _updatesRefreshing;
+  if (running != null) return running;
+  final future = _refreshLocalBookshelfUpdates(force: force);
+  _updatesRefreshing = future;
+  return future.whenComplete(() {
+    if (identical(_updatesRefreshing, future)) {
+      _updatesRefreshing = null;
+    }
+  });
+}
+
+Future<int> _refreshLocalBookshelfUpdates({bool force = false}) async {
   await loadLocalBookshelf();
   final now = DateTime.now();
   if (!force) {
@@ -312,7 +326,7 @@ Future<int> refreshLocalBookshelfUpdates({bool force = false}) async {
   }
 
   final snapshot = List<LocalBookshelfItem>.of(localBookshelfItems);
-  final semaphore = AsyncSemaphore(4);
+  final semaphore = AsyncSemaphore(_updatesRefreshConcurrency);
   final refreshed = await Future.wait(
     snapshot.map(
       (item) => semaphore.run<LocalBookshelfItem?>(() async {
@@ -321,6 +335,7 @@ Future<int> refreshLocalBookshelfUpdates({bool force = false}) async {
             item.comic.id,
             ignoreViewLog: true,
             forceRefresh: true,
+            persistToDisk: false,
           );
           var resolvedUpdateAt = album.updateAt;
           if (resolvedUpdateAt == null || resolvedUpdateAt <= 0) {
@@ -395,5 +410,6 @@ void resetLocalBookshelfMemory() {
   localBookshelfGroups.clear();
   _loaded = false;
   _loading = null;
+  _updatesRefreshing = null;
   localBookshelfEvent.broadcast();
 }

@@ -3,7 +3,7 @@ description: JMComic3 Mod comic browser
 
 publish_to: 'none'
 
-version: 1.8.147+276
+version: 1.8.148+277
 
 environment:
   sdk: ">=3.0.0 <4.0.0"

@@ -28,20 +28,20 @@ class UserScreen extends StatefulWidget {
 }
 
 class _UserScreenState extends State<UserScreen>
-    with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
+    with AutomaticKeepAliveClientMixin {
   bool _loggingOut = false;
   bool _accountRefreshInFlight = false;
   bool _profileActive = false;
   int? _dailySignAccountUid;
+  DateTime? _lastManualRefreshAt;
 
-  static const _accountRefreshInterval = Duration(minutes: 5);
+  static const _manualRefreshCooldown = Duration(seconds: 30);
 
   @override
   bool get wantKeepAlive => true;
 
   @override
   void initState() {
-    WidgetsBinding.instance.addObserver(this);
     loginEvent.subscribe(_loginChanged);
     proEvent.subscribe(_setState);
     dailySignEvent.subscribe(_setState);
@@ -56,7 +56,6 @@ class _UserScreenState extends State<UserScreen>
       _profileActive = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_profileActive) return;
-        unawaited(_refreshAccountInfo());
         unawaited(refreshDailySignStatus());
       });
     } else if (!active) {
@@ -65,39 +64,59 @@ class _UserScreenState extends State<UserScreen>
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed || !_profileActive) return;
-    unawaited(_refreshAccountInfo());
-  }
-
-  @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     loginEvent.unsubscribe(_loginChanged);
     proEvent.unsubscribe(_setState);
     dailySignEvent.unsubscribe(_setState);
     super.dispose();
   }
 
-  Future<void> _refreshAccountInfo() async {
+  Future<bool> _refreshAccountInfo() async {
     if (!mounted ||
         !_profileActive ||
         ModalRoute.of(context)?.isCurrent == false ||
         loginStatus != LoginStatus.loginSuccess ||
         _accountRefreshInFlight) {
-      return;
-    }
-    final lastRefresh = lastSelfInfoRefreshAt;
-    if (lastRefresh != null &&
-        DateTime.now().difference(lastRefresh) < _accountRefreshInterval) {
-      return;
+      return false;
     }
     _accountRefreshInFlight = true;
     try {
-      await refreshSelfInfo();
+      final refreshed = await refreshSelfInfo();
       await refreshDailySignStatus();
+      return refreshed;
     } finally {
       _accountRefreshInFlight = false;
+    }
+  }
+
+  Future<void> _pullToRefresh() async {
+    if (loginStatus != LoginStatus.loginSuccess) {
+      await refreshDailySignStatus();
+      return;
+    }
+    final now = DateTime.now();
+    final lastRefresh = _lastManualRefreshAt;
+    if (lastRefresh != null &&
+        now.difference(lastRefresh) < _manualRefreshCooldown) {
+      if (mounted) {
+        defaultToast(
+          context,
+          context.l10n.tr(
+            '刷新过于频繁，请稍后再试',
+            en: 'Refreshing too often. Try again shortly.',
+          ),
+        );
+      }
+      return;
+    }
+    if (_accountRefreshInFlight) return;
+    _lastManualRefreshAt = now;
+    final refreshed = await _refreshAccountInfo();
+    if (!refreshed && mounted) {
+      defaultToast(
+        context,
+        context.l10n.tr('账号资料刷新失败', en: 'Could not refresh profile'),
+      );
     }
   }
 
@@ -171,38 +190,43 @@ class _UserScreenState extends State<UserScreen>
                   ),
           actions: [_buildProfileActions()]),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 840;
-            final spacing = constraints.maxWidth >= 600 ? 24.0 : 16.0;
-            return SingleChildScrollView(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1120),
-                  child: Padding(
-                    padding: EdgeInsets.all(spacing),
-                    child: wide
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(flex: 5, child: _buildCard()),
-                              SizedBox(width: spacing),
-                              Expanded(flex: 6, child: _buildLibrary()),
-                            ],
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _buildCard(),
-                              SizedBox(height: spacing),
-                              _buildLibrary(),
-                            ],
-                          ),
+        child: RefreshIndicator(
+          key: const ValueKey('profile-refresh-indicator'),
+          onRefresh: _pullToRefresh,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 840;
+              final spacing = constraints.maxWidth >= 600 ? 24.0 : 16.0;
+              return SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1120),
+                    child: Padding(
+                      padding: EdgeInsets.all(spacing),
+                      child: wide
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(flex: 5, child: _buildCard()),
+                                SizedBox(width: spacing),
+                                Expanded(flex: 6, child: _buildLibrary()),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _buildCard(),
+                                SizedBox(height: spacing),
+                                _buildLibrary(),
+                              ],
+                            ),
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );

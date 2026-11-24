@@ -193,6 +193,7 @@ void main() {
       group: 'Reading',
     );
 
+    requests.clear();
     await refreshLocalBookshelfUpdates(force: true);
 
     expect(localBookshelfItems.single.comic.updateAt, 200);
@@ -202,6 +203,14 @@ void main() {
           .where((request) => request['method'] == 'chapter')
           .single['params'],
       '9',
+    );
+    expect(
+      requests.where(
+        (request) =>
+            request['method'] == 'save_property' &&
+            '${request['params']}'.contains('startup_cache_album_'),
+      ),
+      isEmpty,
     );
     expect(tester.takeException(), isNull);
   });

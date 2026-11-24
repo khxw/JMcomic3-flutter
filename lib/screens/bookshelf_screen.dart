@@ -25,6 +25,7 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
   static const _sortAuthor = "author";
 
   bool _loading = true;
+  bool _refreshing = false;
   String _sort = _sortRecent;
   var _section = _BookshelfSection.local;
 
@@ -58,15 +59,11 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
 
   Future<void> _load({bool force = false}) async {
     if (force && mounted) {
-      setState(() => _loading = true);
+      setState(() => _refreshing = true);
     }
+    final savedSortFuture = methods.loadProperty("bookshelf_sort");
     await loadLocalBookshelf(force: force);
-    if (force) {
-      await refreshLocalBookshelfUpdates(force: true);
-    } else {
-      unawaited(refreshLocalBookshelfUpdates());
-    }
-    final savedSort = await methods.loadProperty("bookshelf_sort");
+    final savedSort = await savedSortFuture;
     if (!mounted) return;
     setState(() {
       if (_sortNames(context).containsKey(savedSort)) {
@@ -74,6 +71,16 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
       }
       _loading = false;
     });
+    final refresh = refreshLocalBookshelfUpdates(force: force);
+    if (force) {
+      try {
+        await refresh;
+      } finally {
+        if (mounted) setState(() => _refreshing = false);
+      }
+    } else {
+      unawaited(refresh);
+    }
   }
 
   Map<String, String> _sortNames(BuildContext context) => {
@@ -159,7 +166,19 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
           ),
         ),
         actions: [
-          if (!online)
+          if (!online && _refreshing)
+            const Padding(
+              padding: EdgeInsets.only(right: 18),
+              child: Center(
+                child: SizedBox(
+                  key: ValueKey('bookshelf-refresh-progress'),
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else if (!online)
             PopupMenuButton<_ShelfMenuAction>(
               key: const ValueKey('bookshelf-options-menu'),
               tooltip: context.l10n.tr('书架菜单', en: 'Bookshelf menu'),
