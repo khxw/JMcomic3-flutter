@@ -72,6 +72,9 @@ class Methods {
     "save_cdn_host",
   };
   static const int _maxApiHostRotations = 6;
+  static const int _maxPersistentComicCaches = 16;
+  static const int _maxPersistentAlbumCaches = 32;
+  static const Duration _persistentCachePruneInterval = Duration(minutes: 10);
   static const Duration _categoriesCacheTtl = Duration(minutes: 10);
   static const Duration _comicsCacheTtl = Duration(minutes: 5);
   static const Duration _albumCacheTtl = Duration(minutes: 10);
@@ -108,9 +111,12 @@ class Methods {
   static final AsyncSemaphore _readerImageSemaphore = AsyncSemaphore(4);
   static Set<int>? _locallyLikedCommentIdsCache;
   static Future<bool>? _loginRefreshInflight;
-  static Future<bool> Function()? apiHostRecoveryHandler;
+  static Future<bool> Function(int observedVersion)? apiHostRecoveryHandler;
   static Future<bool> Function(int observedVersion)? cdnHostRecoveryHandler;
+  static int apiRouteVersion = 0;
   static int cdnRouteVersion = 0;
+  static DateTime? _lastPersistentCachePruneAt;
+  static Future<void>? _persistentCachePruneInflight;
 
   void _clearApiResponseCaches() {
     _categoriesCache.clear();
@@ -253,9 +259,120 @@ class Methods {
           "value": value,
         }),
       );
+      unawaited(prunePersistentResponseCaches());
     } catch (error) {
       debugPrient("startup cache write failed: ${error.runtimeType}");
     }
+  }
+
+  Future<void> prunePersistentResponseCaches({bool force = false}) {
+    final now = DateTime.now();
+    final lastRun = _lastPersistentCachePruneAt;
+    if (!force &&
+        lastRun != null &&
+        now.difference(lastRun) < _persistentCachePruneInterval) {
+      return Future<void>.value();
+    }
+    final running = _persistentCachePruneInflight;
+    if (running != null) return running;
+    final future = _prunePersistentResponseCaches();
+    _persistentCachePruneInflight = future;
+    return future.whenComplete(() {
+      if (identical(_persistentCachePruneInflight, future)) {
+        _persistentCachePruneInflight = null;
+      }
+    });
+  }
+
+  Future<void> _prunePersistentResponseCaches() async {
+    try {
+      final removals = <String>{};
+      final policies = <(String, Duration, int)>[
+        (
+          _categoriesPersistentCacheKey,
+          _categoriesPersistentCacheTtl,
+          1,
+        ),
+        (
+          _comicsPersistentCacheKeyPrefix,
+          _comicsPersistentCacheTtl,
+          _maxPersistentComicCaches,
+        ),
+        (
+          _albumPersistentCacheKeyPrefix,
+          _albumPersistentCacheTtl,
+          _maxPersistentAlbumCaches,
+        ),
+      ];
+      for (final policy in policies) {
+        final values = await _propertyValuesWithPrefix(policy.$1);
+        final entries = <({String key, int savedAt})>[];
+        for (final entry in values.entries) {
+          final savedAt = _persistentCacheSavedAt(entry.value);
+          if (savedAt == null) {
+            removals.add(entry.key);
+            continue;
+          }
+          entries.add((key: entry.key, savedAt: savedAt));
+        }
+        entries.sort((left, right) => right.savedAt.compareTo(left.savedAt));
+        final nowMs = DateTime.now().millisecondsSinceEpoch;
+        for (var index = 0; index < entries.length; index++) {
+          final entry = entries[index];
+          final age = nowMs - entry.savedAt;
+          if (index >= policy.$3 || age < 0 || age > policy.$2.inMilliseconds) {
+            removals.add(entry.key);
+          }
+        }
+      }
+      if (removals.isNotEmpty) {
+        await _removePropertyKeys(removals);
+      }
+    } catch (error) {
+      debugPrient("startup cache prune skipped: ${error.runtimeType}");
+    } finally {
+      _lastPersistentCachePruneAt = DateTime.now();
+    }
+  }
+
+  Future<void> clearPersistentResponseCaches() async {
+    try {
+      final values = await Future.wait<Map<String, String>>([
+        _propertyValuesWithPrefix(_categoriesPersistentCacheKey),
+        _propertyValuesWithPrefix(_comicsPersistentCacheKeyPrefix),
+        _propertyValuesWithPrefix(_albumPersistentCacheKeyPrefix),
+      ]);
+      final keys = values.expand((value) => value.keys);
+      await _removePropertyKeys(keys);
+    } catch (error) {
+      debugPrient("startup cache clear skipped: ${error.runtimeType}");
+    } finally {
+      _lastPersistentCachePruneAt = DateTime.now();
+    }
+  }
+
+  int? _persistentCacheSavedAt(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final savedAt = decoded["saved_at"];
+      return savedAt is num ? savedAt.toInt() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Map<String, String>> _propertyValuesWithPrefix(String prefix) async {
+    return _decodeStringMapResponse(
+      await _invoke("property_values_with_prefix", {"prefix": prefix}),
+      "property_values_with_prefix",
+    );
+  }
+
+  Future<void> _removePropertyKeys(Iterable<String> keys) async {
+    final values = keys.toSet().toList(growable: false);
+    if (values.isEmpty) return;
+    await _invoke("remove_properties", {"keys": values});
   }
 
   Future<void> _removePersistentCache(String propertyKey) async {
@@ -321,6 +438,7 @@ class Methods {
     var loginRetried = false;
     var hostRotations = 0;
     var cdnRotations = 0;
+    var observedApiRouteVersion = apiRouteVersion;
     var observedCdnRouteVersion = cdnRouteVersion;
     while (response.errorMessage.isNotEmpty) {
       if (!loginRetried &&
@@ -334,8 +452,9 @@ class Methods {
       }
       if (hostRotations < _maxApiHostRotations &&
           _shouldRotateApiHost(method, response.errorMessage) &&
-          await _rotateApiHost()) {
+          await _rotateApiHost(observedApiRouteVersion)) {
         hostRotations++;
+        observedApiRouteVersion = apiRouteVersion;
         response = _decodeInvokeResponse(await _invokeRaw(method, params));
         continue;
       }
@@ -449,11 +568,11 @@ class Methods {
         lower.contains("error sending request");
   }
 
-  Future<bool> _rotateApiHost() async {
+  Future<bool> _rotateApiHost(int observedVersion) async {
     final handler = apiHostRecoveryHandler;
     if (handler == null) return false;
     try {
-      return await handler();
+      return await handler(observedVersion);
     } catch (error) {
       debugPrient("API host rotation failed: ${error.runtimeType}");
       return false;
@@ -1061,6 +1180,7 @@ class Methods {
 
   Future cleanAllCache() async {
     final rsp = await _invoke("clean_all_cache", "params");
+    await clearPersistentResponseCaches();
     _clearResponseCaches();
     return rsp;
   }
@@ -1847,19 +1967,31 @@ class Methods {
     return await _invoke("set_download_and_export_to", path);
   }
 
-  Future<int> ping(String idx) async {
+  Future<int> ping(
+    String idx, {
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
     debugPrient("PING API $idx");
     return _parseBackendInt(
-      await _invoke("ping_server", idx),
+      await _invoke("ping_server", {
+        "host": idx,
+        "timeout_ms": timeout.inMilliseconds,
+      }),
       "ping_server",
       fallback: 0,
     );
   }
 
-  Future<int> pingCdn(String idx) async {
+  Future<int> pingCdn(
+    String idx, {
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
     debugPrient("PING CDN $idx");
     return _parseBackendInt(
-      await _invoke("ping_cdn", idx),
+      await _invoke("ping_cdn", {
+        "host": idx,
+        "timeout_ms": timeout.inMilliseconds,
+      }),
       "ping_cdn",
       fallback: 0,
     );

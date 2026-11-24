@@ -114,4 +114,55 @@ void main() {
     expect(await partial.exists(), isFalse);
     expect(resumedProgress.last, 1);
   });
+
+  test('cancelled update stops streaming and keeps only partial data',
+      () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final payload = List<int>.generate(256 * 1024, (index) => index % 233);
+    server.listen((request) async {
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.binary
+        ..headers.contentLength = payload.length;
+      try {
+        for (var offset = 0; offset < payload.length; offset += 1024) {
+          final end =
+              offset + 1024 < payload.length ? offset + 1024 : payload.length;
+          request.response.add(payload.sublist(offset, end));
+          await request.response.flush();
+          await Future<void>.delayed(const Duration(milliseconds: 2));
+        }
+        await request.response.close();
+      } catch (_) {
+        // Cancellation closes the response before the fixture is complete.
+      }
+    });
+
+    final directory = await Directory.systemTemp.createTemp('jm3-cancel-');
+    addTearDown(() => directory.delete(recursive: true));
+    final destination = File('${directory.path}/update.apk');
+    final partial = File('${destination.path}.part');
+    final control = DownloadControl();
+    var cancelRequested = false;
+
+    await expectLater(
+      AppHttpClient.downloadFile(
+        'http://${server.address.host}:${server.port}/update.apk',
+        destination,
+        control: control,
+        onProgress: (value) {
+          if (!cancelRequested && value != null && value > 0 && value < 1) {
+            cancelRequested = true;
+            control.cancel();
+          }
+        },
+      ),
+      throwsA(isA<DownloadCancelledException>()),
+    );
+
+    expect(await destination.exists(), isFalse);
+    expect(await partial.exists(), isTrue);
+    expect(await partial.length(), greaterThan(0));
+  });
 }

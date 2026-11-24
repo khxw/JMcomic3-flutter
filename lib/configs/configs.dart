@@ -104,6 +104,7 @@ Future initConfigs(BuildContext context) async {
     loginFuture,
     authenticationFuture,
   ]);
+  unawaited(methods.prunePersistentResponseCaches());
   unawaited(runAutoCleanIfNeeded());
   unawaited(reloadIsPro());
   unawaited(initRecommendLinks());

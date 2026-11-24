@@ -1,10 +1,11 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
+use crate::atomic::{recover_file, replace_file};
 use crate::error::{BackendError, BackendResult};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -23,6 +24,7 @@ impl PropertyStore {
     pub fn open(root: &Path) -> BackendResult<Self> {
         fs::create_dir_all(root)?;
         let path = root.join("properties.json");
+        recover_file(&path)?;
         let data = if path.exists() {
             let raw = fs::read_to_string(&path)?;
             if raw.trim().is_empty() {
@@ -49,6 +51,43 @@ impl PropertyStore {
             .lock()
             .map_err(|_| BackendError::Config("property store lock poisoned".into()))?;
         Ok(data.properties.get(key).cloned().unwrap_or_default())
+    }
+
+    pub fn values_with_prefix(&self, prefix: &str) -> BackendResult<BTreeMap<String, String>> {
+        let data = self
+            .data
+            .lock()
+            .map_err(|_| BackendError::Config("property store lock poisoned".into()))?;
+        Ok(data
+            .properties
+            .iter()
+            .filter(|(key, _)| key.starts_with(prefix))
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect())
+    }
+
+    pub fn remove_many(&self, keys: &[String]) -> BackendResult<usize> {
+        if keys.is_empty() {
+            return Ok(0);
+        }
+        let requested = keys.iter().collect::<BTreeSet<_>>();
+        let _save_guard = self
+            .save_lock
+            .lock()
+            .map_err(|_| BackendError::Config("property save lock poisoned".into()))?;
+        let (removed, snapshot) = {
+            let mut data = self
+                .data
+                .lock()
+                .map_err(|_| BackendError::Config("property store lock poisoned".into()))?;
+            let before = data.properties.len();
+            data.properties.retain(|key, _| !requested.contains(key));
+            (before - data.properties.len(), data.clone())
+        };
+        if removed > 0 {
+            self.persist(&snapshot)?;
+        }
+        Ok(removed)
     }
 
     pub fn save(&self, key: &str, value: &str) -> BackendResult<()> {
@@ -149,10 +188,10 @@ impl PropertyStore {
         let encoded = serde_json::to_vec_pretty(data)?;
         let temporary = self.path.with_extension("json.tmp");
         fs::write(&temporary, encoded)?;
-        if self.path.exists() {
-            fs::remove_file(&self.path)?;
+        if let Err(error) = replace_file(&temporary, &self.path) {
+            let _ = fs::remove_file(&temporary);
+            return Err(error.into());
         }
-        fs::rename(temporary, &self.path)?;
         Ok(())
     }
 }
@@ -257,6 +296,34 @@ mod tests {
 
         let reopened = PropertyStore::open(&root).unwrap();
         assert_eq!(reopened.load("guest_mode").unwrap(), "true");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn prefix_values_and_batch_remove_are_persisted() {
+        let root =
+            std::env::temp_dir().join(format!("jmcomic3-property-store-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let store = PropertyStore::open(&root).unwrap();
+        store.save("startup_cache_album_1", "one").unwrap();
+        store.save("startup_cache_album_2", "two").unwrap();
+        store.save("setting", "keep").unwrap();
+
+        let values = store.values_with_prefix("startup_cache_album_").unwrap();
+        assert_eq!(values.len(), 2);
+        let removed = store
+            .remove_many(&["startup_cache_album_1".into()])
+            .unwrap();
+        assert_eq!(removed, 1);
+        drop(store);
+
+        let reopened = PropertyStore::open(&root).unwrap();
+        assert_eq!(reopened.load("startup_cache_album_2").unwrap(), "two");
+        assert_eq!(
+            reopened.load("startup_cache_album_1").unwrap(),
+            String::new()
+        );
+        assert_eq!(reopened.load("setting").unwrap(), "keep");
         fs::remove_dir_all(root).unwrap();
     }
 }

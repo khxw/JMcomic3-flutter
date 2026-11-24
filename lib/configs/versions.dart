@@ -278,6 +278,7 @@ enum _UpdateDownloadPhase {
   downloading,
   pausing,
   paused,
+  cancelling,
   verifying,
 }
 
@@ -323,6 +324,9 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
   );
   DownloadControl? activeControl;
   Completer<void>? resumeCompleter;
+  var cancelRequested = false;
+  File? activeDestination;
+  File? activePartial;
   void requestPause() {
     final control = activeControl;
     if (control == null ||
@@ -335,6 +339,21 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
 
   void requestResume() {
     if (progress.value.phase != _UpdateDownloadPhase.paused) return;
+    final completer = resumeCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete();
+    }
+  }
+
+  void requestCancel() {
+    cancelRequested = true;
+    activeControl?.cancel();
+    final current = progress.value;
+    progress.value = _UpdateDownloadState(
+      _UpdateDownloadPhase.cancelling,
+      current.progress,
+      current.source,
+    );
     final completer = resumeCompleter;
     if (completer != null && !completer.isCompleted) {
       completer.complete();
@@ -355,6 +374,7 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
         version: latestVersion ?? latestVersionName,
         onPause: requestPause,
         onResume: requestResume,
+        onCancel: requestCancel,
       );
     },
   ));
@@ -378,6 +398,8 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
       '${directory.path}${Platform.pathSeparator}$fileName',
     );
     final partial = File('${destination.path}.part');
+    activeDestination = destination;
+    activePartial = partial;
     await for (final entity in directory.list()) {
       if (entity is File &&
           entity.path != destination.path &&
@@ -391,6 +413,7 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
 
     var resumeDownload = await partial.exists() && await partial.length() > 0;
     while (true) {
+      if (cancelRequested) throw const DownloadCancelledException();
       final control = DownloadControl();
       activeControl = control;
       progress.value = _UpdateDownloadState(
@@ -416,12 +439,14 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
         activeControl = null;
         resumeDownload = await partial.exists() && await partial.length() > 0;
         progress.value = progress.value.withPhase(_UpdateDownloadPhase.paused);
+        if (cancelRequested) throw const DownloadCancelledException();
         final completer = Completer<void>();
         resumeCompleter = completer;
         await completer.future;
         if (identical(resumeCompleter, completer)) {
           resumeCompleter = null;
         }
+        if (cancelRequested) throw const DownloadCancelledException();
         resumeDownload = true;
       }
     }
@@ -445,6 +470,21 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
       expectedSize: latestApkSize(),
       expectedVersionName: latestVersion ?? latestVersionName,
     );
+  } on DownloadCancelledException {
+    await closeProgress();
+    for (final file in [activePartial, activeDestination]) {
+      try {
+        if (file != null && await file.exists()) {
+          await file.delete();
+        }
+      } catch (_) {}
+    }
+    if (context.mounted) {
+      defaultToast(
+        context,
+        context.l10n.tr('更新下载已取消', en: 'Update download cancelled'),
+      );
+    }
   } catch (error) {
     await closeProgress();
     if (context.mounted) {
@@ -512,6 +552,8 @@ Future<void> _downloadUpdatePackage({
       }
       return;
     } on DownloadPausedException {
+      rethrow;
+    } on DownloadCancelledException {
       rethrow;
     } catch (error) {
       lastError = error;
@@ -653,6 +695,7 @@ class _UpdateDownloadDialog extends StatelessWidget {
   final String? version;
   final VoidCallback onPause;
   final VoidCallback onResume;
+  final VoidCallback onCancel;
 
   const _UpdateDownloadDialog({
     required this.state,
@@ -661,6 +704,7 @@ class _UpdateDownloadDialog extends StatelessWidget {
     required this.version,
     required this.onPause,
     required this.onResume,
+    required this.onCancel,
   });
 
   @override
@@ -696,9 +740,11 @@ class _UpdateDownloadDialog extends StatelessWidget {
                 final preparing = value.phase == _UpdateDownloadPhase.preparing;
                 final verifying = value.phase == _UpdateDownloadPhase.verifying;
                 final paused = value.phase == _UpdateDownloadPhase.paused;
+                final cancelling =
+                    value.phase == _UpdateDownloadPhase.cancelling;
                 final accent = verifying
                     ? scheme.tertiary
-                    : paused
+                    : paused || cancelling
                         ? scheme.secondary
                         : scheme.primary;
                 final title = switch (value.phase) {
@@ -717,6 +763,10 @@ class _UpdateDownloadDialog extends StatelessWidget {
                   _UpdateDownloadPhase.paused => context.l10n.tr(
                       '更新下载已暂停',
                       en: 'Update download paused',
+                    ),
+                  _UpdateDownloadPhase.cancelling => context.l10n.tr(
+                      '正在取消下载',
+                      en: 'Cancelling download',
                     ),
                   _UpdateDownloadPhase.verifying => context.l10n.tr(
                       '正在校验安装包',
@@ -739,6 +789,10 @@ class _UpdateDownloadDialog extends StatelessWidget {
                   _UpdateDownloadPhase.paused => context.l10n.tr(
                       '已下载内容会保留，可随时继续',
                       en: 'Downloaded data is kept and can be resumed at any time',
+                    ),
+                  _UpdateDownloadPhase.cancelling => context.l10n.tr(
+                      '正在关闭连接并清理临时文件',
+                      en: 'Closing the connection and removing temporary files',
                     ),
                   _UpdateDownloadPhase.verifying => context.l10n.tr(
                       '正在检查大小、SHA-256、包名、版本和签名证书',
@@ -929,27 +983,61 @@ class _UpdateDownloadDialog extends StatelessWidget {
                           value: value.source!,
                         ),
                       ],
-                      if (value.phase == _UpdateDownloadPhase.downloading ||
-                          value.phase == _UpdateDownloadPhase.paused) ...[
+                      if (preparing ||
+                          value.phase == _UpdateDownloadPhase.downloading ||
+                          value.phase == _UpdateDownloadPhase.pausing ||
+                          value.phase == _UpdateDownloadPhase.paused ||
+                          cancelling) ...[
                         const SizedBox(height: 14),
-                        if (value.phase == _UpdateDownloadPhase.downloading)
-                          OutlinedButton.icon(
-                            key: const ValueKey('update-download-pause'),
-                            onPressed: onPause,
-                            icon: const Icon(Icons.pause_rounded),
-                            label: Text(
-                              context.l10n.tr('暂停下载', en: 'Pause download'),
-                            ),
-                          )
-                        else
-                          FilledButton.icon(
-                            key: const ValueKey('update-download-resume'),
-                            onPressed: onResume,
-                            icon: const Icon(Icons.play_arrow_rounded),
-                            label: Text(
-                              context.l10n.tr('继续下载', en: 'Resume download'),
-                            ),
-                          ),
+                        Row(
+                          children: [
+                            if (value.phase == _UpdateDownloadPhase.downloading)
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  key: const ValueKey('update-download-pause'),
+                                  onPressed: onPause,
+                                  icon: const Icon(Icons.pause_rounded),
+                                  label: Text(
+                                    context.l10n.tr(
+                                      '暂停下载',
+                                      en: 'Pause download',
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else if (value.phase == _UpdateDownloadPhase.paused)
+                              Expanded(
+                                child: FilledButton.icon(
+                                  key: const ValueKey('update-download-resume'),
+                                  onPressed: onResume,
+                                  icon: const Icon(Icons.play_arrow_rounded),
+                                  label: Text(
+                                    context.l10n.tr(
+                                      '继续下载',
+                                      en: 'Resume download',
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (value.phase ==
+                                    _UpdateDownloadPhase.downloading ||
+                                value.phase == _UpdateDownloadPhase.paused)
+                              const SizedBox(width: 10),
+                            if (!cancelling)
+                              Expanded(
+                                child: TextButton(
+                                  key: const ValueKey('update-download-cancel'),
+                                  onPressed: onCancel,
+                                  child: Text(
+                                    context.l10n.tr(
+                                      '取消下载',
+                                      en: 'Cancel download',
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ],
                       const SizedBox(height: 14),
                       Container(

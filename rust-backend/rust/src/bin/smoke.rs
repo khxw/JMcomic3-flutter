@@ -73,9 +73,12 @@ async fn main() -> Result<()> {
         .and_then(Value::as_array)
         .map_or(0, Vec::len);
     let games = client.games(1).await?;
-    let api_latency = client.measure_api_host(DEFAULT_API_HOST).await.unwrap_or(0);
+    let api_latency = client
+        .measure_api_host(DEFAULT_API_HOST, std::time::Duration::from_secs(2))
+        .await
+        .unwrap_or(0);
     let image_latency = client
-        .measure_image_host(DEFAULT_IMAGE_HOST)
+        .measure_image_host(DEFAULT_IMAGE_HOST, std::time::Duration::from_secs(2))
         .await
         .unwrap_or(0);
 

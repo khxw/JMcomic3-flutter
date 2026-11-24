@@ -28,7 +28,7 @@ class HostLatencyProbe {
 
 Future<HostLatencyProbe?> selectFastestHost(
   Iterable<String> hosts,
-  Future<int> Function(String host) ping, {
+  Future<int> Function(String host, Duration timeout) ping, {
   Duration timeout = const Duration(milliseconds: 1800),
   bool returnOnFirstSuccess = false,
 }) async {
@@ -49,7 +49,8 @@ Future<HostLatencyProbe?> selectFastestHost(
       unawaited(() async {
         HostLatencyProbe? result;
         try {
-          final milliseconds = await ping(host).timeout(timeout);
+          final milliseconds = await ping(host, timeout)
+              .timeout(timeout + const Duration(milliseconds: 150));
           if (milliseconds > 0) {
             result = HostLatencyProbe(
               host: host,
@@ -74,7 +75,8 @@ Future<HostLatencyProbe?> selectFastestHost(
 
   final results = await Future.wait(candidates.map((host) async {
     try {
-      final milliseconds = await ping(host).timeout(timeout);
+      final milliseconds = await ping(host, timeout)
+          .timeout(timeout + const Duration(milliseconds: 150));
       if (milliseconds <= 0) return null;
       return HostLatencyProbe(host: host, milliseconds: milliseconds);
     } catch (_) {

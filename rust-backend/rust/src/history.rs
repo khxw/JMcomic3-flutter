@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use crate::atomic::{recover_file, replace_file};
 use crate::error::{BackendError, BackendResult};
 
 const PAGE_SIZE: usize = 80;
@@ -73,6 +74,8 @@ impl HistoryStore {
         fs::create_dir_all(root)?;
         let view_logs_path = root.join("view_logs.json");
         let search_history_path = root.join("search_histories.json");
+        recover_file(&view_logs_path)?;
+        recover_file(&search_history_path)?;
         let view_logs = read_view_logs(&view_logs_path)?;
         let search_history = read_search_history(&search_history_path)?;
         Ok(Self {
@@ -442,10 +445,10 @@ fn write_json_atomic(path: &Path, value: &impl Serialize) -> BackendResult<()> {
     fs::create_dir_all(parent)?;
     let temporary = path.with_extension("json.tmp");
     fs::write(&temporary, serde_json::to_vec_pretty(value)?)?;
-    if path.exists() {
-        fs::remove_file(path)?;
+    if let Err(error) = replace_file(&temporary, path) {
+        let _ = fs::remove_file(&temporary);
+        return Err(error.into());
     }
-    fs::rename(temporary, path)?;
     Ok(())
 }
 

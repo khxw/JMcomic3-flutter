@@ -19,7 +19,7 @@ void main() {
   test('fastest successful host wins and failed probes are ignored', () async {
     final selected = await selectFastestHost(
       ['slow.example.com', 'failed.example.com', 'fast.example.com'],
-      (host) async {
+      (host, timeout) async {
         if (host == 'failed.example.com') {
           throw StateError('offline');
         }
@@ -45,6 +45,10 @@ void main() {
           jsonDecode(call.arguments as String) as Map<String, dynamic>;
       final method = request['method'];
       final params = '${request['params'] ?? ''}';
+      final objectParams = params.startsWith('{')
+          ? jsonDecode(params) as Map<String, dynamic>
+          : const <String, dynamic>{};
+      final pingHost = '${objectParams['host'] ?? params}';
       switch (method) {
         case 'load_api_host_list':
           return _response(jsonEncode([
@@ -58,26 +62,26 @@ void main() {
         case 'ping_server':
           await Future<void>.delayed(
             Duration(
-              milliseconds: params == 'fast-api.example.com' ? 5 : 25,
+              milliseconds: pingHost == 'fast-api.example.com' ? 5 : 25,
             ),
           );
           return _response(
-            params == 'fast-api.example.com'
+            pingHost == 'fast-api.example.com'
                 ? '18'
-                : params == 'slow-api.example.com'
+                : pingHost == 'slow-api.example.com'
                     ? '260'
                     : '420',
           );
         case 'ping_cdn':
           await Future<void>.delayed(
             Duration(
-              milliseconds: params == 'cdn-msp3.jmapiproxy2.cc' ? 5 : 25,
+              milliseconds: pingHost == 'cdn-msp3.jmapiproxy2.cc' ? 5 : 25,
             ),
           );
           return _response(
-            params == 'cdn-msp3.jmapiproxy2.cc'
+            pingHost == 'cdn-msp3.jmapiproxy2.cc'
                 ? '12'
-                : params == 'cdn-current.example.com'
+                : pingHost == 'cdn-current.example.com'
                     ? '180'
                     : '360',
           );

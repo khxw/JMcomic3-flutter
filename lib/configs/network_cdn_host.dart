@@ -117,7 +117,7 @@ void _mergeCdnList(Iterable<String> items) {
 Future<bool> autoSelectCdnHost() async {
   final fastest = await selectFastestHost(
     _cdnList,
-    methods.pingCdn,
+    (host, timeout) => methods.pingCdn(host, timeout: timeout),
     timeout: _automaticProbeTimeout,
     returnOnFirstSuccess: false,
   );

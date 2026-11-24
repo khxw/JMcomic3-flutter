@@ -86,13 +86,11 @@ class _FloatingSearchBarScreenState extends State<FloatingSearchBarScreen>
   }
 
   Widget _buildOnPop() {
-    return WillPopScope(
-      onWillPop: () async {
-        if (_animationController.isDismissed) {
-          return true;
-        }
+    return PopScope(
+      canPop: _animationController.isDismissed,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
         _hideSearchBar();
-        return false;
       },
       child: Container(),
     );

@@ -285,7 +285,7 @@ void main() {
       (tester) async {
     var favoriteCalls = 0;
     var rotations = 0;
-    native.Methods.apiHostRecoveryHandler = () async {
+    native.Methods.apiHostRecoveryHandler = (observedVersion) async {
       rotations++;
       return true;
     };
@@ -325,7 +325,7 @@ void main() {
   testWidgets('HTML 404 login switches API route and retries', (tester) async {
     var loginCalls = 0;
     var rotations = 0;
-    native.Methods.apiHostRecoveryHandler = () async {
+    native.Methods.apiHostRecoveryHandler = (observedVersion) async {
       rotations++;
       return true;
     };
@@ -428,7 +428,7 @@ void main() {
   testWidgets('read API HTTP 500 switches route and retries', (tester) async {
     var dailyCalls = 0;
     var rotations = 0;
-    native.Methods.apiHostRecoveryHandler = () async {
+    native.Methods.apiHostRecoveryHandler = (observedVersion) async {
       rotations++;
       return true;
     };

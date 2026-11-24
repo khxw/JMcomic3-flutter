@@ -431,10 +431,7 @@ impl MediaCache {
             &self.reader_pages,
             &self.photos,
         ] {
-            if directory.exists() {
-                fs::remove_dir_all(directory)?;
-            }
-            fs::create_dir_all(directory)?;
+            reset_cache_directory(directory)?;
         }
         self.fetch_locks
             .lock()
@@ -525,11 +522,63 @@ fn is_nonempty_file(path: &Path) -> bool {
 }
 
 fn reset_cache_directory(path: &Path) -> BackendResult<()> {
-    if path.exists() {
-        fs::remove_dir_all(path)?;
-    }
+    cleanup_stale_cache_directories(path);
+    let stale = if path.exists() {
+        let parent = path.parent().unwrap_or_else(|| Path::new("."));
+        let name = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("cache");
+        let timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or(Duration::ZERO)
+            .as_nanos();
+        let stale = parent.join(format!(
+            ".{name}.cleanup-{}-{timestamp}",
+            std::process::id()
+        ));
+        fs::rename(path, &stale)?;
+        Some(stale)
+    } else {
+        None
+    };
     fs::create_dir_all(path)?;
+    if let Some(stale) = stale {
+        let _ = std::thread::Builder::new()
+            .name("media-cache-cleanup".into())
+            .spawn(move || {
+                let _ = fs::remove_dir_all(stale);
+            });
+    }
     Ok(())
+}
+
+fn cleanup_stale_cache_directories(path: &Path) {
+    let Some(parent) = path.parent() else {
+        return;
+    };
+    let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+        return;
+    };
+    let prefix = format!(".{name}.cleanup-");
+    let Ok(entries) = fs::read_dir(parent) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let file_name = entry.file_name();
+        let Some(file_name) = file_name.to_str() else {
+            continue;
+        };
+        if !file_name.starts_with(&prefix) || !entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+            continue;
+        }
+        let stale = entry.path();
+        let _ = std::thread::Builder::new()
+            .name("media-cache-stale-cleanup".into())
+            .spawn(move || {
+                let _ = fs::remove_dir_all(stale);
+            });
+    }
 }
 
 fn collect_cache_days(

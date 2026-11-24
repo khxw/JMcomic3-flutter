@@ -359,7 +359,15 @@ class _DownloadsExportingScreenState extends State<DownloadsExportingScreen> {
   }
 
   Widget buildScreen(BuildContext context) {
-    return WillPopScope(
+    return PopScope(
+      canPop: !exporting,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop || !exporting) return;
+        defaultToast(
+          context,
+          context.l10n.tr('导出中, 请稍后', en: 'Exporting, please wait'),
+        );
+      },
       child: Scaffold(
         key: const ValueKey('batch-export-format-page'),
         backgroundColor: Theme.of(context).colorScheme.surface,
@@ -384,16 +392,6 @@ class _DownloadsExportingScreenState extends State<DownloadsExportingScreen> {
         ),
         body: _body(),
       ),
-      onWillPop: () async {
-        if (exporting) {
-          defaultToast(
-            context,
-            context.l10n.tr('导出中, 请稍后', en: 'Exporting, please wait'),
-          );
-          return false;
-        }
-        return true;
-      },
     );
   }
 }

@@ -21,6 +21,7 @@ const _fallbackApiHosts = <String>[
 String _apiHost = _defaultApiHost;
 
 List<String> _apiList = [];
+Future<bool>? _apiRotationInflight;
 
 Future<void> initApiHost() async {
   Methods.apiHostRecoveryHandler = rotateApiHostAfterInvalidResponse;
@@ -45,7 +46,28 @@ Future<void> initApiHost() async {
   await autoSelectApiHost();
 }
 
-Future<bool> rotateApiHostAfterInvalidResponse() async {
+Future<bool> rotateApiHostAfterInvalidResponse([int? observedVersion]) {
+  return _rotateApiHostForRequest(observedVersion ?? Methods.apiRouteVersion);
+}
+
+Future<bool> _rotateApiHostForRequest(int observedVersion) async {
+  if (Methods.apiRouteVersion != observedVersion) {
+    return true;
+  }
+  final running = _apiRotationInflight;
+  if (running != null) return running;
+  final future = _performApiHostRotation();
+  _apiRotationInflight = future;
+  try {
+    return await future;
+  } finally {
+    if (identical(_apiRotationInflight, future)) {
+      _apiRotationInflight = null;
+    }
+  }
+}
+
+Future<bool> _performApiHostRotation() async {
   if (_apiList.isEmpty) return false;
   final current = _apiHost.toLowerCase();
   final currentIndex =
@@ -57,6 +79,7 @@ Future<bool> rotateApiHostAfterInvalidResponse() async {
     try {
       await methods.saveApiHost(candidate);
       _apiHost = candidate;
+      Methods.apiRouteVersion++;
       _mergeApiList([candidate]);
       debugPrient("API route switched after invalid response: $candidate");
       return true;
@@ -89,7 +112,7 @@ void _mergeApiList(Iterable<String> items) {
 Future<bool> autoSelectApiHost() async {
   final fastest = await selectFastestHost(
     _apiList,
-    methods.ping,
+    (host, timeout) => methods.ping(host, timeout: timeout),
     timeout: _automaticProbeTimeout,
     returnOnFirstSuccess: false,
   );
@@ -103,8 +126,7 @@ Future<bool> autoSelectApiHost() async {
     debugPrient("autoSelectApiHost save failed: $error");
     return false;
   }
-  _apiHost = fastest.host;
-  _mergeApiList([_apiHost]);
+  _setCurrentApiHost(fastest.host);
   return true;
 }
 
@@ -243,8 +265,15 @@ Future chooseApiHost(BuildContext context) async {
   if (choose != null) {
     _apiHost = normalizeApiHostCandidate(choose, fallback: _defaultApiHost);
     await methods.saveApiHost(_apiHost);
+    Methods.apiRouteVersion++;
     _mergeApiList([_apiHost]);
   }
+}
+
+void _setCurrentApiHost(String host) {
+  _apiHost = host;
+  Methods.apiRouteVersion++;
+  _mergeApiList([_apiHost]);
 }
 
 Widget apiHostSetting() {

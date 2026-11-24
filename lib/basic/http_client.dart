@@ -10,13 +10,27 @@ class DownloadPausedException implements Exception {
   String toString() => 'download paused';
 }
 
+class DownloadCancelledException implements Exception {
+  const DownloadCancelledException();
+
+  @override
+  String toString() => 'download cancelled';
+}
+
 class DownloadControl {
   bool _pauseRequested = false;
+  bool _cancelRequested = false;
 
   bool get pauseRequested => _pauseRequested;
+  bool get cancelRequested => _cancelRequested;
 
   void pause() {
     _pauseRequested = true;
+  }
+
+  void cancel() {
+    _cancelRequested = true;
+    _pauseRequested = false;
   }
 }
 
@@ -126,6 +140,9 @@ class AppHttpClient {
       await partial.delete();
       existingBytes = 0;
     }
+    if (control?.cancelRequested == true) {
+      throw const DownloadCancelledException();
+    }
     if (control?.pauseRequested == true) {
       throw const DownloadPausedException();
     }
@@ -182,6 +199,10 @@ class AppHttpClient {
       append = false;
       total = response.contentLength > 0 ? response.contentLength : null;
     }
+    if (control?.cancelRequested == true) {
+      await response.drain<void>();
+      throw const DownloadCancelledException();
+    }
     if (control?.pauseRequested == true) {
       await response.drain<void>();
       throw const DownloadPausedException();
@@ -205,6 +226,9 @@ class AppHttpClient {
 
       reportProgress();
       await for (final chunk in response) {
+        if (control?.cancelRequested == true) {
+          throw const DownloadCancelledException();
+        }
         if (control?.pauseRequested == true) {
           throw const DownloadPausedException();
         }
@@ -215,6 +239,9 @@ class AppHttpClient {
       await sink.flush();
       await sink.close();
       sinkClosed = true;
+      if (control?.cancelRequested == true) {
+        throw const DownloadCancelledException();
+      }
       if (total != null && existingBytes + received != total) {
         throw HttpException(
           "Incomplete download: ${existingBytes + received}/$total bytes",

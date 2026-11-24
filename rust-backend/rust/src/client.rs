@@ -591,7 +591,13 @@ impl JmClient {
         Ok(started.elapsed().as_millis().max(1) as u64)
     }
 
-    pub async fn measure_image_host(&self, host: &str) -> BackendResult<u64> {
+    pub async fn measure_image_host(&self, host: &str, timeout: Duration) -> BackendResult<u64> {
+        tokio::time::timeout(timeout, self.measure_image_host_inner(host))
+            .await
+            .map_err(|_| BackendError::InvalidResponse("CDN probe timed out".into()))?
+    }
+
+    async fn measure_image_host_inner(&self, host: &str) -> BackendResult<u64> {
         let config = JmClientConfig {
             api_host: host.to_string(),
             ..JmClientConfig::default()
@@ -623,11 +629,16 @@ impl JmClient {
                 "CDN probe did not return an image".into(),
             ));
         }
-        let _ = response.bytes().await?;
         Ok(started.elapsed().as_millis().max(1) as u64)
     }
 
-    pub async fn measure_api_host(&self, host: &str) -> BackendResult<u64> {
+    pub async fn measure_api_host(&self, host: &str, timeout: Duration) -> BackendResult<u64> {
+        tokio::time::timeout(timeout, self.measure_api_host_inner(host))
+            .await
+            .map_err(|_| BackendError::InvalidResponse("API probe timed out".into()))?
+    }
+
+    async fn measure_api_host_inner(&self, host: &str) -> BackendResult<u64> {
         let config = JmClientConfig {
             api_host: host.to_string(),
             ..JmClientConfig::default()
@@ -660,7 +671,6 @@ impl JmClient {
                 body: String::new(),
             });
         }
-        let _ = response.bytes().await?;
         Ok(started.elapsed().as_millis().max(1) as u64)
     }
 
@@ -828,8 +838,8 @@ impl JmClient {
                     if status.is_success() {
                         return Ok(body);
                     }
-                    let retryable =
-                        status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error();
+                    let retryable = status == StatusCode::TOO_MANY_REQUESTS
+                        || (method == Method::GET && status.is_server_error());
                     if !retryable || attempt == self.inner.config.max_retries {
                         return Err(BackendError::HttpStatus {
                             status: status.as_u16(),
@@ -842,6 +852,9 @@ impl JmClient {
                     });
                 }
                 Err(error) => {
+                    if error.is_connect() || error.is_timeout() {
+                        return Err(BackendError::Http(error));
+                    }
                     if attempt == self.inner.config.max_retries {
                         return Err(BackendError::Http(error));
                     }

@@ -3,6 +3,7 @@ use std::ffi::{c_char, CStr, CString};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Duration;
 
 use serde_json::{json, Value};
 use tokio::runtime::Runtime;
@@ -21,6 +22,7 @@ use crate::{BackendResult, JmClient, JmClientConfig};
 
 static RUNTIME: OnceLock<Runtime> = OnceLock::new();
 static STATE: OnceLock<Mutex<Option<BackendState>>> = OnceLock::new();
+static BACKEND_ROOT: OnceLock<PathBuf> = OnceLock::new();
 const FALLBACK_API_HOSTS: &[&str] = &[
     "www.cdnhjk.net",
     "www.cdngwc.club",
@@ -96,13 +98,16 @@ fn state_slot() -> &'static Mutex<Option<BackendState>> {
     STATE.get_or_init(|| Mutex::new(None))
 }
 
-fn initialize_state(root: &Path) -> Result<(), String> {
-    let state = BackendState::open(root).map_err(|error| error.to_string())?;
-    let mut slot = state_slot()
-        .lock()
-        .map_err(|_| "backend state lock poisoned".to_string())?;
-    *slot = Some(state);
-    Ok(())
+fn configured_root() -> PathBuf {
+    BACKEND_ROOT.get().cloned().unwrap_or_else(|| {
+        std::env::var_os("JMCOMIC3_BACKEND_DATA_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                std::env::current_dir()
+                    .unwrap_or_else(|_| PathBuf::from("."))
+                    .join("jmcomic3-backend-data")
+            })
+    })
 }
 
 fn state() -> Result<BackendState, String> {
@@ -110,13 +115,7 @@ fn state() -> Result<BackendState, String> {
         .lock()
         .map_err(|_| "backend state lock poisoned".to_string())?;
     if slot.is_none() {
-        let root = std::env::var_os("JMCOMIC3_BACKEND_DATA_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                std::env::current_dir()
-                    .unwrap_or_else(|_| PathBuf::from("."))
-                    .join("jmcomic3-backend-data")
-            });
+        let root = configured_root();
         *slot = Some(BackendState::open(&root).map_err(|error| error.to_string())?);
     }
     slot.as_ref()
@@ -129,13 +128,7 @@ fn reset_client() -> Result<(), String> {
         .lock()
         .map_err(|_| "backend state lock poisoned".to_string())?;
     if slot.is_none() {
-        let root = std::env::var_os("JMCOMIC3_BACKEND_DATA_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                std::env::current_dir()
-                    .unwrap_or_else(|_| PathBuf::from("."))
-                    .join("jmcomic3-backend-data")
-            });
+        let root = configured_root();
         *slot = Some(BackendState::open(&root).map_err(|error| error.to_string())?);
     }
     let state = slot
@@ -191,8 +184,12 @@ pub extern "C" fn init_ffi(path: *const c_char) {
     let root = root
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
-    if let Err(error) = initialize_state(&root) {
-        tracing::error!(%error, "backend state initialization failed");
+    if BACKEND_ROOT.set(root.clone()).is_err() {
+        tracing::warn!(
+            requested = %root.display(),
+            configured = %configured_root().display(),
+            "backend root was already configured"
+        );
     }
 }
 
@@ -242,6 +239,31 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
             let key = string_value(&params).unwrap_or_default();
             match state.store.load(&key) {
                 Ok(value) => InvokeResponse::success_text(value),
+                Err(error) => InvokeResponse::error(error.to_string()),
+            }
+        }
+        "property_values_with_prefix" => {
+            let prefix = string_param(&params, "prefix").unwrap_or_default();
+            match state.store.values_with_prefix(&prefix) {
+                Ok(values) => InvokeResponse::success_value(&json!(values)),
+                Err(error) => InvokeResponse::error(error.to_string()),
+            }
+        }
+        "remove_properties" => {
+            let keys = params
+                .get("keys")
+                .and_then(Value::as_array)
+                .or_else(|| params.as_array())
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            match state.store.remove_many(&keys) {
+                Ok(removed) => InvokeResponse::success_value(&json!({ "removed": removed })),
                 Err(error) => InvokeResponse::error(error.to_string()),
             }
         }
@@ -326,25 +348,37 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
         }
         "get_proxy" => property_response(&state, "proxy"),
         "ping_server" => {
-            let host = string_value(&params)
+            let host = string_param(&params, "host")
+                .or_else(|| string_value(&params))
                 .filter(|value| !value.trim().is_empty())
                 .unwrap_or_else(|| state.client.config().api_host.clone());
+            let timeout = Duration::from_millis(
+                int_param(&params, "timeout_ms")
+                    .unwrap_or(2_000)
+                    .clamp(200, 10_000) as u64,
+            );
             result_text(
                 state
                     .client
-                    .measure_api_host(&host)
+                    .measure_api_host(&host, timeout)
                     .await
                     .map(|value| value.to_string()),
             )
         }
         "ping_cdn" => {
-            let host = string_value(&params)
+            let host = string_param(&params, "host")
+                .or_else(|| string_value(&params))
                 .filter(|value| !value.trim().is_empty())
                 .unwrap_or_else(|| state.client.config().image_host.clone());
+            let timeout = Duration::from_millis(
+                int_param(&params, "timeout_ms")
+                    .unwrap_or(2_000)
+                    .clamp(200, 10_000) as u64,
+            );
             result_text(
                 state
                     .client
-                    .measure_image_host(&host)
+                    .measure_image_host(&host, timeout)
                     .await
                     .map(|value| value.to_string()),
             )
