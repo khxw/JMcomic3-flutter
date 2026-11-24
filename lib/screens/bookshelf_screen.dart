@@ -58,11 +58,8 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
   }
 
   Future<void> _load({bool force = false}) async {
-    if (force && mounted) {
-      setState(() => _refreshing = true);
-    }
     final savedSortFuture = methods.loadProperty("bookshelf_sort");
-    await loadLocalBookshelf(force: force);
+    await loadLocalBookshelf();
     final savedSort = await savedSortFuture;
     if (!mounted) return;
     setState(() {
@@ -70,6 +67,7 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
         _sort = savedSort;
       }
       _loading = false;
+      _refreshing = force;
     });
     final refresh = refreshLocalBookshelfUpdates(force: force);
     if (force) {

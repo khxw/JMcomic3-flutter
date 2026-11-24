@@ -214,4 +214,73 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('manual refresh keeps the loaded local shelf in memory',
+      (tester) async {
+    final properties = <String, String>{};
+    var shelfStorageLoads = 0;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      switch (request['method']) {
+        case 'load_property':
+          final key = '${request['params']}';
+          if (key == 'local_bookshelf_v1') shelfStorageLoads++;
+          return _response(properties[key] ?? '');
+        case 'save_property':
+          final values =
+              jsonDecode(request['params'] as String) as Map<String, dynamic>;
+          properties[values['k'] as String] = values['v'] as String;
+          return _response('');
+        case 'album':
+          return _response(_album(updateAt: 200));
+        default:
+          return _response('');
+      }
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+      resetLocalBookshelfMemory();
+    });
+
+    await initPagerViewMode();
+    await initPagerCoverRate();
+    await initPagerColumnCount();
+    resetLocalBookshelfMemory();
+    await enterGuestMode();
+    await toggleLocalBookshelf(
+      ComicBasic(
+        id: 7,
+        author: 'Author',
+        description: '',
+        name: 'Comic',
+        image: 'cover.webp',
+        updateAt: 100,
+      ),
+      group: 'Reading',
+    );
+
+    resetLocalBookshelfMemory();
+    properties['local_bookshelf_updates_checked_at'] =
+        DateTime.now().millisecondsSinceEpoch.toString();
+    await tester.pumpWidget(const MaterialApp(
+      locale: Locale('en'),
+      localizationsDelegates: [AppLocalizations.delegate],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: BookshelfScreen(),
+    ));
+    await tester.pumpAndSettle();
+
+    final loadsBeforeRefresh = shelfStorageLoads;
+    await tester.tap(find.byKey(const ValueKey('bookshelf-options-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Refresh'));
+    await tester.pumpAndSettle();
+
+    expect(shelfStorageLoads, loadsBeforeRefresh);
+    expect(localBookshelfItems.single.comic.name, 'Comic');
+    expect(tester.takeException(), isNull);
+  });
 }
