@@ -55,7 +55,7 @@ Future initLogin(BuildContext context) async {
     );
     _loginState = LoginStatus.logging;
     final preLogin = await methods.preLogin();
-    _loginMessage = preLogin.message ?? "";
+    _loginMessage = _safeLoginMessage(context, preLogin.message ?? "");
     if (!preLogin.preSet) {
       _loginState = _guestMode ? LoginStatus.guest : LoginStatus.notSet;
     } else if (preLogin.preLogin) {
@@ -71,6 +71,7 @@ Future initLogin(BuildContext context) async {
   } catch (e, st) {
     debugPrient("$e\n$st");
     _loginState = _guestMode ? LoginStatus.guest : LoginStatus.loginField;
+    _loginMessage = _safeLoginMessage(context, "$e");
   } finally {
     reloadIsPro();
   }
@@ -212,8 +213,29 @@ Future login(
   } catch (e, st) {
     debugPrient("$e\n$st");
     _loginState = LoginStatus.loginField;
-    _loginMessage = "$e";
+    _loginMessage = _safeLoginMessage(context, "$e");
   }
+}
+
+String _safeLoginMessage(BuildContext context, String message) {
+  final value = message.trim();
+  if (value.isEmpty) return "";
+  final lower = value.toLowerCase();
+  if (lower.contains("http 404") ||
+      lower.contains("http 405") ||
+      lower.contains("<html") ||
+      lower.contains("<!doctype html") ||
+      lower.contains("invalid api response")) {
+    return context.l10n.tr(
+      "登录接口线路不可用，请稍后重试。",
+      en: "The login API route is unavailable. Try again shortly.",
+    );
+  }
+  final compact = value
+      .replaceAll(RegExp(r'<[^>]+>'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  return compact.length <= 180 ? compact : '${compact.substring(0, 180)}…';
 }
 
 Future<bool> refreshSelfInfo() async {

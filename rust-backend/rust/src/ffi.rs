@@ -1497,6 +1497,9 @@ async fn pre_login_response(state: &BackendState) -> InvokeResponse {
     }
 
     if let Some(message) = auto_login_error {
+        if is_api_route_failure(&message) {
+            return InvokeResponse::error(message);
+        }
         clear_rejected_session(state, &message);
         return InvokeResponse::success_value(&json!({
             "pre_set": true,
@@ -1521,6 +1524,22 @@ async fn pre_login_response(state: &BackendState) -> InvokeResponse {
         "message": "",
         "self_info": null,
     }))
+}
+
+fn is_api_route_failure(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    lower.contains("http 404")
+        || lower.contains("http 405")
+        || lower.contains("http 5")
+        || lower.contains("<html")
+        || lower.contains("<!doctype html")
+        || lower.contains("invalid api response")
+        || lower.contains("json error")
+        || lower.contains("expected value at line")
+        || lower.contains("error sending request")
+        || lower.contains("network")
+        || lower.contains("timeout")
+        || lower.contains("timed out")
 }
 
 fn first_non_empty_property(store: &PropertyStore, keys: &[&str]) -> String {
@@ -1996,5 +2015,16 @@ mod tests {
         std::fs::write(&source, b"second").unwrap();
         assert_eq!(std::fs::read(&destination).unwrap(), b"second");
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn api_route_failures_are_classified_before_pre_login_errors_are_shown() {
+        assert!(is_api_route_failure(
+            "HTTP 404: <html><body>Not Found</body></html>"
+        ));
+        assert!(is_api_route_failure("error sending request for url"));
+        assert!(!is_api_route_failure(
+            "JM API error 403: username or password is incorrect"
+        ));
     }
 }

@@ -425,6 +425,85 @@ void main() {
     expect(rotations, 1);
   });
 
+  testWidgets('HTML 404 pre-login switches API route and retries',
+      (tester) async {
+    var preLoginCalls = 0;
+    var rotations = 0;
+    native.Methods.apiHostRecoveryHandler = (observedVersion) async {
+      rotations++;
+      return true;
+    };
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      if (request['method'] == 'pre_login') {
+        preLoginCalls++;
+        if (preLoginCalls == 1) {
+          return _errorResponse(
+            'HTTP 404: <html><head><title>404 Not Found</title></head>'
+            '<body><center><h1>404 Not Found</h1></center></body></html>',
+          );
+        }
+        return _response({
+          'pre_set': true,
+          'pre_login': true,
+          'message': '',
+          'self_info': _selfInfo(7),
+        });
+      }
+      return _response('');
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+      native.Methods.apiHostRecoveryHandler = null;
+    });
+
+    final result = await native.methods.preLogin();
+
+    expect(result.preLogin, isTrue);
+    expect(result.selfInfo?.level, 7);
+    expect(preLoginCalls, 2);
+    expect(rotations, 1);
+  });
+
+  testWidgets('legacy pre-login HTML messages are sanitized', (tester) async {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      if (request['method'] == 'pre_login') {
+        return _response({
+          'pre_set': true,
+          'pre_login': false,
+          'message': 'HTTP 404: <html><body>nginx 404 Not Found</body></html>',
+          'self_info': null,
+        });
+      }
+      return _response('');
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+    });
+
+    await enterGuestMode();
+    await tester.pumpWidget(const MaterialApp(
+      locale: Locale('en'),
+      localizationsDelegates: [AppLocalizations.delegate],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: UserScreen(),
+    ));
+    await initLogin(tester.element(find.byType(UserScreen)));
+
+    expect(
+      loginMessage,
+      'The login API route is unavailable. Try again shortly.',
+    );
+    expect(loginMessage, isNot(contains('<html>')));
+  });
+
   testWidgets('login route errors do not expose raw HTML', (tester) async {
     native.Methods.apiHostRecoveryHandler = null;
     final messenger =

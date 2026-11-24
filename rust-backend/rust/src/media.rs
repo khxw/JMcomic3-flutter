@@ -868,7 +868,15 @@ mod tests {
         assert!(!reader_chapter.exists());
         assert!(download_chapter.join("page.png").is_file());
         assert!(cache.covers.join("cover.jpg").is_file());
-        fs::remove_dir_all(root).unwrap();
+        for _ in 0..20 {
+            match fs::remove_dir_all(&root) {
+                Ok(()) => break,
+                Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => panic!("failed to remove media test root: {error}"),
+            }
+        }
     }
 
     #[test]
