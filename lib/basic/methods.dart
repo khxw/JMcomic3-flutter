@@ -62,6 +62,16 @@ class Methods {
     "daily",
     "daily_status",
   };
+  static const Set<String> _hostRotationMethods = {
+    "pre_login",
+    "login",
+    "refresh_login",
+  };
+  static const Set<String> _nonRotatingApiHostMethods = {
+    "save_api_host",
+    "save_cdn_host",
+  };
+  static const int _maxApiHostRotations = 6;
   static const Duration _categoriesCacheTtl = Duration(minutes: 10);
   static const Duration _comicsCacheTtl = Duration(minutes: 5);
   static const Duration _albumCacheTtl = Duration(minutes: 10);
@@ -322,7 +332,7 @@ class Methods {
         response = _decodeInvokeResponse(await _invokeRaw(method, params));
         continue;
       }
-      if (hostRotations < 3 &&
+      if (hostRotations < _maxApiHostRotations &&
           _shouldRotateApiHost(method, response.errorMessage) &&
           await _rotateApiHost()) {
         hostRotations++;
@@ -356,7 +366,7 @@ class Methods {
           "backend-pro-gate method=$method errorClass=${_errorClass(response.errorMessage)}",
         );
       }
-      throw StateError(response.errorMessage);
+      throw StateError(_userFacingApiError(method, response.errorMessage));
     }
     if (shouldDebug) {
       debugPrient(
@@ -393,17 +403,41 @@ class Methods {
     final lower = message.toLowerCase();
     return lower.contains("json error") ||
         lower.contains("expected value at line") ||
-        lower.contains("invalid api response");
+        lower.contains("invalid api response") ||
+        lower.contains("<html") ||
+        lower.contains("<!doctype html") ||
+        lower.contains("</html>");
   }
 
   bool _shouldRotateApiHost(String method, String message) {
+    if (_nonRotatingApiHostMethods.contains(method)) return false;
     if (_isInvalidApiResponse(message)) return true;
-    if (!_readApiMethods.contains(method)) return false;
     final lower = message.toLowerCase();
-    return lower.contains("http 5") ||
+    final routeFailure = lower.contains("http 404") ||
+        lower.contains("http 405") ||
+        lower.contains("http 5") ||
         lower.contains("network") ||
         lower.contains("timeout") ||
         lower.contains("error sending request");
+    return routeFailure &&
+        (_readApiMethods.contains(method) ||
+            _hostRotationMethods.contains(method));
+  }
+
+  String _userFacingApiError(String method, String message) {
+    if (_isInvalidApiResponse(message) ||
+        message.toLowerCase().contains("http 404") ||
+        message.toLowerCase().contains("http 405")) {
+      return method == "login"
+          ? "登录接口线路不可用，请切换 API 分流后重试。"
+          : "API 接口线路不可用，请切换 API 分流后重试。";
+    }
+    final compact = message
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (compact.length <= 240) return compact;
+    return '${compact.substring(0, 240)}…';
   }
 
   bool _isImageRequestError(String message) {
@@ -1755,6 +1789,8 @@ class Methods {
   Future<String> installUpdateApk(
     String path, {
     String? expectedSha256,
+    int? expectedSize,
+    String? expectedVersionName,
   }) async {
     if (!Platform.isAndroid) {
       throw UnsupportedError('In-app APK installation is Android-only');
@@ -1764,9 +1800,31 @@ class Methods {
       {
         "path": path,
         "sha256": expectedSha256 ?? "",
+        "size": expectedSize ?? 0,
+        "version_name": expectedVersionName ?? "",
       },
     );
     return result ?? '';
+  }
+
+  Future<Map<String, dynamic>> verifyUpdateApk(
+    String path, {
+    required String expectedSha256,
+    int? expectedSize,
+    String? expectedVersionName,
+  }) async {
+    final result = await _channel.invokeMethod<Map<Object?, Object?>>(
+      "verifyUpdateApk",
+      {
+        "path": path,
+        "sha256": expectedSha256,
+        "size": expectedSize ?? 0,
+        "version_name": expectedVersionName ?? "",
+      },
+    );
+    return (result ?? const {}).map(
+      (key, value) => MapEntry('$key', value),
+    );
   }
 
   Future<String> getDownloadAndExportTo() async {

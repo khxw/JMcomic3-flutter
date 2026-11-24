@@ -322,6 +322,75 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('HTML 404 login switches API route and retries', (tester) async {
+    var loginCalls = 0;
+    var rotations = 0;
+    native.Methods.apiHostRecoveryHandler = () async {
+      rotations++;
+      return true;
+    };
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      if (request['method'] == 'login') {
+        loginCalls++;
+        if (loginCalls == 1) {
+          return _errorResponse(
+            'HTTP 404: <html><head><title>404 Not Found</title></head>'
+            '<body><center><h1>404 Not Found</h1></center>'
+            '<hr><center>nginx</center></body></html>',
+          );
+        }
+        return _response(_selfInfo(7));
+      }
+      return _response('');
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+      native.Methods.apiHostRecoveryHandler = null;
+    });
+
+    final selfInfo = await native.methods.login('reader', 'password');
+
+    expect(selfInfo.username, 'reader');
+    expect(selfInfo.level, 7);
+    expect(loginCalls, 2);
+    expect(rotations, 1);
+  });
+
+  testWidgets('login route errors do not expose raw HTML', (tester) async {
+    native.Methods.apiHostRecoveryHandler = null;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      if (request['method'] == 'login') {
+        return _errorResponse(
+          'HTTP 404: <html><body><center>nginx 404 Not Found</center></body>'
+          '</html>',
+        );
+      }
+      return _response('');
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+    });
+
+    await expectLater(
+      native.methods.login('reader', 'password'),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          '登录接口线路不可用，请切换 API 分流后重试。',
+        ),
+      ),
+    );
+  });
+
   testWidgets('image HTTP failures switch CDN route and retry', (tester) async {
     var imageCalls = 0;
     var rotations = 0;

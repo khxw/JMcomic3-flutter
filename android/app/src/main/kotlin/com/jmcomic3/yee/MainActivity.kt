@@ -7,6 +7,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Network
@@ -124,8 +125,59 @@ class MainActivity : FlutterActivity() {
                     }
                 val path = args["path"]?.toString() ?: ""
                 val digest = args["sha256"]?.toString() ?: ""
+                val expectedSize = (args["size"] as? Number)?.toLong() ?: 0L
+                val expectedVersionName = args["version_name"]?.toString() ?: ""
                 uiThreadHandler.post {
-                    installUpdateApk(path, digest, result)
+                    installUpdateApk(
+                        path,
+                        digest,
+                        expectedSize,
+                        expectedVersionName,
+                        result,
+                    )
+                }
+                return
+            }
+            "verifyUpdateApk" -> {
+                val args = call.arguments as? Map<*, *>
+                    ?: run {
+                        result.error("invalid_args", "Missing APK path", null)
+                        return
+                    }
+                val path = args["path"]?.toString() ?: ""
+                val digest = args["sha256"]?.toString() ?: ""
+                val expectedSize = (args["size"] as? Number)?.toLong() ?: 0L
+                val expectedVersionName = args["version_name"]?.toString() ?: ""
+                pool.submit {
+                    try {
+                        val apk = verifyUpdateApkFile(
+                            path,
+                            digest,
+                            expectedSize,
+                            expectedVersionName,
+                        )
+                        uiThreadHandler.post {
+                            result.success(
+                                mapOf(
+                                    "path" to apk.absolutePath,
+                                    "verified" to true,
+                                ),
+                            )
+                        }
+                    } catch (error: UpdateVerificationException) {
+                        uiThreadHandler.post {
+                            result.error(error.code, error.message, null)
+                        }
+                    } catch (error: Throwable) {
+                        Log.e("UpdateVerify", "APK verification failed", error)
+                        uiThreadHandler.post {
+                            result.error(
+                                "verify_error",
+                                error.message ?: "更新文件校验失败。",
+                                null,
+                            )
+                        }
+                    }
                 }
                 return
             }
@@ -962,49 +1014,17 @@ class MainActivity : FlutterActivity() {
     private fun installUpdateApk(
         path: String,
         expectedSha256: String,
+        expectedSize: Long,
+        expectedVersionName: String,
         result: MethodChannel.Result,
     ) {
         try {
-            if (path.isBlank()) {
-                result.error("invalid_apk", "更新文件路径为空。", null)
-                return
-            }
-            val root = updateDownloadDir().canonicalFile
-            val apk = File(path).canonicalFile
-            if (apk.parentFile != root && !apk.path.startsWith(root.path + File.separator)) {
-                result.error("invalid_apk", "更新文件不在应用更新目录中。", null)
-                return
-            }
-            if (!apk.isFile || !apk.name.endsWith(".apk", ignoreCase = true)) {
-                result.error("invalid_apk", "更新 APK 不存在。", null)
-                return
-            }
-            val expected = expectedSha256
-                .removePrefix("sha256:")
-                .trim()
-                .lowercase()
-            if (expected.isNotEmpty() && sha256(apk) != expected) {
-                apk.delete()
-                result.error(
-                    "digest_mismatch",
-                    "更新文件校验失败，请重新下载。",
-                    null,
-                )
-                return
-            }
-            val archive = packageManager.getPackageArchiveInfo(
-                apk.absolutePath,
-                PackageManager.GET_ACTIVITIES,
+            val apk = verifyUpdateApkFile(
+                path,
+                expectedSha256,
+                expectedSize,
+                expectedVersionName,
             )
-            if (archive == null || archive.packageName != packageName) {
-                apk.delete()
-                result.error(
-                    "package_mismatch",
-                    "更新 APK 与当前应用包名不一致。",
-                    null,
-                )
-                return
-            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                 !packageManager.canRequestPackageInstalls()
             ) {
@@ -1034,9 +1054,130 @@ class MainActivity : FlutterActivity() {
                 return
             }
             launchPackageInstaller(apk.absolutePath, result)
+        } catch (error: UpdateVerificationException) {
+            result.error(error.code, error.message, null)
         } catch (e: Exception) {
             result.error("install_error", e.message ?: "无法启动 APK 安装器。", null)
         }
+    }
+
+    private class UpdateVerificationException(
+        val code: String,
+        override val message: String,
+    ) : Exception(message)
+
+    private fun verifyUpdateApkFile(
+        path: String,
+        expectedSha256: String,
+        expectedSize: Long,
+        expectedVersionName: String,
+    ): File {
+        if (path.isBlank()) {
+            throw UpdateVerificationException("invalid_apk", "更新文件路径为空。")
+        }
+        val root = updateDownloadDir().canonicalFile
+        val requestedFile = File(path).absoluteFile
+        val apk = requestedFile.canonicalFile
+        if (requestedFile.path != apk.path) {
+            throw UpdateVerificationException(
+                "invalid_apk",
+                "更新文件路径包含符号链接，已拒绝安装。",
+            )
+        }
+        if (apk.parentFile != root && !apk.path.startsWith(root.path + File.separator)) {
+            throw UpdateVerificationException(
+                "invalid_apk",
+                "更新文件不在应用更新目录中。",
+            )
+        }
+        if (!apk.isFile || !apk.name.endsWith(".apk", ignoreCase = true)) {
+            throw UpdateVerificationException("invalid_apk", "更新 APK 不存在。")
+        }
+        if (expectedSize > 0 && apk.length() != expectedSize) {
+            apk.delete()
+            throw UpdateVerificationException(
+                "size_mismatch",
+                "更新文件大小校验失败，请重新下载。",
+            )
+        }
+        val expected = expectedSha256
+            .removePrefix("sha256:")
+            .trim()
+            .lowercase()
+        if (!Regex("^[0-9a-f]{64}$").matches(expected)) {
+            throw UpdateVerificationException(
+                "digest_missing",
+                "更新文件缺少官方 SHA-256，已拒绝安装。",
+            )
+        }
+        if (sha256(apk) != expected) {
+            apk.delete()
+            throw UpdateVerificationException(
+                "digest_mismatch",
+                "更新文件校验失败，请重新下载。",
+            )
+        }
+        val signatureFlag =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                PackageManager.GET_SIGNING_CERTIFICATES
+            } else {
+                @Suppress("DEPRECATION")
+                PackageManager.GET_SIGNATURES
+            }
+        val archive = packageManager.getPackageArchiveInfo(
+            apk.absolutePath,
+            PackageManager.GET_ACTIVITIES or signatureFlag,
+        )
+        if (archive == null || archive.packageName != packageName) {
+            apk.delete()
+            throw UpdateVerificationException(
+                "package_mismatch",
+                "更新 APK 与当前应用包名不一致。",
+            )
+        }
+        val currentInfo = packageManager.getPackageInfo(packageName, signatureFlag)
+        val archiveVersionCode =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                archive.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                archive.versionCode.toLong()
+            }
+        val currentVersionCode =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                currentInfo.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                currentInfo.versionCode.toLong()
+            }
+        if (archiveVersionCode <= currentVersionCode) {
+            apk.delete()
+            throw UpdateVerificationException(
+                "stale_package",
+                "更新版本不高于当前版本，已拒绝安装。",
+            )
+        }
+        val normalizedExpectedVersion =
+            expectedVersionName.trim().removePrefix("v").substringBefore("+")
+        if (normalizedExpectedVersion.isNotEmpty() &&
+            archive.versionName != normalizedExpectedVersion
+        ) {
+            apk.delete()
+            throw UpdateVerificationException(
+                "version_mismatch",
+                "更新 APK 版本与发布信息不一致。",
+            )
+        }
+        val archiveSigners = signerDigests(archive)
+        val currentSigners = signerDigests(currentInfo)
+        if (archiveSigners.isEmpty() || archiveSigners != currentSigners) {
+            apk.delete()
+            throw UpdateVerificationException(
+                "signature_mismatch",
+                "更新 APK 签名与当前应用不一致，已拒绝安装。",
+            )
+        }
+        return apk
     }
 
     private fun launchPackageInstaller(
@@ -1076,6 +1217,25 @@ class MainActivity : FlutterActivity() {
             }
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private fun sha256(value: ByteArray): String {
+        return MessageDigest.getInstance("SHA-256")
+            .digest(value)
+            .joinToString("") { "%02x".format(it) }
+    }
+
+    private fun signerDigests(info: PackageInfo): Set<String> {
+        val signatures =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.signingInfo?.apkContentsSigners.orEmpty()
+            } else {
+                @Suppress("DEPRECATION")
+                info.signatures.orEmpty()
+            }
+        return signatures
+            .map { signature -> sha256(signature.toByteArray()) }
+            .toSet()
     }
 
     private fun auth(): Boolean {

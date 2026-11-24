@@ -1,4 +1,5 @@
 import 'dart:async' show Completer, Future, TimeoutException, unawaited;
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -275,6 +276,8 @@ bool dirtyVersion() {
 enum _UpdateDownloadPhase {
   preparing,
   downloading,
+  pausing,
+  paused,
   verifying,
 }
 
@@ -303,10 +306,41 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
     await openUrl(url);
     return;
   }
+  final expectedDigest = latestApkSha256();
+  if (expectedDigest == null) {
+    defaultToast(
+      context,
+      context.l10n.tr(
+        '更新包缺少官方 SHA-256，已停止自动安装。',
+        en: 'The update has no official SHA-256 and cannot be installed automatically.',
+      ),
+    );
+    return;
+  }
 
   final progress = ValueNotifier<_UpdateDownloadState>(
     const _UpdateDownloadState(_UpdateDownloadPhase.preparing),
   );
+  DownloadControl? activeControl;
+  Completer<void>? resumeCompleter;
+  void requestPause() {
+    final control = activeControl;
+    if (control == null ||
+        progress.value.phase != _UpdateDownloadPhase.downloading) {
+      return;
+    }
+    progress.value = progress.value.withPhase(_UpdateDownloadPhase.pausing);
+    control.pause();
+  }
+
+  void requestResume() {
+    if (progress.value.phase != _UpdateDownloadPhase.paused) return;
+    final completer = resumeCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete();
+    }
+  }
+
   BuildContext? dialogContext;
   var dialogVisible = true;
   unawaited(showDialog<void>(
@@ -319,6 +353,8 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
         assetName: latestApkAssetName() ?? 'JMComic3 Mod APK',
         size: latestApkSize(),
         version: latestVersion ?? latestVersionName,
+        onPause: requestPause,
+        onResume: requestResume,
       );
     },
   ));
@@ -341,9 +377,11 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
     final destination = File(
       '${directory.path}${Platform.pathSeparator}$fileName',
     );
+    final partial = File('${destination.path}.part');
     await for (final entity in directory.list()) {
       if (entity is File &&
           entity.path != destination.path &&
+          entity.path != partial.path &&
           (entity.path.endsWith('.apk') || entity.path.endsWith('.part'))) {
         try {
           await entity.delete();
@@ -351,26 +389,61 @@ Future<void> downloadAndInstallLatestUpdate(BuildContext context) async {
       }
     }
 
-    progress.value = const _UpdateDownloadState(
-      _UpdateDownloadPhase.downloading,
-      0,
-    );
-    await _downloadUpdatePackage(
-      officialUrl: url,
-      destination: destination,
-      progress: progress,
-    );
+    var resumeDownload = await partial.exists() && await partial.length() > 0;
+    while (true) {
+      final control = DownloadControl();
+      activeControl = control;
+      progress.value = _UpdateDownloadState(
+        _UpdateDownloadPhase.downloading,
+        resumeDownload && (latestApkSize() ?? 0) > 0
+            ? ((await partial.length()) / latestApkSize()!)
+                .clamp(0, 1)
+                .toDouble()
+            : 0,
+        progress.value.source,
+      );
+      try {
+        await _downloadUpdatePackage(
+          officialUrl: url,
+          destination: destination,
+          progress: progress,
+          resume: resumeDownload,
+          control: control,
+        );
+        activeControl = null;
+        break;
+      } on DownloadPausedException {
+        activeControl = null;
+        resumeDownload = await partial.exists() && await partial.length() > 0;
+        progress.value = progress.value.withPhase(_UpdateDownloadPhase.paused);
+        final completer = Completer<void>();
+        resumeCompleter = completer;
+        await completer.future;
+        if (identical(resumeCompleter, completer)) {
+          resumeCompleter = null;
+        }
+        resumeDownload = true;
+      }
+    }
     final source = progress.value.source;
     progress.value = const _UpdateDownloadState(
       _UpdateDownloadPhase.verifying,
       1,
     ).withSource(source);
+    await methods.verifyUpdateApk(
+      destination.path,
+      expectedSha256: expectedDigest,
+      expectedSize: latestApkSize(),
+      expectedVersionName: latestVersion ?? latestVersionName,
+    );
     await Future<void>.delayed(const Duration(milliseconds: 180));
     await closeProgress();
 
     await methods.installUpdateApk(
       destination.path,
-      expectedSha256: latestApkSha256(),
+      expectedSha256: expectedDigest,
+      expectedSize: latestApkSize(),
+      expectedVersionName: latestVersion ?? latestVersionName,
     );
   } catch (error) {
     await closeProgress();
@@ -386,15 +459,22 @@ extension on _UpdateDownloadState {
   _UpdateDownloadState withSource(String? source) {
     return _UpdateDownloadState(phase, progress, source);
   }
+
+  _UpdateDownloadState withPhase(_UpdateDownloadPhase nextPhase) {
+    return _UpdateDownloadState(nextPhase, progress, source);
+  }
 }
 
 Future<void> _downloadUpdatePackage({
   required String officialUrl,
   required File destination,
   required ValueNotifier<_UpdateDownloadState> progress,
+  required bool resume,
+  required DownloadControl control,
 }) async {
   Object? lastError;
   final candidates = _updateDownloadCandidates(officialUrl);
+  var useResume = resume;
   for (final candidate in candidates) {
     final source = _downloadSourceLabel(candidate, officialUrl);
     progress.value = _UpdateDownloadState(
@@ -406,6 +486,8 @@ Future<void> _downloadUpdatePackage({
       await AppHttpClient.downloadFile(
         candidate,
         destination,
+        resume: useResume,
+        control: control,
         headers: const {
           'Accept': 'application/octet-stream',
           'User-Agent': 'JMComic3Mod/Flutter',
@@ -429,8 +511,12 @@ Future<void> _downloadUpdatePackage({
         }
       }
       return;
+    } on DownloadPausedException {
+      rethrow;
     } catch (error) {
       lastError = error;
+      final partial = File('${destination.path}.part');
+      useResume = await partial.exists() && await partial.length() > 0;
       if (await destination.exists()) {
         try {
           await destination.delete();
@@ -565,12 +651,16 @@ class _UpdateDownloadDialog extends StatelessWidget {
   final String assetName;
   final int? size;
   final String? version;
+  final VoidCallback onPause;
+  final VoidCallback onResume;
 
   const _UpdateDownloadDialog({
     required this.state,
     required this.assetName,
     required this.size,
     required this.version,
+    required this.onPause,
+    required this.onResume,
   });
 
   @override
@@ -605,7 +695,12 @@ class _UpdateDownloadDialog extends StatelessWidget {
                     progress == null ? null : (progress * 100).round();
                 final preparing = value.phase == _UpdateDownloadPhase.preparing;
                 final verifying = value.phase == _UpdateDownloadPhase.verifying;
-                final accent = verifying ? scheme.tertiary : scheme.primary;
+                final paused = value.phase == _UpdateDownloadPhase.paused;
+                final accent = verifying
+                    ? scheme.tertiary
+                    : paused
+                        ? scheme.secondary
+                        : scheme.primary;
                 final title = switch (value.phase) {
                   _UpdateDownloadPhase.preparing => context.l10n.tr(
                       '正在准备更新',
@@ -614,6 +709,14 @@ class _UpdateDownloadDialog extends StatelessWidget {
                   _UpdateDownloadPhase.downloading => context.l10n.tr(
                       '正在下载更新',
                       en: 'Downloading update',
+                    ),
+                  _UpdateDownloadPhase.pausing => context.l10n.tr(
+                      '正在暂停下载',
+                      en: 'Pausing download',
+                    ),
+                  _UpdateDownloadPhase.paused => context.l10n.tr(
+                      '更新下载已暂停',
+                      en: 'Update download paused',
                     ),
                   _UpdateDownloadPhase.verifying => context.l10n.tr(
                       '正在校验安装包',
@@ -629,9 +732,17 @@ class _UpdateDownloadDialog extends StatelessWidget {
                       '请保持应用在前台，完成后会自动校验并打开系统安装界面',
                       en: 'Keep the app open. The package will be verified and the system installer will open automatically',
                     ),
+                  _UpdateDownloadPhase.pausing => context.l10n.tr(
+                      '正在保存已下载内容',
+                      en: 'Saving downloaded data',
+                    ),
+                  _UpdateDownloadPhase.paused => context.l10n.tr(
+                      '已下载内容会保留，可随时继续',
+                      en: 'Downloaded data is kept and can be resumed at any time',
+                    ),
                   _UpdateDownloadPhase.verifying => context.l10n.tr(
-                      '文件已下载，正在检查大小、包名和 SHA-256',
-                      en: 'Checking file size, package name, and SHA-256',
+                      '正在检查大小、SHA-256、包名、版本和签名证书',
+                      en: 'Checking size, SHA-256, package name, version, and signing certificate',
                     ),
                 };
                 final totalBytes =
@@ -666,7 +777,9 @@ class _UpdateDownloadDialog extends StatelessWidget {
                             child: Icon(
                               verifying
                                   ? Icons.verified_user_outlined
-                                  : Icons.system_update_alt_rounded,
+                                  : paused
+                                      ? Icons.pause_circle_outline_rounded
+                                      : Icons.system_update_alt_rounded,
                               color: accent,
                               size: 24,
                             ),
@@ -816,6 +929,28 @@ class _UpdateDownloadDialog extends StatelessWidget {
                           value: value.source!,
                         ),
                       ],
+                      if (value.phase == _UpdateDownloadPhase.downloading ||
+                          value.phase == _UpdateDownloadPhase.paused) ...[
+                        const SizedBox(height: 14),
+                        if (value.phase == _UpdateDownloadPhase.downloading)
+                          OutlinedButton.icon(
+                            key: const ValueKey('update-download-pause'),
+                            onPressed: onPause,
+                            icon: const Icon(Icons.pause_rounded),
+                            label: Text(
+                              context.l10n.tr('暂停下载', en: 'Pause download'),
+                            ),
+                          )
+                        else
+                          FilledButton.icon(
+                            key: const ValueKey('update-download-resume'),
+                            onPressed: onResume,
+                            icon: const Icon(Icons.play_arrow_rounded),
+                            label: Text(
+                              context.l10n.tr('继续下载', en: 'Resume download'),
+                            ),
+                          ),
+                      ],
                       const SizedBox(height: 14),
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -837,8 +972,8 @@ class _UpdateDownloadDialog extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 context.l10n.tr(
-                                  '安装包来自可信 Releases，下载后会校验摘要；最终安装仍由系统确认。',
-                                  en: 'The package comes from trusted Releases and is verified after download. The system still confirms installation.',
+                                  '安装前会校验大小、SHA-256、包名、版本和签名证书；最终安装仍由系统确认。',
+                                  en: 'Before installation, the app checks size, SHA-256, package name, version, and signing certificate. The system still confirms installation.',
                                 ),
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: scheme.onSecondaryContainer,
