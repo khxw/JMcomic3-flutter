@@ -25,7 +25,6 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
   static const _sortAuthor = "author";
 
   bool _loading = true;
-  bool _refreshing = false;
   String _sort = _sortRecent;
   var _section = _BookshelfSection.local;
 
@@ -67,15 +66,10 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
         _sort = savedSort;
       }
       _loading = false;
-      _refreshing = force;
     });
     final refresh = refreshLocalBookshelfUpdates(force: force);
     if (force) {
-      try {
-        await refresh;
-      } finally {
-        if (mounted) setState(() => _refreshing = false);
-      }
+      await refresh;
     } else {
       unawaited(refresh);
     }
@@ -164,19 +158,7 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
           ),
         ),
         actions: [
-          if (!online && _refreshing)
-            const Padding(
-              padding: EdgeInsets.only(right: 18),
-              child: Center(
-                child: SizedBox(
-                  key: ValueKey('bookshelf-refresh-progress'),
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          else if (!online)
+          if (!online)
             PopupMenuButton<_ShelfMenuAction>(
               key: const ValueKey('bookshelf-options-menu'),
               tooltip: context.l10n.tr('书架菜单', en: 'Bookshelf menu'),
@@ -188,9 +170,6 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
                     break;
                   case _ShelfMenuAction.sort:
                     _chooseSort();
-                    break;
-                  case _ShelfMenuAction.refresh:
-                    _load(force: true);
                     break;
                 }
               },
@@ -212,13 +191,6 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
                     icon: Icons.sort_rounded,
                     title: context.l10n.tr('排列', en: 'Sort'),
                     subtitle: _sortNames(context)[_sort] ?? '',
-                  ),
-                ),
-                PopupMenuItem(
-                  value: _ShelfMenuAction.refresh,
-                  child: _ShelfMenuItem(
-                    icon: Icons.refresh_rounded,
-                    title: context.l10n.tr('刷新书架', en: 'Refresh'),
                   ),
                 ),
               ],
@@ -248,7 +220,11 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
                     ? _buildOnlineBody(context)
                     : KeyedSubtree(
                         key: const ValueKey('bookshelf-local-content'),
-                        child: _buildBody(context),
+                        child: RefreshIndicator(
+                          key: const ValueKey('bookshelf-refresh-indicator'),
+                          onRefresh: () => _load(force: true),
+                          child: _buildBody(context),
+                        ),
                       ),
               ),
             ),
@@ -300,6 +276,7 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
         }
         return GridView.builder(
           key: const ValueKey('bookshelf-folder-grid'),
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 120),
           itemCount: folders.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -478,7 +455,7 @@ class _ShelfSectionButton extends StatelessWidget {
   }
 }
 
-enum _ShelfMenuAction { manageGroups, sort, refresh }
+enum _ShelfMenuAction { manageGroups, sort }
 
 enum _ShelfFolderKind { all, group, ungrouped }
 
@@ -695,48 +672,58 @@ class _EmptyBookshelf extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            Icon(
-              Icons.folder_copy_outlined,
-              size: 50,
-              color: scheme.primary,
-            ),
-            const SizedBox(height: 13),
-            Text(
-              context.l10n.tr(
-                '书架还是空的',
-                en: 'Your bookshelf is empty',
-              ),
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              context.l10n.tr(
-                '先创建一个文件夹分组，再加入漫画。',
-                en: 'Create a folder group first, then add comics to it.',
-              ),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              key: const ValueKey('bookshelf-empty-create-group'),
-              onPressed: onCreateGroup,
-              icon: const Icon(Icons.create_new_folder_outlined),
-              label: Text(
-                context.l10n.tr('新建分组', en: 'New group'),
+            SizedBox(
+              height: constraints.maxHeight,
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.folder_copy_outlined,
+                      size: 50,
+                      color: scheme.primary,
+                    ),
+                    const SizedBox(height: 13),
+                    Text(
+                      context.l10n.tr(
+                        '书架还是空的',
+                        en: 'Your bookshelf is empty',
+                      ),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      context.l10n.tr(
+                        '先创建一个文件夹分组，再加入漫画。',
+                        en: 'Create a folder group first, then add comics to it.',
+                      ),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      key: const ValueKey('bookshelf-empty-create-group'),
+                      onPressed: onCreateGroup,
+                      icon: const Icon(Icons.create_new_folder_outlined),
+                      label: Text(
+                        context.l10n.tr('新建分组', en: 'New group'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }

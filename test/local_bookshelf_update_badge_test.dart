@@ -276,7 +276,16 @@ void main() {
     final loadsBeforeRefresh = shelfStorageLoads;
     await tester.tap(find.byKey(const ValueKey('bookshelf-options-menu')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Refresh'));
+    expect(find.text('Refresh'), findsNothing);
+    expect(find.text('Manage groups'), findsOneWidget);
+    expect(find.text('Sort'), findsOneWidget);
+    await tester.tapAt(const Offset(8, 8));
+    await tester.pumpAndSettle();
+
+    await tester.drag(
+      find.byKey(const ValueKey('bookshelf-folder-grid')),
+      const Offset(0, 360),
+    );
     await tester.pumpAndSettle();
 
     expect(shelfStorageLoads, loadsBeforeRefresh);
