@@ -24,6 +24,8 @@ import android.os.storage.StorageManager
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.Settings
+import android.system.Os
+import android.system.OsConstants
 import android.util.Log
 import android.view.Display
 import android.view.KeyEvent
@@ -1078,7 +1080,7 @@ class MainActivity : FlutterActivity() {
         val root = updateDownloadDir().canonicalFile
         val requestedFile = File(path).absoluteFile
         val apk = requestedFile.canonicalFile
-        if (requestedFile.path != apk.path) {
+        if (isSymbolicLink(requestedFile)) {
             throw UpdateVerificationException(
                 "invalid_apk",
                 "更新文件路径包含符号链接，已拒绝安装。",
@@ -1178,6 +1180,15 @@ class MainActivity : FlutterActivity() {
             )
         }
         return apk
+    }
+
+    private fun isSymbolicLink(file: File): Boolean {
+        return try {
+            val mode = Os.lstat(file.absolutePath).st_mode
+            (mode and OsConstants.S_IFMT) == OsConstants.S_IFLNK
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun launchPackageInstaller(
