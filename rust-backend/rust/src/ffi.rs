@@ -11,6 +11,7 @@ use tokio::task::JoinSet;
 
 use crate::config::normalize_host;
 use crate::contract::{InvokeRequest, InvokeResponse};
+use crate::crypto::decrypt_api_domain_server;
 use crate::download::{album_dir, chapter_dir, manager_shared, DownloadControl, DownloadManager};
 use crate::export::{export_album, ExportFormat};
 use crate::history::HistoryStore;
@@ -1807,7 +1808,9 @@ async fn refresh_api_host_list(state: &BackendState) -> InvokeResponse {
 }
 
 fn parse_api_hosts(raw: &str) -> Vec<String> {
-    let trimmed = raw.trim();
+    let trimmed = raw
+        .trim_start_matches(|character: char| !character.is_ascii())
+        .trim();
     if trimmed.is_empty() {
         return Vec::new();
     }
@@ -1815,6 +1818,13 @@ fn parse_api_hosts(raw: &str) -> Vec<String> {
         let mut values = Vec::new();
         collect_host_strings(&value, 0, &mut values);
         return normalize_api_hosts(values);
+    }
+    if let Ok(decrypted) = decrypt_api_domain_server(trimmed) {
+        if let Ok(value) = serde_json::from_str::<Value>(&decrypted) {
+            let mut values = Vec::new();
+            collect_host_strings(&value, 0, &mut values);
+            return normalize_api_hosts(values);
+        }
     }
     normalize_api_hosts(
         trimmed
@@ -1835,10 +1845,22 @@ fn collect_host_strings(value: &Value, depth: usize, output: &mut Vec<String>) {
             }
         }
         Value::Object(values) => {
-            for key in [
-                "hosts", "servers", "domains", "host", "server", "list", "items", "data", "nodes",
-            ] {
-                if let Some(value) = values.get(key) {
+            for (key, value) in values {
+                let key = key.to_ascii_lowercase();
+                if matches!(
+                    key.as_str(),
+                    "hosts"
+                        | "servers"
+                        | "domains"
+                        | "host"
+                        | "server"
+                        | "setting"
+                        | "jm3_server"
+                        | "list"
+                        | "items"
+                        | "data"
+                        | "nodes"
+                ) {
                     collect_host_strings(value, depth + 1, output);
                 }
             }
@@ -1964,6 +1986,11 @@ mod tests {
             r#"{"servers":[" https://api.example.com/path ","api.example.com","bad host"],"signature":"X+not-a-host.example.com"}"#,
         );
         assert_eq!(json, ["api.example.com"]);
+
+        let titled = parse_api_hosts(
+            r#"{"Server":["www.cdnbtd.cc","www.cdnutc.cc"],"jm3_Server":[["www.cdnutc.me","line 5"]]}"#,
+        );
+        assert_eq!(titled, ["www.cdnbtd.cc", "www.cdnutc.cc", "www.cdnutc.me"]);
 
         let plain =
             parse_api_hosts("https://one.example.com/a\n//two.example.com:8443\none.example.com");

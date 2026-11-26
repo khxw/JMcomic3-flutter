@@ -9,25 +9,35 @@ use base64::Engine;
 use crate::error::{BackendError, BackendResult};
 
 const API_DATA_SECRET: &str = "185Hcomic3PAPP7R";
+const API_DOMAIN_SERVER_SECRET: &str = "diosfjckwpqpdfjkvnqQjsik";
 
 pub fn md5_hex(data: &str) -> String {
     format!("{:x}", md5::compute(data))
 }
 
 pub fn decrypt_api_data(timestamp: u64, payload: &str) -> BackendResult<String> {
-    let encrypted = general_purpose::STANDARD
-        .decode(payload)
-        .map_err(|error| BackendError::Crypto(format!("base64: {error}")))?;
-    decrypt_aes_ecb(timestamp, &encrypted)
+    let key = md5_hex(&format!("{timestamp}{API_DATA_SECRET}"));
+    decrypt_base64_aes_ecb(&key, payload)
 }
 
-fn decrypt_aes_ecb(timestamp: u64, encrypted: &[u8]) -> BackendResult<String> {
+pub fn decrypt_api_domain_server(payload: &str) -> BackendResult<String> {
+    let key = md5_hex(API_DOMAIN_SERVER_SECRET);
+    decrypt_base64_aes_ecb(&key, payload)
+}
+
+fn decrypt_base64_aes_ecb(key: &str, payload: &str) -> BackendResult<String> {
+    let encrypted = general_purpose::STANDARD
+        .decode(payload.trim())
+        .map_err(|error| BackendError::Crypto(format!("base64: {error}")))?;
+    decrypt_aes_ecb(key, &encrypted)
+}
+
+fn decrypt_aes_ecb(key: &str, encrypted: &[u8]) -> BackendResult<String> {
     if encrypted.is_empty() || encrypted.len() % 16 != 0 {
         return Err(BackendError::Crypto(
             "encrypted payload length is not a multiple of 16".into(),
         ));
     }
-    let key = md5_hex(&format!("{timestamp}{API_DATA_SECRET}"));
     let cipher = Aes256::new(GenericArray::from_slice(key.as_bytes()));
     let mut decrypted = encrypted.to_vec();
     for block in decrypted.chunks_exact_mut(16) {
@@ -53,6 +63,11 @@ fn decrypt_aes_ecb(timestamp: u64, encrypted: &[u8]) -> BackendResult<String> {
 #[cfg(test)]
 fn encrypt_api_data_for_test(timestamp: u64, payload: &str) -> String {
     let key = md5_hex(&format!("{timestamp}{API_DATA_SECRET}"));
+    encrypt_aes_ecb_for_test(&key, payload)
+}
+
+#[cfg(test)]
+fn encrypt_aes_ecb_for_test(key: &str, payload: &str) -> String {
     let cipher = Aes256::new(GenericArray::from_slice(key.as_bytes()));
     let mut bytes = payload.as_bytes().to_vec();
     let padding = 16 - (bytes.len() % 16);
@@ -77,5 +92,13 @@ mod tests {
         );
         assert!(decrypt_api_data(1_700_000_000, "not-base64").is_err());
         assert!(decrypt_api_data(1_700_000_000, "AAAA").is_err());
+    }
+
+    #[test]
+    fn api_domain_server_config_round_trip() {
+        let payload = r#"{"Server":["www.cdnbtd.cc","www.cdnutc.cc"]}"#;
+        let key = md5_hex(API_DOMAIN_SERVER_SECRET);
+        let encrypted = encrypt_aes_ecb_for_test(&key, payload);
+        assert_eq!(decrypt_api_domain_server(&encrypted).unwrap(), payload);
     }
 }
