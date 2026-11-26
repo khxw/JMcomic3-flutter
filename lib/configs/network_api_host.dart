@@ -161,6 +161,7 @@ Future<void> _rememberSuccessfulApiHost(String host) async {
 }
 
 Future<T?> chooseApiDialog<T>(BuildContext buildContext) async {
+  var refreshing = false;
   return await showDialog<T>(
     context: buildContext,
     builder: (BuildContext context) {
@@ -182,33 +183,64 @@ Future<T?> chooseApiDialog<T>(BuildContext buildContext) async {
                 ),
               ),
               SimpleDialogOption(
-                child: Text(context.l10n.tr("手动拉取", en: "Refresh list")),
-                onPressed: () async {
-                  try {
-                    final latest = await methods.refreshApiHostList();
-                    _mergeApiList(_fallbackApiHosts);
-                    _mergeApiList(latest);
-                    _mergeApiList([_apiHost]);
-                    await autoSelectApiHost();
-                    if (!context.mounted) {
-                      return;
-                    }
-                    setState(() {});
-                    defaultToast(
-                      context,
-                      context.l10n.tr("分流列表已更新", en: "Routing list updated"),
-                    );
-                  } catch (e) {
-                    debugPrient("refreshApiHostList failed: $e");
-                    if (!context.mounted) {
-                      return;
-                    }
-                    defaultToast(
-                      context,
-                      context.l10n.tr("拉取失败", en: "Refresh failed"),
-                    );
-                  }
-                },
+                child: Row(
+                  children: [
+                    if (refreshing) ...[
+                      const SizedBox(
+                        key: ValueKey('api-host-refresh-progress'),
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    Text(
+                      refreshing
+                          ? context.l10n.tr(
+                              "拉取中...",
+                              en: "Refreshing...",
+                            )
+                          : context.l10n.tr(
+                              "手动拉取",
+                              en: "Refresh list",
+                            ),
+                    ),
+                  ],
+                ),
+                onPressed: refreshing
+                    ? null
+                    : () async {
+                        setState(() => refreshing = true);
+                        try {
+                          final latest = await methods.refreshApiHostList();
+                          _mergeApiList(_fallbackApiHosts);
+                          _mergeApiList(latest);
+                          _mergeApiList([_apiHost]);
+                          await autoSelectApiHost();
+                          if (!context.mounted) {
+                            return;
+                          }
+                          setState(() {});
+                          defaultToast(
+                            context,
+                            context.l10n
+                                .tr("分流列表已更新", en: "Routing list updated"),
+                          );
+                        } catch (e) {
+                          debugPrient("refreshApiHostList failed: $e");
+                          if (!context.mounted) {
+                            return;
+                          }
+                          defaultToast(
+                            context,
+                            context.l10n.tr("拉取失败", en: "Refresh failed"),
+                          );
+                        } finally {
+                          if (context.mounted) {
+                            setState(() => refreshing = false);
+                          }
+                        }
+                      },
               ),
               SimpleDialogOption(
                 child: Text(context.l10n.tr("手动输入", en: "Manual input")),

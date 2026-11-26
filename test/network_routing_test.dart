@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jmcomic3/configs/network_api_host.dart';
 import 'package:jmcomic3/configs/network_cdn_host.dart';
 import 'package:jmcomic3/configs/network_ping.dart';
+import 'package:jmcomic3/l10n/app_localizations.dart';
 
 const _channel = MethodChannel('methods');
 
@@ -198,5 +200,73 @@ void main() {
       savedCdnHosts.length - savedBeforeConcurrentFailures,
       1,
     );
+  });
+
+  testWidgets('manual API refresh shows progress and blocks duplicate taps',
+      (tester) async {
+    final refreshGate = Completer<String>();
+    var refreshCalls = 0;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      switch (request['method']) {
+        case 'load_api_host_list':
+          return _response(jsonEncode(['api.example.com']));
+        case 'load_api_host':
+          return _response(jsonEncode('api.example.com'));
+        case 'ping_server':
+          return _response('10');
+        case 'refresh_api_host_list':
+          refreshCalls++;
+          return refreshGate.future;
+        default:
+          return _response('');
+      }
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+    });
+
+    late BuildContext dialogContext;
+    await tester.pumpWidget(MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: const [AppLocalizations.delegate],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Builder(
+        builder: (context) {
+          dialogContext = context;
+          return const Scaffold();
+        },
+      ),
+    ));
+
+    final chooseFuture = chooseApiDialog<String>(dialogContext);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Refresh list'));
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('api-host-refresh-progress')),
+      findsOneWidget,
+    );
+    expect(find.text('Refreshing...'), findsOneWidget);
+    await tester.tap(find.text('Refreshing...'), warnIfMissed: false);
+    await tester.pump();
+    expect(refreshCalls, 1);
+
+    refreshGate.complete(_response(jsonEncode(['api.example.com'])));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 1800));
+    await tester.pump(const Duration(milliseconds: 1800));
+    expect(
+      find.byKey(const ValueKey('api-host-refresh-progress')),
+      findsNothing,
+    );
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await chooseFuture;
   });
 }
