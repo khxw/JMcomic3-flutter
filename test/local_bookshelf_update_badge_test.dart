@@ -19,31 +19,28 @@ String _response(Object? data) => jsonEncode({
       'response_data': data is String ? data : jsonEncode(data),
     });
 
-Map<String, Object?> _album({
+Map<String, Object?> _batchUpdate({
+  int id = 7,
   int? updateAt,
-  List<Map<String, String>> series = const [],
 }) {
-  final album = <String, Object?>{
-    'id': 7,
+  return <String, Object?>{
+    'id': id,
+    'ok': true,
     'name': 'Comic',
-    'author': ['Author'],
-    'images': ['cover.webp'],
+    'author': 'Author',
+    'image': 'cover.webp',
     'description': '',
-    'total_views': 1,
-    'likes': 1,
-    'series': series,
-    'series_id': 1,
-    'comment_total': 0,
-    'tags': <Object>[],
-    'works': <Object>[],
-    'related_list': <Object>[],
-    'liked': false,
-    'is_favorite': false,
+    'update_at': updateAt,
     'addtime': 100,
+    'error': '',
   };
-  if (updateAt != null) album['update_at'] = updateAt;
-  return album;
 }
+
+Map<String, Object?> _batchFailure(int id) => <String, Object?>{
+      'id': id,
+      'ok': false,
+      'error': 'temporary failure',
+    };
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -64,8 +61,8 @@ void main() {
               jsonDecode(request['params'] as String) as Map<String, dynamic>;
           properties[values['k'] as String] = values['v'] as String;
           return _response('');
-        case 'album':
-          return _response(_album(updateAt: 200));
+        case 'bookshelf_update_batch':
+          return _response([_batchUpdate(updateAt: 200)]);
         default:
           return _response('');
       }
@@ -133,7 +130,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('refresh resolves update time from the latest chapter',
+  testWidgets('refresh resolves updates through one batch bridge request',
       (tester) async {
     final properties = <String, String>{};
     final requests = <Map<String, dynamic>>[];
@@ -151,25 +148,8 @@ void main() {
               jsonDecode(request['params'] as String) as Map<String, dynamic>;
           properties[values['k'] as String] = values['v'] as String;
           return _response('');
-        case 'album':
-          return _response(_album(
-            series: [
-              {'id': '7', 'name': 'First', 'sort': '1'},
-              {'id': '9', 'name': 'Latest', 'sort': '2'},
-            ],
-          ));
-        case 'chapter':
-          return _response({
-            'id': 9,
-            'series': <Object>[],
-            'tags': '',
-            'name': 'Latest',
-            'images': <Object>[],
-            'series_id': 7,
-            'is_favorite': false,
-            'liked': false,
-            'addtime': 200,
-          });
+        case 'bookshelf_update_batch':
+          return _response([_batchUpdate(updateAt: 200)]);
         default:
           return _response('');
       }
@@ -198,11 +178,24 @@ void main() {
 
     expect(localBookshelfItems.single.comic.updateAt, 200);
     expect(localBookshelfItems.single.hasUpdate, isTrue);
+    final batchRequest = requests
+        .where(
+          (request) => request['method'] == 'bookshelf_update_batch',
+        )
+        .single;
     expect(
-      requests
-          .where((request) => request['method'] == 'chapter')
-          .single['params'],
-      '9',
+      jsonDecode(batchRequest['params'] as String),
+      {
+        'ids': [7],
+      },
+    );
+    expect(
+      requests.where((request) => request['method'] == 'album'),
+      isEmpty,
+    );
+    expect(
+      requests.where((request) => request['method'] == 'chapter'),
+      isEmpty,
     );
     expect(
       requests.where(
@@ -211,6 +204,92 @@ void main() {
             '${request['params']}'.contains('startup_cache_album_'),
       ),
       isEmpty,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('one batch request updates all shelf comics and keeps failures',
+      (tester) async {
+    final properties = <String, String>{};
+    final requests = <Map<String, dynamic>>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      requests.add(request);
+      switch (request['method']) {
+        case 'load_property':
+          return _response(properties['${request['params']}'] ?? '');
+        case 'save_property':
+          final values =
+              jsonDecode(request['params'] as String) as Map<String, dynamic>;
+          properties[values['k'] as String] = values['v'] as String;
+          return _response('');
+        case 'bookshelf_update_batch':
+          final params =
+              jsonDecode(request['params'] as String) as Map<String, dynamic>;
+          final ids = (params['ids'] as List).cast<int>();
+          return _response([
+            for (final id in ids)
+              if (id == 9)
+                _batchFailure(id)
+              else
+                _batchUpdate(id: id, updateAt: id == 7 ? 200 : 300),
+          ]);
+        default:
+          return _response('');
+      }
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+      resetLocalBookshelfMemory();
+    });
+
+    resetLocalBookshelfMemory();
+    await enterGuestMode();
+    for (final id in [7, 8, 9]) {
+      await toggleLocalBookshelf(
+        ComicBasic(
+          id: id,
+          author: 'Author',
+          description: '',
+          name: 'Comic $id',
+          image: 'cover-$id.webp',
+          updateAt: 100,
+        ),
+      );
+    }
+
+    requests.clear();
+    await refreshLocalBookshelfUpdates(force: true);
+
+    final batches = requests.where(
+      (request) => request['method'] == 'bookshelf_update_batch',
+    );
+    expect(batches, hasLength(1));
+    final params = jsonDecode(batches.single['params'] as String);
+    expect((params['ids'] as List).toSet(), {7, 8, 9});
+    expect(
+      localBookshelfItems
+          .singleWhere((item) => item.comic.id == 7)
+          .comic
+          .updateAt,
+      200,
+    );
+    expect(
+      localBookshelfItems
+          .singleWhere((item) => item.comic.id == 8)
+          .comic
+          .updateAt,
+      300,
+    );
+    expect(
+      localBookshelfItems
+          .singleWhere((item) => item.comic.id == 9)
+          .comic
+          .updateAt,
+      100,
     );
     expect(tester.takeException(), isNull);
   });
@@ -234,8 +313,8 @@ void main() {
               jsonDecode(request['params'] as String) as Map<String, dynamic>;
           properties[values['k'] as String] = values['v'] as String;
           return _response('');
-        case 'album':
-          return _response(_album(updateAt: 200));
+        case 'bookshelf_update_batch':
+          return _response([_batchUpdate(updateAt: 200)]);
         default:
           return _response('');
       }

@@ -53,6 +53,7 @@ class Methods {
     "album",
     "album_published_at",
     "chapter",
+    "bookshelf_update_batch",
     "forum",
     "favorites",
     "favorite",
@@ -1095,6 +1096,24 @@ class Methods {
       "chapter",
       ChapterResponse.fromJson,
     );
+  }
+
+  Future<List<BookshelfUpdateResult>> bookshelfUpdateBatch(
+      List<int> ids) async {
+    if (ids.isEmpty) return const [];
+    final raw = await _invoke("bookshelf_update_batch", {"ids": ids});
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) {
+      throw const FormatException('Invalid bookshelf update batch response');
+    }
+    return decoded
+        .whereType<Map>()
+        .map(
+          (value) => BookshelfUpdateResult.fromJson(
+            Map<String, dynamic>.from(value),
+          ),
+        )
+        .toList(growable: false);
   }
 
   Future<CommentPage> forum(String? mode, int? aid, int? uid, int page) async {

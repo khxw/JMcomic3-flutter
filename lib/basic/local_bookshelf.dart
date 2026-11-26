@@ -4,13 +4,11 @@ import 'package:event/event.dart';
 import 'package:flutter/foundation.dart';
 import 'package:jmcomic3/basic/methods.dart';
 
-import 'async_semaphore.dart';
-
 const _storageKey = "local_bookshelf_v1";
 const _groupsStorageKey = "local_bookshelf_groups_v1";
 const _updatesCheckedAtKey = "local_bookshelf_updates_checked_at";
 const _updatesRefreshInterval = Duration(minutes: 10);
-const _updatesRefreshConcurrency = 8;
+const _updatesBatchSize = 64;
 
 final Event localBookshelfEvent = Event();
 final List<LocalBookshelfItem> localBookshelfItems = [];
@@ -326,60 +324,63 @@ Future<int> _refreshLocalBookshelfUpdates({bool force = false}) async {
   }
 
   final snapshot = List<LocalBookshelfItem>.of(localBookshelfItems);
-  final semaphore = AsyncSemaphore(_updatesRefreshConcurrency);
-  final refreshed = await Future.wait(
-    snapshot.map(
-      (item) => semaphore.run<LocalBookshelfItem?>(() async {
-        try {
-          final album = await methods.album(
-            item.comic.id,
-            ignoreViewLog: true,
-            forceRefresh: true,
-            persistToDisk: false,
-          );
-          var resolvedUpdateAt = album.updateAt;
-          if (resolvedUpdateAt == null || resolvedUpdateAt <= 0) {
-            try {
-              final chapter =
-                  await methods.chapter(album.latestUpdateChapterId);
-              resolvedUpdateAt = chapter.addtime;
-            } catch (_) {
-              // Preserve the last known timestamp when the chapter lookup
-              // fails instead of replacing it with null.
-            }
-          }
-          final previousUpdateAt = item.comic.updateAt;
-          final updateAt = resolvedUpdateAt != null && resolvedUpdateAt > 0
-              ? previousUpdateAt != null && previousUpdateAt > resolvedUpdateAt
-                  ? previousUpdateAt
-                  : resolvedUpdateAt
-              : previousUpdateAt;
-          final image =
-              album.images.isEmpty ? item.comic.image : album.images.first;
-          final comic = ComicBasic(
-            id: album.id,
-            author: album.author.join(', '),
-            description: album.description,
-            name: album.name,
-            image: image,
-            updateAt: updateAt,
-            addtime: album.addtime,
-          );
-          final lastSeen =
-              item.lastSeenUpdateAt ?? previousUpdateAt ?? updateAt;
-          return item.copyWith(
-            comic: comic,
-            lastSeenUpdateAt: lastSeen,
-          );
-        } catch (_) {
-          return null;
-        }
-      }),
-    ),
-  );
+  final refreshed = <LocalBookshelfItem>[];
+  if (snapshot.isNotEmpty) {
+    final results = <BookshelfUpdateResult>[];
+    for (var offset = 0;
+        offset < snapshot.length;
+        offset += _updatesBatchSize) {
+      final remaining = snapshot.length - offset;
+      final end = offset +
+          (remaining < _updatesBatchSize ? remaining : _updatesBatchSize);
+      try {
+        results.addAll(
+          await methods.bookshelfUpdateBatch(
+            snapshot
+                .sublist(offset, end)
+                .map((item) => item.comic.id)
+                .toList(growable: false),
+          ),
+        );
+      } catch (_) {
+        // A failed chunk keeps the existing data for those comics.
+      }
+    }
+    final updates = {
+      for (final result in results)
+        if (result.ok && result.id > 0) result.id: result,
+    };
+    for (final item in snapshot) {
+      final result = updates[item.comic.id];
+      if (result == null) continue;
+      final previousUpdateAt = item.comic.updateAt;
+      final resolvedUpdateAt = result.updateAt;
+      final updateAt = resolvedUpdateAt != null && resolvedUpdateAt > 0
+          ? previousUpdateAt != null && previousUpdateAt > resolvedUpdateAt
+              ? previousUpdateAt
+              : resolvedUpdateAt
+          : previousUpdateAt;
+      final comic = ComicBasic(
+        id: result.id,
+        author: result.author,
+        description: result.description,
+        name: result.name,
+        image: result.image.isEmpty ? item.comic.image : result.image,
+        updateAt: updateAt,
+        addtime: result.addtime,
+      );
+      final lastSeen = item.lastSeenUpdateAt ?? previousUpdateAt ?? updateAt;
+      refreshed.add(
+        item.copyWith(
+          comic: comic,
+          lastSeenUpdateAt: lastSeen,
+        ),
+      );
+    }
+  }
 
   var changed = false;
-  for (final updated in refreshed.whereType<LocalBookshelfItem>()) {
+  for (final updated in refreshed) {
     final index = localBookshelfItems.indexWhere(
       (item) => item.comic.id == updated.comic.id,
     );

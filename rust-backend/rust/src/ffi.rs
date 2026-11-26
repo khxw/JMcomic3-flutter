@@ -46,6 +46,8 @@ const API_HOST_LIST_REFRESHED_AT_KEY: &str = "api_host_list_refreshed_at";
 const API_HOST_LIST_CHECKED_AT_KEY: &str = "api_host_list_checked_at";
 const API_HOST_LIST_MAX_AGE_SECS: i64 = 12 * 60 * 60;
 const API_HOST_LIST_RETRY_SECS: i64 = 6 * 60 * 60;
+const BOOKSHELF_UPDATE_BATCH_MAX_ITEMS: usize = 64;
+const BOOKSHELF_UPDATE_BATCH_CONCURRENCY: usize = 8;
 
 #[derive(Clone)]
 struct BackendState {
@@ -563,6 +565,7 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
             Ok(id) => result_value(state.client.chapter(id).await),
             Err(error) => InvokeResponse::error(error),
         },
+        "bookshelf_update_batch" => bookshelf_update_batch(&state, &params).await,
         "album_published_at" => {
             let album_id = int_param(&params, "id");
             let album_name = string_param(&params, "name").unwrap_or_default();
@@ -1652,6 +1655,180 @@ fn property_response(state: &BackendState, key: &str) -> InvokeResponse {
     }
 }
 
+async fn bookshelf_update_batch(state: &BackendState, params: &Value) -> InvokeResponse {
+    let ids = match bookshelf_batch_ids(params) {
+        Ok(ids) => ids,
+        Err(error) => return InvokeResponse::error(error),
+    };
+    if ids.is_empty() {
+        return InvokeResponse::success_value(&json!([]));
+    }
+
+    let mut items = vec![Value::Null; ids.len()];
+    let mut tasks = JoinSet::new();
+    let mut next_index = 0;
+    while next_index < ids.len() && tasks.len() < BOOKSHELF_UPDATE_BATCH_CONCURRENCY {
+        spawn_bookshelf_update(&mut tasks, state, &ids, next_index);
+        next_index += 1;
+    }
+
+    while let Some(joined) = tasks.join_next().await {
+        let (index, item) = match joined {
+            Ok(item) => item,
+            Err(error) => {
+                return InvokeResponse::error(format!(
+                    "bookshelf update task failed unexpectedly: {error}"
+                ));
+            }
+        };
+        items[index] = item;
+        if next_index < ids.len() {
+            spawn_bookshelf_update(&mut tasks, state, &ids, next_index);
+            next_index += 1;
+        }
+    }
+
+    let success_count = items
+        .iter()
+        .filter(|item| item.get("ok").and_then(Value::as_bool) == Some(true))
+        .count();
+    if success_count == 0 {
+        let message = items
+            .iter()
+            .find_map(|item| item.get("error").and_then(Value::as_str))
+            .unwrap_or("unknown backend error");
+        return InvokeResponse::error(format!("bookshelf update failed for all comics: {message}"));
+    }
+
+    InvokeResponse::success_value(&Value::Array(items))
+}
+
+fn spawn_bookshelf_update(
+    tasks: &mut JoinSet<(usize, Value)>,
+    state: &BackendState,
+    ids: &[i64],
+    index: usize,
+) {
+    let client = state.client.clone();
+    let id = ids[index];
+    tasks.spawn(async move { (index, bookshelf_update_item(&client, id).await) });
+}
+
+async fn bookshelf_update_item(client: &JmClient, requested_id: i64) -> Value {
+    let album = match client.album(requested_id).await {
+        Ok(album) => album,
+        Err(error) => return bookshelf_update_error(requested_id, &error.to_string()),
+    };
+
+    let mut update_at = album.get("update_at").and_then(value_i64).unwrap_or(0);
+    if update_at <= 0 {
+        if let Some(chapter_id) = bookshelf_latest_chapter_id(&album) {
+            if let Ok(chapter) = client.chapter(chapter_id).await {
+                update_at = chapter.get("addtime").and_then(value_i64).unwrap_or(0);
+            }
+        }
+    }
+    bookshelf_update_success(requested_id, &album, update_at)
+}
+
+fn bookshelf_batch_ids(params: &Value) -> Result<Vec<i64>, String> {
+    let values = match params {
+        Value::Array(values) => values.as_slice(),
+        Value::Object(map) => map
+            .get("ids")
+            .and_then(Value::as_array)
+            .ok_or_else(|| "ids must be an array".to_string())?
+            .as_slice(),
+        _ => return Err("parameters must contain an ids array".into()),
+    };
+
+    let mut seen = HashSet::new();
+    let mut ids = Vec::new();
+    for value in values {
+        let Some(id) = value_int(value) else {
+            return Err("bookshelf comic IDs must be integers".into());
+        };
+        if id > 0 && seen.insert(id) {
+            ids.push(id);
+        }
+    }
+    if ids.len() > BOOKSHELF_UPDATE_BATCH_MAX_ITEMS {
+        return Err(format!(
+            "bookshelf update supports at most {BOOKSHELF_UPDATE_BATCH_MAX_ITEMS} unique comics per request"
+        ));
+    }
+    Ok(ids)
+}
+
+fn bookshelf_latest_chapter_id(album: &Value) -> Option<i64> {
+    let mut latest = None;
+    let mut latest_sort = -1_i64;
+    for chapter in album.get("series").and_then(Value::as_array)? {
+        let Some(id) = chapter.get("id").and_then(value_i64).filter(|id| *id > 0) else {
+            continue;
+        };
+        let sort = chapter
+            .get("sort")
+            .map(value_wire_string)
+            .and_then(|value| value.trim().parse::<i64>().ok())
+            .unwrap_or(-1);
+        if latest.is_none() || sort > latest_sort {
+            latest = Some(id);
+            latest_sort = sort;
+        }
+    }
+    latest
+}
+
+fn bookshelf_update_success(requested_id: i64, album: &Value, update_at: i64) -> Value {
+    let id = album
+        .get("id")
+        .and_then(value_i64)
+        .filter(|id| *id > 0)
+        .unwrap_or(requested_id);
+    json!({
+        "id": id,
+        "ok": true,
+        "name": album.get("name").map(value_wire_string).unwrap_or_default(),
+        "author": bookshelf_joined_strings(album.get("author")),
+        "description": album.get("description").map(value_wire_string).unwrap_or_default(),
+        "image": bookshelf_first_string(album.get("images")),
+        "update_at": (update_at > 0).then_some(update_at),
+        "addtime": album.get("addtime").and_then(value_i64).filter(|value| *value > 0),
+        "error": "",
+    })
+}
+
+fn bookshelf_update_error(id: i64, error: &str) -> Value {
+    json!({
+        "id": id,
+        "ok": false,
+        "error": error,
+    })
+}
+
+fn bookshelf_joined_strings(value: Option<&Value>) -> String {
+    value
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .map(value_wire_string)
+                .filter(|value| !value.is_empty())
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .unwrap_or_default()
+}
+
+fn bookshelf_first_string(value: Option<&Value>) -> String {
+    value
+        .and_then(Value::as_array)
+        .and_then(|values| values.first())
+        .map(value_wire_string)
+        .unwrap_or_default()
+}
+
 async fn page_image_batch(state: &BackendState, params: &Value) -> InvokeResponse {
     let pages = params
         .as_object()
@@ -1972,6 +2149,21 @@ fn value_int(value: &Value) -> Option<i64> {
         .or_else(|| value.as_str()?.trim().parse::<i64>().ok())
 }
 
+fn value_i64(value: &Value) -> Option<i64> {
+    value
+        .as_i64()
+        .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+        .or_else(|| value.as_str()?.trim().parse::<i64>().ok())
+}
+
+fn value_wire_string(value: &Value) -> String {
+    match value {
+        Value::Null => String::new(),
+        Value::String(value) => value.clone(),
+        _ => value.to_string(),
+    }
+}
+
 fn value_or_param_string(params: &Value, key: &str) -> Option<String> {
     match params {
         Value::String(value) => Some(value.clone()),
@@ -2147,5 +2339,49 @@ mod tests {
         assert!(!is_api_route_failure(
             "JM API error 403: username or password is incorrect"
         ));
+    }
+
+    #[test]
+    fn bookshelf_batch_ids_are_deduplicated_bounded_and_ignore_non_positive_ids() {
+        let ids = bookshelf_batch_ids(&json!({
+            "ids": [7, "7", 8, 0, -2, "9"]
+        }))
+        .unwrap();
+        assert_eq!(ids, [7, 8, 9]);
+
+        let oversized = Value::Array((1..=65).map(|id| json!(id)).collect());
+        assert!(bookshelf_batch_ids(&oversized)
+            .unwrap_err()
+            .contains("at most 64"));
+    }
+
+    #[test]
+    fn bookshelf_update_summary_is_compact_and_partial_errors_are_preserved() {
+        let album = json!({
+            "id": 7,
+            "name": "Comic",
+            "author": ["Author A", "Author B"],
+            "description": "Description",
+            "images": ["cover.webp"],
+            "addtime": 100,
+            "series": [
+                {"id": 11, "sort": "2"},
+                {"id": 12, "sort": "10"},
+                {"id": 13, "sort": "5"}
+            ]
+        });
+        assert_eq!(bookshelf_latest_chapter_id(&album), Some(12));
+
+        let summary = bookshelf_update_success(7, &album, 200);
+        assert_eq!(summary["ok"], true);
+        assert_eq!(summary["author"], "Author A, Author B");
+        assert_eq!(summary["image"], "cover.webp");
+        assert_eq!(summary["update_at"], 200);
+        assert!(summary.get("series").is_none());
+
+        let failure = bookshelf_update_error(8, "temporary failure");
+        assert_eq!(failure["id"], 8);
+        assert_eq!(failure["ok"], false);
+        assert_eq!(failure["error"], "temporary failure");
     }
 }

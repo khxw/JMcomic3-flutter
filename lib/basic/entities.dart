@@ -547,6 +547,44 @@ class ComicBasic {
   }
 }
 
+class BookshelfUpdateResult {
+  BookshelfUpdateResult({
+    required this.id,
+    required this.ok,
+    required this.name,
+    required this.author,
+    required this.description,
+    required this.image,
+    required this.updateAt,
+    required this.addtime,
+    required this.error,
+  });
+
+  final int id;
+  final bool ok;
+  final String name;
+  final String author;
+  final String description;
+  final String image;
+  final int? updateAt;
+  final int? addtime;
+  final String error;
+
+  factory BookshelfUpdateResult.fromJson(Map<String, dynamic> json) {
+    return BookshelfUpdateResult(
+      id: _toInt(json['id']),
+      ok: json['ok'] == true,
+      name: "${json['name'] ?? ''}",
+      author: "${json['author'] ?? ''}",
+      description: "${json['description'] ?? ''}",
+      image: "${json['image'] ?? ''}",
+      updateAt: _toNullableInt(json['update_at']),
+      addtime: _toNullableInt(json['addtime']),
+      error: "${json['error'] ?? ''}",
+    );
+  }
+}
+
 class ChapterResponse {
   ChapterResponse({
     required this.id,
