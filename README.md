@@ -10,7 +10,7 @@ JMComic3 并存安装。
 
 ## 当前版本
 
-**v1.8.152+281** · Android ARM64 · API 24+
+**v1.8.160+289** · Android ARM64 · API 24+
 
 - 最新发布：[GitHub Releases](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - 完整更新记录：[CHANGELOG.md](https://github.com/khxw/JMcomic3-flutter/blob/main/CHANGELOG.md)
@@ -20,7 +20,7 @@ JMComic3 并存安装。
 
 | 文件 | 用途 |
 | --- | --- |
-| `JMComic3-Mod-v1.8.152-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
+| `JMComic3-Mod-v1.8.160-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
 | `SHA256SUMS.txt` | 校验 APK 文件完整性 |
 
 当前 Fork 只发布 **Android ARM64 APK**。本仓库没有为这个修改版提供 ARM32、
@@ -54,8 +54,9 @@ Windows 或 AAB 安装包。
 - 底部导航只保留一个滑动指示器，并优化页面切换动画。
 - 首页更新提醒与独立更新页统一显示完整更新日志。
 - 登录接口返回 404、HTML 或网络错误时自动切换 API 线路，全部线路不可用时只显示简短提示。
+- API 与图片线路补充内置后备线路，动态线路列表支持并行拉取、缓存和异常切换。
 - 个人中心账号资料仅在启动时自动刷新一次，之后支持下拉刷新并限制为每 30 秒最多一次。
-- 本地书架支持下拉刷新；更新检查使用 8 路并发、重复任务合并，并跳过不必要的详情磁盘缓存。
+- 本地书架支持下拉刷新；更新检查通过 Rust 批量 API 提交，由后端最多并行查询 8 本漫画，每批最多 64 本。
 - 进入书架后立即显示本地内容；刷新期间保留当前漫画列表，避免闪烁。
 - 重做更新下载进度弹窗，显示目标版本、百分比、文件大小、线路和校验状态。
 - 个人中心 Pro、设置和更新入口统一为紧凑分段按钮；关于页从设置页底部进入。
@@ -83,13 +84,13 @@ Windows 或 AAB 安装包。
 Windows PowerShell 校验示例：
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.8.152-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.8.160-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 当前 APK SHA-256：
 
 ```text
-91b31733f615009fc3532ad7e1087ff3cb74ede128fb4de46bdf0ac3e8c5d6d3
+2fb35c81463e1101af1e6a992f2046c1b346fb25bbdfc0a11c827cd138f27002
 ```
 
 ## 构建

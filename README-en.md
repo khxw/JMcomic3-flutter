@@ -20,7 +20,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 ## Current release
 
-**v1.8.152+281** · Android ARM64 · API 24+
+**v1.8.160+289** · Android ARM64 · API 24+
 
 - [Latest GitHub Release](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - [Changelog](CHANGELOG.md)
@@ -30,7 +30,7 @@ identity allows the modified app and upstream JMComic3 to be installed together.
 
 | File | Purpose |
 | --- | --- |
-| `JMComic3-Mod-v1.8.152-arm64-v8a-release.apk` | Android ARM64 devices |
+| `JMComic3-Mod-v1.8.160-arm64-v8a-release.apk` | Android ARM64 devices |
 | `SHA256SUMS.txt` | APK integrity verification |
 
 This fork currently publishes only an **Android ARM64 APK**. ARM32, Windows,
@@ -74,10 +74,12 @@ Back up bookshelf, history, and download settings before upgrading.
 - Full release notes are shown consistently in the startup prompt and Updates page.
 - Login API 404, HTML, and network failures now rotate to another API route;
   a short message is shown when every route is unavailable.
+- API and image routing now includes built-in fallback routes, with parallel
+  dynamic route refresh, caching, and automatic switching on invalid responses.
 - Profile details refresh automatically only once at startup. Pull-to-refresh is
   available afterward with a 30-second cooldown.
-- The local bookshelf supports pull-to-refresh, uses eight concurrent update
-  checks, coalesces duplicate refreshes, and avoids unnecessary detail cache writes.
+- The local bookshelf supports pull-to-refresh and sends update checks through
+  one Rust batch API, querying up to eight comics concurrently with at most 64 IDs per batch.
 - The bookshelf displays local content immediately and keeps the current list
   visible while refresh checks run, avoiding flicker.
 - Redesigned update download progress with target version, percentage, file size,
@@ -113,13 +115,13 @@ Back up bookshelf, history, and download settings before upgrading.
 PowerShell verification:
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.8.152-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.8.160-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 Current APK SHA-256:
 
 ```text
-91b31733f615009fc3532ad7e1087ff3cb74ede128fb4de46bdf0ac3e8c5d6d3
+2fb35c81463e1101af1e6a992f2046c1b346fb25bbdfc0a11c827cd138f27002
 ```
 
 ## Build
