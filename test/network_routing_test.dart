@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -35,9 +36,43 @@ void main() {
     expect(selected?.milliseconds, 18);
   });
 
+  test('startup fallback retries only saved routes with a longer deadline',
+      () async {
+    final calls = <String>[];
+    final selected = await selectStartupHost(
+      ['route-a.example.com', 'route-b.example.com'],
+      (host, timeout) async {
+        calls.add('$host:${timeout.inMilliseconds}');
+        if (timeout.inMilliseconds < 200) {
+          throw TimeoutException('fast probe failed');
+        }
+        return host == 'route-b.example.com' ? 420 : 260;
+      },
+      preferredHosts: [
+        'route-a.example.com',
+        'route-b.example.com',
+      ],
+      fastTimeout: const Duration(milliseconds: 50),
+      fallbackTimeout: const Duration(milliseconds: 300),
+    );
+
+    expect(selected?.host, 'route-a.example.com');
+    expect(selected?.milliseconds, 260);
+    expect(
+      calls,
+      [
+        'route-a.example.com:50',
+        'route-b.example.com:50',
+        'route-a.example.com:300',
+        'route-b.example.com:300',
+      ],
+    );
+  });
+
   test('API and CDN startup automatically save the fastest routes', () async {
     final savedApiHosts = <String>[];
     final savedCdnHosts = <String>[];
+    final savedProperties = <String, String>{};
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(_channel, (call) async {
@@ -91,6 +126,10 @@ void main() {
         case 'save_cdn_host':
           savedCdnHosts.add(params);
           return _response('');
+        case 'save_property':
+          final values = jsonDecode(params) as Map<String, dynamic>;
+          savedProperties[values['k'] as String] = values['v'] as String;
+          return _response('');
         default:
           return _response('');
       }
@@ -104,6 +143,11 @@ void main() {
     expect(currentCdnHostName, 'cdn-msp3.jmapiproxy2.cc');
     expect(savedApiHosts.last, 'fast-api.example.com');
     expect(savedCdnHosts.last, 'cdn-msp3.jmapiproxy2.cc');
+    expect(savedProperties['api_host_last_success'], 'fast-api.example.com');
+    expect(
+      savedProperties['cdn_host_last_success'],
+      'cdn-msp3.jmapiproxy2.cc',
+    );
 
     final rotated = await rotateApiHostAfterInvalidResponse();
     expect(rotated, isTrue);

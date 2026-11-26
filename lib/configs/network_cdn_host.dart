@@ -8,7 +8,9 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 
 const _defaultCdnHost = "cdn-msp3.jmapiproxy1.cc";
 const _automaticProbeTimeout = Duration(milliseconds: 800);
+const _lastSuccessfulCdnHostKey = "cdn_host_last_success";
 String _cdnHost = _defaultCdnHost;
+String _lastSuccessfulCdnHost = "";
 
 String _truncateLabel(String value, {int max = 21}) {
   if (value.length <= max) return value;
@@ -46,6 +48,19 @@ Future<void> initCdnHost() async {
       normalizeNetworkHostCandidate(rawLoaded, fallback: _defaultCdnHost);
   _cdnHost = loaded;
   _mergeCdnList([_cdnHost]);
+  var rawLastSuccess = "";
+  try {
+    rawLastSuccess = await methods.loadProperty(_lastSuccessfulCdnHostKey);
+  } catch (error) {
+    debugPrient(
+      "initCdnHost load last success failed: ${error.runtimeType}",
+    );
+  }
+  _lastSuccessfulCdnHost =
+      normalizeNetworkHostCandidate(rawLastSuccess, fallback: "");
+  if (_lastSuccessfulCdnHost.isNotEmpty) {
+    _mergeCdnList([_lastSuccessfulCdnHost]);
+  }
   if (rawLoaded.trim() != _cdnHost) {
     await methods.saveCdnHost(_cdnHost);
   }
@@ -115,25 +130,40 @@ void _mergeCdnList(Iterable<String> items) {
 }
 
 Future<bool> autoSelectCdnHost() async {
-  final fastest = await selectFastestHost(
+  final fastest = await selectStartupHost(
     _cdnList,
     (host, timeout) => methods.pingCdn(host, timeout: timeout),
-    timeout: _automaticProbeTimeout,
-    returnOnFirstSuccess: false,
+    preferredHosts: [
+      if (_lastSuccessfulCdnHost.isNotEmpty) _lastSuccessfulCdnHost,
+      _cdnHost,
+    ],
+    fastTimeout: _automaticProbeTimeout,
   );
   if (fastest == null) return false;
-  if (fastest.host.toLowerCase() == _cdnHost.toLowerCase()) {
-    return true;
+  if (fastest.host.toLowerCase() != _cdnHost.toLowerCase()) {
+    try {
+      await methods.saveCdnHost(fastest.host);
+    } catch (_) {
+      return false;
+    }
+    _cdnHost = fastest.host;
+    Methods.cdnRouteVersion++;
+    _mergeCdnList([_cdnHost]);
   }
-  try {
-    await methods.saveCdnHost(fastest.host);
-  } catch (_) {
-    return false;
-  }
-  _cdnHost = fastest.host;
-  Methods.cdnRouteVersion++;
-  _mergeCdnList([_cdnHost]);
+  await _rememberSuccessfulCdnHost(fastest.host);
   return true;
+}
+
+Future<void> _rememberSuccessfulCdnHost(String host) async {
+  if (_lastSuccessfulCdnHost.toLowerCase() == host.toLowerCase()) return;
+  _lastSuccessfulCdnHost = host;
+  try {
+    await methods.saveProperty(_lastSuccessfulCdnHostKey, host);
+  } catch (error) {
+    debugPrient(
+      "saved CDN host persistence failed: ${error.runtimeType}",
+    );
+  }
 }
 
 Widget cdnHostSetting() {

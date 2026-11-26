@@ -93,6 +93,26 @@ Future<HostLatencyProbe?> selectFastestHost(
   return available.first;
 }
 
+Future<HostLatencyProbe?> selectStartupHost(
+  Iterable<String> hosts,
+  Future<int> Function(String host, Duration timeout) ping, {
+  required Iterable<String> preferredHosts,
+  Duration fastTimeout = const Duration(milliseconds: 800),
+  Duration fallbackTimeout = const Duration(seconds: 3),
+}) async {
+  final fastest = await selectFastestHost(
+    hosts,
+    ping,
+    timeout: fastTimeout,
+  );
+  if (fastest != null) return fastest;
+  return selectFastestHost(
+    preferredHosts,
+    ping,
+    timeout: fallbackTimeout,
+  );
+}
+
 /// The first request creates DNS/TCP/TLS state; the second measures the route
 /// after that cold-start cost has been paid.
 Future<HostPingResult> measureHostPing(

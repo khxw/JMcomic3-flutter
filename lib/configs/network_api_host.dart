@@ -8,6 +8,7 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 
 const _defaultApiHost = "www.cdngwc.club";
 const _automaticProbeTimeout = Duration(milliseconds: 800);
+const _lastSuccessfulApiHostKey = "api_host_last_success";
 // 动态域名拉取失败时使用内置移动端 API 候选，保持设置页和后端候选一致。
 const _fallbackApiHosts = <String>[
   "www.cdnhjk.net",
@@ -19,6 +20,7 @@ const _fallbackApiHosts = <String>[
   "www.cdnhth.club",
 ];
 String _apiHost = _defaultApiHost;
+String _lastSuccessfulApiHost = "";
 
 List<String> _apiList = [];
 Future<bool>? _apiRotationInflight;
@@ -40,6 +42,19 @@ Future<void> initApiHost() async {
       normalizeApiHostCandidate(rawLoaded, fallback: _defaultApiHost);
   _apiHost = loaded;
   _mergeApiList([_apiHost]);
+  var rawLastSuccess = "";
+  try {
+    rawLastSuccess = await methods.loadProperty(_lastSuccessfulApiHostKey);
+  } catch (error) {
+    debugPrient(
+      "initApiHost load last success failed: ${error.runtimeType}",
+    );
+  }
+  _lastSuccessfulApiHost =
+      normalizeApiHostCandidate(rawLastSuccess, fallback: "");
+  if (_lastSuccessfulApiHost.isNotEmpty) {
+    _mergeApiList([_lastSuccessfulApiHost]);
+  }
   if (rawLoaded.trim() != _apiHost) {
     await methods.saveApiHost(_apiHost);
   }
@@ -110,24 +125,39 @@ void _mergeApiList(Iterable<String> items) {
 }
 
 Future<bool> autoSelectApiHost() async {
-  final fastest = await selectFastestHost(
+  final fastest = await selectStartupHost(
     _apiList,
     (host, timeout) => methods.ping(host, timeout: timeout),
-    timeout: _automaticProbeTimeout,
-    returnOnFirstSuccess: false,
+    preferredHosts: [
+      if (_lastSuccessfulApiHost.isNotEmpty) _lastSuccessfulApiHost,
+      _apiHost,
+    ],
+    fastTimeout: _automaticProbeTimeout,
   );
   if (fastest == null) return false;
-  if (fastest.host.toLowerCase() == _apiHost.toLowerCase()) {
-    return true;
+  if (fastest.host.toLowerCase() != _apiHost.toLowerCase()) {
+    try {
+      await methods.saveApiHost(fastest.host);
+    } catch (error) {
+      debugPrient("autoSelectApiHost save failed: $error");
+      return false;
+    }
+    _setCurrentApiHost(fastest.host);
   }
-  try {
-    await methods.saveApiHost(fastest.host);
-  } catch (error) {
-    debugPrient("autoSelectApiHost save failed: $error");
-    return false;
-  }
-  _setCurrentApiHost(fastest.host);
+  await _rememberSuccessfulApiHost(fastest.host);
   return true;
+}
+
+Future<void> _rememberSuccessfulApiHost(String host) async {
+  if (_lastSuccessfulApiHost.toLowerCase() == host.toLowerCase()) return;
+  _lastSuccessfulApiHost = host;
+  try {
+    await methods.saveProperty(_lastSuccessfulApiHostKey, host);
+  } catch (error) {
+    debugPrient(
+      "saved API host persistence failed: ${error.runtimeType}",
+    );
+  }
 }
 
 Future<T?> chooseApiDialog<T>(BuildContext buildContext) async {
