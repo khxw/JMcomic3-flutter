@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 use tokio::runtime::Runtime;
+use tokio::task::JoinSet;
 
 use crate::config::normalize_host;
 use crate::contract::{InvokeRequest, InvokeResponse};
@@ -36,6 +37,9 @@ const API_HOST_LIST_URLS: &[&str] = &[
     "https://rup4a04-c01.tos-ap-southeast-1.bytepluses.com/newsvr-2025.txt",
     "https://rup4a04-c02.tos-cn-hongkong.bytepluses.com/newsvr-2025.txt",
     "https://rup4a04-c03.tos-cn-beijing.bytepluses.com.cn/newsvr-2025.txt",
+    "https://raw.githubusercontent.com/khxw/JMcomic3-flutter/main/config/api_hosts.txt",
+    "https://cdn.jsdelivr.net/gh/khxw/JMcomic3-flutter@main/config/api_hosts.txt",
+    "https://gh-proxy.com/https://raw.githubusercontent.com/khxw/JMcomic3-flutter/main/config/api_hosts.txt",
 ];
 
 #[derive(Clone)]
@@ -1757,28 +1761,40 @@ fn cached_api_host_list(state: &BackendState) -> Result<Vec<String>, String> {
 }
 
 async fn refresh_api_host_list(state: &BackendState) -> InvokeResponse {
-    let mut refreshed = Vec::new();
+    let mut tasks = JoinSet::new();
     for url in API_HOST_LIST_URLS {
-        let fetched = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            state.client.http_get_text(url),
-        )
-        .await;
-        if let Ok(Ok(body)) = fetched {
-            let hosts = parse_api_hosts(&body);
-            if !hosts.is_empty() {
-                refreshed = hosts;
-                break;
+        let client = state.client.clone();
+        tasks.spawn(async move {
+            let fetched =
+                tokio::time::timeout(std::time::Duration::from_secs(5), client.http_get_text(url))
+                    .await;
+            match fetched {
+                Ok(Ok(body)) => parse_api_hosts(&body),
+                _ => Vec::new(),
             }
+        });
+    }
+    let mut refreshed = Vec::new();
+    while let Some(result) = tasks.join_next().await {
+        if let Ok(hosts) = result {
+            refreshed.extend(hosts);
         }
     }
+    refreshed = merge_api_hosts(FALLBACK_API_HOSTS.iter().copied(), refreshed);
     if refreshed.is_empty() {
-        return InvokeResponse::error("unable to refresh API host list");
+        return InvokeResponse::success_value(&json!(cached_api_host_list(state).unwrap_or_else(
+            |_| FALLBACK_API_HOSTS
+                .iter()
+                .map(|host| host.to_string())
+                .collect()
+        )));
     }
+    let cached = cached_api_host_list(state).unwrap_or_default();
     let hosts = merge_api_hosts(
         FALLBACK_API_HOSTS.iter().copied(),
-        refreshed
+        cached
             .into_iter()
+            .chain(refreshed)
             .chain([state.client.config().api_host.clone()]),
     );
     match state.store.save(
