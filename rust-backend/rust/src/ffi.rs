@@ -42,6 +42,10 @@ const API_HOST_LIST_URLS: &[&str] = &[
     "https://cdn.jsdelivr.net/gh/khxw/JMcomic3-flutter@main/config/api_hosts.txt",
     "https://gh-proxy.com/https://raw.githubusercontent.com/khxw/JMcomic3-flutter/main/config/api_hosts.txt",
 ];
+const API_HOST_LIST_REFRESHED_AT_KEY: &str = "api_host_list_refreshed_at";
+const API_HOST_LIST_CHECKED_AT_KEY: &str = "api_host_list_checked_at";
+const API_HOST_LIST_MAX_AGE_SECS: i64 = 12 * 60 * 60;
+const API_HOST_LIST_RETRY_SECS: i64 = 6 * 60 * 60;
 
 #[derive(Clone)]
 struct BackendState {
@@ -293,10 +297,16 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
         "load_cdn_host" => {
             property_response_with_default(&state, "cdn_host", &state.client.config().image_host)
         }
-        "load_api_host_list" => match cached_api_host_list(&state) {
-            Ok(hosts) => InvokeResponse::success_value(&json!(hosts)),
-            Err(error) => InvokeResponse::error(error),
-        },
+        "load_api_host_list" => {
+            if should_refresh_api_host_list(&state.store, unix_timestamp()) {
+                refresh_api_host_list(&state).await
+            } else {
+                match cached_api_host_list(&state) {
+                    Ok(hosts) => InvokeResponse::success_value(&json!(hosts)),
+                    Err(error) => InvokeResponse::error(error),
+                }
+            }
+        }
         "refresh_api_host_list" => refresh_api_host_list(&state).await,
         "save_api_host" => {
             let host = string_value(&params).unwrap_or_default();
@@ -1781,15 +1791,17 @@ async fn refresh_api_host_list(state: &BackendState) -> InvokeResponse {
             refreshed.extend(hosts);
         }
     }
-    refreshed = merge_api_hosts(FALLBACK_API_HOSTS.iter().copied(), refreshed);
+    let now = unix_timestamp();
+    let _ = state
+        .store
+        .save(API_HOST_LIST_CHECKED_AT_KEY, &now.to_string());
     if refreshed.is_empty() {
-        return InvokeResponse::success_value(&json!(cached_api_host_list(state).unwrap_or_else(
-            |_| FALLBACK_API_HOSTS
-                .iter()
-                .map(|host| host.to_string())
-                .collect()
-        )));
+        return match cached_api_host_list(state) {
+            Ok(hosts) => InvokeResponse::success_value(&json!(hosts)),
+            Err(error) => InvokeResponse::error(error),
+        };
     }
+    refreshed = merge_api_hosts(FALLBACK_API_HOSTS.iter().copied(), refreshed);
     let cached = cached_api_host_list(state).unwrap_or_default();
     let hosts = merge_api_hosts(
         FALLBACK_API_HOSTS.iter().copied(),
@@ -1802,9 +1814,38 @@ async fn refresh_api_host_list(state: &BackendState) -> InvokeResponse {
         "api_host_list",
         &serde_json::to_string(&hosts).unwrap_or_default(),
     ) {
-        Ok(()) => InvokeResponse::success_value(&json!(hosts)),
+        Ok(()) => {
+            let _ = state
+                .store
+                .save(API_HOST_LIST_REFRESHED_AT_KEY, &now.to_string());
+            InvokeResponse::success_value(&json!(hosts))
+        }
         Err(error) => InvokeResponse::error(error.to_string()),
     }
+}
+
+fn should_refresh_api_host_list(store: &PropertyStore, now: i64) -> bool {
+    let checked_at = store
+        .load(API_HOST_LIST_CHECKED_AT_KEY)
+        .ok()
+        .and_then(|value| value.parse::<i64>().ok())
+        .unwrap_or(0);
+    if checked_at > 0 && now.saturating_sub(checked_at) < API_HOST_LIST_RETRY_SECS {
+        return false;
+    }
+    let refreshed_at = store
+        .load(API_HOST_LIST_REFRESHED_AT_KEY)
+        .ok()
+        .and_then(|value| value.parse::<i64>().ok())
+        .unwrap_or(0);
+    refreshed_at <= 0 || now.saturating_sub(refreshed_at) >= API_HOST_LIST_MAX_AGE_SECS
+}
+
+fn unix_timestamp() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|value| value.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 fn parse_api_hosts(raw: &str) -> Vec<String> {
@@ -2004,6 +2045,43 @@ mod tests {
             ],
         );
         assert_eq!(merged, ["default.example.com", "cdn.example.com"]);
+    }
+
+    #[test]
+    fn api_host_list_refresh_uses_upgrade_ttl_and_retry_window() {
+        let root =
+            std::env::temp_dir().join(format!("jmcomic3-api-host-refresh-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let store = PropertyStore::open(&root).unwrap();
+        let now = 2_000_000_i64;
+
+        assert!(should_refresh_api_host_list(&store, now));
+        store
+            .save(API_HOST_LIST_CHECKED_AT_KEY, &now.to_string())
+            .unwrap();
+        assert!(!should_refresh_api_host_list(&store, now));
+
+        store
+            .save(
+                API_HOST_LIST_CHECKED_AT_KEY,
+                &(now - API_HOST_LIST_RETRY_SECS - 1).to_string(),
+            )
+            .unwrap();
+        assert!(should_refresh_api_host_list(&store, now));
+
+        store
+            .save(API_HOST_LIST_REFRESHED_AT_KEY, &now.to_string())
+            .unwrap();
+        assert!(!should_refresh_api_host_list(&store, now));
+
+        store
+            .save(
+                API_HOST_LIST_REFRESHED_AT_KEY,
+                &(now - API_HOST_LIST_MAX_AGE_SECS - 1).to_string(),
+            )
+            .unwrap();
+        assert!(should_refresh_api_host_list(&store, now));
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
