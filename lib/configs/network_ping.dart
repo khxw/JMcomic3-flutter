@@ -99,6 +99,7 @@ Future<HostLatencyProbe?> selectStartupHost(
   required Iterable<String> preferredHosts,
   Duration fastTimeout = const Duration(milliseconds: 800),
   Duration fallbackTimeout = const Duration(seconds: 3),
+  Duration slowFallbackTimeout = const Duration(seconds: 3),
 }) async {
   final fastest = await selectFastestHost(
     hosts,
@@ -106,10 +107,17 @@ Future<HostLatencyProbe?> selectStartupHost(
     timeout: fastTimeout,
   );
   if (fastest != null) return fastest;
-  return selectFastestHost(
+  final preferred = await selectFastestHost(
     preferredHosts,
     ping,
     timeout: fallbackTimeout,
+  );
+  if (preferred != null) return preferred;
+  return selectFastestHost(
+    hosts,
+    ping,
+    timeout: slowFallbackTimeout,
+    returnOnFirstSuccess: true,
   );
 }
 

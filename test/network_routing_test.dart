@@ -69,6 +69,34 @@ void main() {
     );
   });
 
+  test('slow full fallback returns the first route after saved routes fail',
+      () async {
+    final selected = await selectStartupHost(
+      [
+        'saved-a.example.com',
+        'saved-b.example.com',
+        'remote-c.example.com',
+      ],
+      (host, timeout) async {
+        if (timeout.inMilliseconds < 250) {
+          throw TimeoutException('route unavailable');
+        }
+        if (host == 'remote-c.example.com') return 900;
+        throw TimeoutException('saved route unavailable');
+      },
+      preferredHosts: [
+        'saved-a.example.com',
+        'saved-b.example.com',
+      ],
+      fastTimeout: const Duration(milliseconds: 50),
+      fallbackTimeout: const Duration(milliseconds: 150),
+      slowFallbackTimeout: const Duration(milliseconds: 300),
+    );
+
+    expect(selected?.host, 'remote-c.example.com');
+    expect(selected?.milliseconds, 900);
+  });
+
   test('API and CDN startup automatically save the fastest routes', () async {
     final savedApiHosts = <String>[];
     final savedCdnHosts = <String>[];
