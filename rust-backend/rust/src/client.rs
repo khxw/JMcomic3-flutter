@@ -1,6 +1,10 @@
+use std::collections::HashSet;
+use std::io::Cursor;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use image::codecs::jpeg::JpegEncoder;
 use reqwest::cookie::{CookieStore, Jar};
 use reqwest::{Client, Method, RequestBuilder, StatusCode};
 use serde_json::{json, Value};
@@ -12,6 +16,11 @@ use crate::models::{JmApiResponse, SearchSort};
 
 const APP_TOKEN_SECRET: &str = "18comicAPP";
 const APP_TOKEN_SECRET_2: &str = "18comicAPPContent";
+const IMAGE_SEARCH_URL: &str = "https://soutubot.moe/api/search";
+const IMAGE_SEARCH_MAX_SOURCE_BYTES: u64 = 24 * 1024 * 1024;
+const IMAGE_SEARCH_MAX_EDGE: u32 = 2000;
+const IMAGE_SEARCH_JPEG_QUALITY: u8 = 92;
+const IMAGE_SEARCH_RESULT_LIMIT: usize = 20;
 
 fn favorite_folder_form(
     action: &str,
@@ -162,6 +171,51 @@ impl JmClient {
             None,
         )
         .await
+    }
+
+    pub async fn image_search(&self, path: &Path) -> BackendResult<Value> {
+        let source_path = path.to_path_buf();
+        let image_bytes =
+            tokio::task::spawn_blocking(move || prepare_image_search_upload(&source_path))
+                .await
+                .map_err(|error| {
+                    BackendError::InvalidResponse(format!("image preprocessing failed: {error}"))
+                })??;
+        let file_part = reqwest::multipart::Part::bytes(image_bytes)
+            .file_name("image.jpg")
+            .mime_str("image/jpeg")?;
+        let form = reqwest::multipart::Form::new()
+            .part("file", file_part)
+            .text("factor", "1.2")
+            .text("metadata_mode", "display")
+            .text("top_k", "25");
+        let response = self
+            .inner
+            .client
+            .post(IMAGE_SEARCH_URL)
+            .header("Accept", "application/json")
+            .header("Accept-Language", "zh-CN")
+            .header("Origin", "https://soutubot.moe")
+            .header("Referer", "https://soutubot.moe/")
+            .header("X-Requested-With", "XMLHttpRequest")
+            .header(
+                "User-Agent",
+                "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 \
+                 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+            )
+            .multipart(form)
+            .send()
+            .await?;
+        let status = response.status();
+        let body = response.text().await?;
+        if !status.is_success() {
+            return Err(BackendError::HttpStatus {
+                status: status.as_u16(),
+                body: body.chars().take(500).collect(),
+            });
+        }
+        let payload: Value = serde_json::from_str(&body)?;
+        Ok(normalize_image_search_response(payload))
     }
 
     pub async fn album(&self, album_id: i64) -> BackendResult<Value> {
@@ -964,6 +1018,223 @@ fn decode_api_body(timestamp: u64, body: String) -> BackendResult<Value> {
     }
 }
 
+fn prepare_image_search_upload(path: &Path) -> BackendResult<Vec<u8>> {
+    let metadata = std::fs::metadata(path)?;
+    if !metadata.is_file() {
+        return Err(BackendError::Config("image path is not a file".into()));
+    }
+    if metadata.len() == 0 {
+        return Err(BackendError::Config("selected image is empty".into()));
+    }
+    if metadata.len() > IMAGE_SEARCH_MAX_SOURCE_BYTES {
+        return Err(BackendError::Config(
+            "selected image is larger than 24 MB".into(),
+        ));
+    }
+
+    let source = std::fs::read(path)?;
+    let image = image::load_from_memory(&source)
+        .map_err(|error| BackendError::InvalidResponse(format!("unsupported image: {error}")))?;
+    let image = if image.width() > IMAGE_SEARCH_MAX_EDGE || image.height() > IMAGE_SEARCH_MAX_EDGE {
+        image.resize(
+            IMAGE_SEARCH_MAX_EDGE,
+            IMAGE_SEARCH_MAX_EDGE,
+            image::imageops::FilterType::Lanczos3,
+        )
+    } else {
+        image
+    };
+    let rgb = image.to_rgb8();
+    let mut output = Vec::new();
+    JpegEncoder::new_with_quality(&mut Cursor::new(&mut output), IMAGE_SEARCH_JPEG_QUALITY)
+        .encode_image(&rgb)
+        .map_err(|error| {
+            BackendError::InvalidResponse(format!("image encoding failed: {error}"))
+        })?;
+    Ok(output)
+}
+
+fn normalize_image_search_response(value: Value) -> Value {
+    let mut hits = Vec::new();
+
+    if let Some(results) = value.get("results").and_then(Value::as_array) {
+        for result in results {
+            let score = result
+                .get("score")
+                .and_then(image_search_f64)
+                .unwrap_or(0.0);
+            let segments = result
+                .get("path_segments")
+                .and_then(Value::as_array)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            for segment in segments {
+                if let Some(hit) = normalize_image_search_segment(segment, score) {
+                    hits.push(hit);
+                }
+            }
+        }
+    }
+
+    if hits.is_empty() {
+        if let Some(legacy_results) = value.get("data").and_then(Value::as_array) {
+            for result in legacy_results {
+                let score = result
+                    .get("similarity")
+                    .and_then(image_search_f64)
+                    .unwrap_or(0.0);
+                if let Some(hit) = normalize_legacy_image_search_result(result, score) {
+                    hits.push(hit);
+                }
+            }
+        }
+    }
+
+    hits.sort_by(|left, right| {
+        right["similarity"]
+            .as_f64()
+            .unwrap_or(0.0)
+            .partial_cmp(&left["similarity"].as_f64().unwrap_or(0.0))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let mut seen = HashSet::new();
+    hits.retain(|hit| {
+        let source = hit["source"].as_str().unwrap_or_default();
+        let external_id = hit["external_id"].as_str().unwrap_or_default();
+        let title = hit["title"].as_str().unwrap_or_default().to_lowercase();
+        let key = if !external_id.is_empty() {
+            format!("{source}:{external_id}")
+        } else {
+            format!("{source}:{title}")
+        };
+        seen.insert(key)
+    });
+    hits.truncate(IMAGE_SEARCH_RESULT_LIMIT);
+
+    json!({
+        "result_id": value.get("result_id").or_else(|| value.get("id")).cloned().unwrap_or(Value::Null),
+        "status": value.get("status").cloned().unwrap_or(Value::String(String::new())),
+        "partial": value.get("partial").and_then(Value::as_bool).unwrap_or(false),
+        "elapsed_ms": value.pointer("/timing/total_ms").and_then(Value::as_u64).unwrap_or(0),
+        "warnings": value.get("warnings").cloned().unwrap_or(Value::Array(Vec::new())),
+        "hits": hits,
+    })
+}
+
+fn normalize_image_search_segment(segment: &Value, score: f64) -> Option<Value> {
+    let source = image_search_text_at(segment, &["source_key"])
+        .or_else(|| image_search_text_at(segment, &["metadata", "source", "key"]))
+        .or_else(|| image_search_text_at(segment, &["metadata", "post", "source_key"]))
+        .unwrap_or_else(|| "unknown".into())
+        .to_ascii_lowercase();
+    let external_id = image_search_text_at(segment, &["external_id"])
+        .or_else(|| image_search_text_at(segment, &["metadata", "source", "id"]))
+        .or_else(|| image_search_text_at(segment, &["metadata", "post", "post_id"]))
+        .unwrap_or_default();
+    let title = image_search_text_at(segment, &["metadata", "title", "primary"])
+        .or_else(|| image_search_text_at(segment, &["metadata", "title"]))
+        .or_else(|| image_search_text_at(segment, &["metadata", "work_title"]))
+        .or_else(|| image_search_text_at(segment, &["title"]))
+        .unwrap_or_default();
+    if title.is_empty() && external_id.is_empty() {
+        return None;
+    }
+    let title_alt = image_search_text_at(segment, &["metadata", "title", "japanese_or_alias"])
+        .unwrap_or_default();
+    let language = image_search_text_at(segment, &["language"])
+        .or_else(|| image_search_text_at(segment, &["metadata", "facts", "language"]))
+        .unwrap_or_default();
+    let page = segment
+        .get("page_no")
+        .and_then(image_search_i64)
+        .unwrap_or(0);
+    let url = image_search_text_at(segment, &["source_url"])
+        .or_else(|| image_search_text_at(segment, &["page_url"]))
+        .or_else(|| image_search_text_at(segment, &["chapter_url"]))
+        .unwrap_or_default();
+    let thumbnail_url = image_search_text_at(segment, &["thumbnail_url"]).unwrap_or_default();
+
+    Some(json!({
+        "source": source,
+        "external_id": external_id,
+        "title": title,
+        "title_alt": title_alt,
+        "language": normalize_image_search_language(&language),
+        "page": page,
+        "similarity": score.clamp(0.0, 100.0),
+        "url": url,
+        "thumbnail_url": thumbnail_url,
+    }))
+}
+
+fn normalize_legacy_image_search_result(result: &Value, score: f64) -> Option<Value> {
+    let source = image_search_text_at(result, &["source"])
+        .unwrap_or_else(|| "unknown".into())
+        .to_ascii_lowercase();
+    let title = image_search_text_at(result, &["title"]).unwrap_or_default();
+    let path = image_search_text_at(result, &["subjectPath"]).unwrap_or_default();
+    if title.is_empty() {
+        return None;
+    }
+    let external_id = path
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .next_back()
+        .unwrap_or_default()
+        .to_string();
+    Some(json!({
+        "source": source,
+        "external_id": external_id,
+        "title": title,
+        "title_alt": "",
+        "language": normalize_image_search_language(
+            &image_search_text_at(result, &["language"]).unwrap_or_default()
+        ),
+        "page": result.get("page").and_then(image_search_i64).unwrap_or(0),
+        "similarity": score.clamp(0.0, 100.0),
+        "url": path,
+        "thumbnail_url": image_search_text_at(result, &["previewImageUrl"]).unwrap_or_default(),
+    }))
+}
+
+fn image_search_text_at(value: &Value, path: &[&str]) -> Option<String> {
+    let mut current = value;
+    for key in path {
+        current = current.get(*key)?;
+    }
+    match current {
+        Value::String(value) => {
+            let value = value.trim();
+            (!value.is_empty()).then(|| value.to_string())
+        }
+        Value::Number(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+fn image_search_f64(value: &Value) -> Option<f64> {
+    value
+        .as_f64()
+        .or_else(|| value.as_str()?.trim().parse::<f64>().ok())
+}
+
+fn image_search_i64(value: &Value) -> Option<i64> {
+    value
+        .as_i64()
+        .or_else(|| value.as_str()?.trim().parse::<i64>().ok())
+}
+
+fn normalize_image_search_language(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "chinese" | "zh" | "cn" => "zh",
+        "japanese" | "ja" | "jp" => "ja",
+        "english" | "en" | "gb" => "en",
+        "korean" | "ko" | "kr" => "ko",
+        other => other,
+    }
+    .to_string()
+}
+
 fn normalize_album_value(mut value: Value) -> Value {
     let Some(album) = value.as_object_mut() else {
         return value;
@@ -1626,6 +1897,93 @@ mod tests {
             "2025-09-12"
         );
         assert_eq!(album_published_at_from_search(&value, 999), "");
+    }
+
+    #[test]
+    fn image_search_normalizes_schema_2_2_results() {
+        let value = normalize_image_search_response(json!({
+            "schema_version": "2.2",
+            "status": "complete",
+            "result_id": "abc",
+            "timing": {"total_ms": 1234},
+            "results": [{
+                "score": 93.5,
+                "path_segments": [{
+                    "source_key": "jmcomic",
+                    "external_id": "1214196",
+                    "language": "chinese",
+                    "page_no": 12,
+                    "source_url": "https://example.test/photo/1214196",
+                    "thumbnail_url": "https://example.test/thumb.jpg",
+                    "metadata": {
+                        "title": {
+                            "primary": "Fixture Comic",
+                            "japanese_or_alias": "Fixture Alias"
+                        },
+                        "source": {
+                            "key": "jmcomic",
+                            "id": "1214196"
+                        }
+                    }
+                }]
+            }]
+        }));
+
+        assert_eq!(value["result_id"], "abc");
+        assert_eq!(value["elapsed_ms"], 1234);
+        assert_eq!(value["hits"][0]["source"], "jmcomic");
+        assert_eq!(value["hits"][0]["external_id"], "1214196");
+        assert_eq!(value["hits"][0]["title"], "Fixture Comic");
+        assert_eq!(value["hits"][0]["title_alt"], "Fixture Alias");
+        assert_eq!(value["hits"][0]["language"], "zh");
+        assert_eq!(value["hits"][0]["similarity"], 93.5);
+    }
+
+    #[test]
+    fn image_search_accepts_legacy_data_results() {
+        let value = normalize_image_search_response(json!({
+            "id": "legacy",
+            "data": [{
+                "source": "jmcomic",
+                "title": "Legacy Comic",
+                "language": "cn",
+                "page": 7,
+                "subjectPath": "/photo/7654321",
+                "previewImageUrl": "https://example.test/legacy.jpg",
+                "similarity": 88.0
+            }]
+        }));
+
+        assert_eq!(value["result_id"], "legacy");
+        assert_eq!(value["hits"][0]["source"], "jmcomic");
+        assert_eq!(value["hits"][0]["external_id"], "7654321");
+        assert_eq!(value["hits"][0]["title"], "Legacy Comic");
+        assert_eq!(value["hits"][0]["similarity"], 88.0);
+    }
+
+    #[test]
+    fn image_search_upload_is_resized_before_upload() {
+        let source = image::RgbImage::from_fn(2400, 1200, |x, y| {
+            image::Rgb([(x % 255) as u8, (y % 255) as u8, 96])
+        });
+        let mut encoded = Vec::new();
+        image::DynamicImage::ImageRgb8(source)
+            .write_to(&mut Cursor::new(&mut encoded), image::ImageFormat::Png)
+            .unwrap();
+        let root = std::env::temp_dir().join(format!(
+            "jmcomic3-image-search-upload-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("large.png");
+        std::fs::write(&path, encoded).unwrap();
+
+        let prepared = prepare_image_search_upload(&path).unwrap();
+        let decoded = image::load_from_memory(&prepared).unwrap();
+        assert!(decoded.width() <= IMAGE_SEARCH_MAX_EDGE);
+        assert!(decoded.height() <= IMAGE_SEARCH_MAX_EDGE);
+
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

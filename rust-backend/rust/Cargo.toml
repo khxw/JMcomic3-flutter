@@ -33,10 +33,10 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"
 tracing = "0.1"
 
 [target.'cfg(windows)'.dependencies]
-reqwest = { version = "0.12", default-features = false, features = ["brotli", "cookies", "gzip", "json", "native-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["brotli", "cookies", "gzip", "json", "multipart", "native-tls"] }
 
 [target.'cfg(not(windows))'.dependencies]
-reqwest = { version = "0.12", default-features = false, features = ["brotli", "cookies", "gzip", "json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["brotli", "cookies", "gzip", "json", "multipart", "rustls-tls"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

@@ -64,6 +64,12 @@ int? _toNullableInt(dynamic value) {
   return null;
 }
 
+double _toDouble(dynamic value) {
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value.trim()) ?? 0;
+  return 0;
+}
+
 /// Rust 桥接和导入文件可能传入 Map<dynamic, dynamic>、null 或异常标量。
 /// 实体层统一收口，避免页面层在恢复下载任务时重复处理边界。
 Map<String, dynamic> _toStringDynamicMap(dynamic value) {
@@ -167,6 +173,119 @@ class SearchPage {
     _data['total'] = total;
     _data['redirect_aid'] = redirectAid;
     return _data;
+  }
+}
+
+class ImageSearchHit {
+  ImageSearchHit({
+    required this.source,
+    required this.externalId,
+    required this.title,
+    required this.titleAlt,
+    required this.language,
+    required this.page,
+    required this.similarity,
+    required this.url,
+    required this.thumbnailUrl,
+  });
+
+  final String source;
+  final String externalId;
+  final String title;
+  final String titleAlt;
+  final String language;
+  final int page;
+  final double similarity;
+  final String url;
+  final String thumbnailUrl;
+
+  factory ImageSearchHit.fromJson(Map<String, dynamic> json) {
+    return ImageSearchHit(
+      source: "${json['source'] ?? ''}".trim(),
+      externalId: "${json['external_id'] ?? ''}".trim(),
+      title: "${json['title'] ?? ''}".trim(),
+      titleAlt: "${json['title_alt'] ?? ''}".trim(),
+      language: "${json['language'] ?? ''}".trim(),
+      page: _toInt(json['page']),
+      similarity: _toDouble(json['similarity']),
+      url: "${json['url'] ?? ''}".trim(),
+      thumbnailUrl: "${json['thumbnail_url'] ?? ''}".trim(),
+    );
+  }
+
+  String get displayTitle {
+    if (title.isNotEmpty) return title;
+    if (titleAlt.isNotEmpty) return titleAlt;
+    if (externalId.isNotEmpty) return '$sourceLabel #$externalId';
+    return sourceLabel;
+  }
+
+  String get sourceLabel {
+    switch (source.toLowerCase()) {
+      case 'jmcomic':
+        return 'JMComic';
+      case 'nhentai':
+        return 'nhentai';
+      case 'ehentai':
+        return 'E-Hentai';
+      case 'exhentai':
+      case 'panda':
+        return 'ExHentai';
+      case 'dmzj':
+        return '动漫之家';
+      case 'manhuacat':
+        return '漫画猫';
+      default:
+        return source.isEmpty ? '未知来源' : source;
+    }
+  }
+
+  String get searchQuery {
+    if (source.toLowerCase() == 'jmcomic') {
+      final match = RegExp(r'\d+').firstMatch(externalId);
+      if (match != null) return match.group(0)!;
+    }
+    if (title.isNotEmpty) return title;
+    return titleAlt;
+  }
+}
+
+class ImageSearchResponse {
+  ImageSearchResponse({
+    required this.resultId,
+    required this.status,
+    required this.partial,
+    required this.elapsedMs,
+    required this.warnings,
+    required this.hits,
+  });
+
+  final String resultId;
+  final String status;
+  final bool partial;
+  final int elapsedMs;
+  final List<String> warnings;
+  final List<ImageSearchHit> hits;
+
+  factory ImageSearchResponse.fromJson(Map<String, dynamic> json) {
+    return ImageSearchResponse(
+      resultId: "${json['result_id'] ?? ''}",
+      status: "${json['status'] ?? ''}",
+      partial: json['partial'] == true,
+      elapsedMs: _toInt(json['elapsed_ms']),
+      warnings: List<dynamic>.from(json['warnings'] ?? const [])
+          .map((value) => "$value")
+          .where((value) => value.trim().isNotEmpty)
+          .toList(growable: false),
+      hits: List<dynamic>.from(json['hits'] ?? const [])
+          .whereType<Map>()
+          .map(
+            (value) => ImageSearchHit.fromJson(
+              Map<String, dynamic>.from(value),
+            ),
+          )
+          .toList(growable: false),
+    );
   }
 }
 

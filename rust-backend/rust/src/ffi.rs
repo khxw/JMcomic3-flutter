@@ -594,6 +594,14 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
                 Err(error) => InvokeResponse::error(error.to_string()),
             }
         }
+        "image_search" => {
+            let path = string_param(&params, "path").unwrap_or_default();
+            if path.trim().is_empty() {
+                InvokeResponse::error("image path is required")
+            } else {
+                result_value(state.client.image_search(Path::new(&path)).await)
+            }
+        }
         "week" => result_value(state.client.weekly_info().await),
         "week_filter" => {
             let category_id = string_param(&params, "category_id").unwrap_or_default();

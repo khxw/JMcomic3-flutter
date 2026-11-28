@@ -893,6 +893,15 @@ class Methods {
     return _decodeEntityResponse(rsp, "comic_search", ComicsResponse.fromJson);
   }
 
+  Future<ImageSearchResponse> imageSearch(String path) async {
+    final rsp = await _invoke("image_search", {"path": path});
+    return _decodeEntityResponse(
+      rsp,
+      "image_search",
+      ImageSearchResponse.fromJson,
+    );
+  }
+
   Future<ComicsResponse> pageViewLog(int page) async {
     final rsp = await _invoke("page_view_log", page);
     return _decodeEntityResponse(rsp, "page_view_log", ComicsResponse.fromJson);
