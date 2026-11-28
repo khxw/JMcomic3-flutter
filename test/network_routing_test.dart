@@ -16,6 +16,11 @@ String _response(Object? data) => jsonEncode({
       'response_data': data is String ? data : jsonEncode(data),
     });
 
+String _error(String message) => jsonEncode({
+      'error_message': message,
+      'response_data': '',
+    });
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -202,6 +207,72 @@ void main() {
       savedCdnHosts.length - savedBeforeConcurrentFailures,
       1,
     );
+  });
+
+  test('persisted API failures trip a temporary circuit breaker', () async {
+    final savedProperties = <String, String>{};
+    var deadPings = 0;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      final method = request['method'];
+      final params = '${request['params'] ?? ''}';
+      final objectParams = params.startsWith('{')
+          ? jsonDecode(params) as Map<String, dynamic>
+          : const <String, dynamic>{};
+      final pingHost = '${objectParams['host'] ?? params}';
+      switch (method) {
+        case 'load_api_host_list':
+          return _response(jsonEncode([
+            'dead-api.example.com',
+            'healthy-api.example.com',
+          ]));
+        case 'load_api_host':
+          return _response(jsonEncode('healthy-api.example.com'));
+        case 'load_property':
+          if (params == 'api_host_last_success') {
+            return _response(
+              jsonEncode('healthy-api.example.com'),
+            );
+          }
+          if (params == 'api_host_health_v1') {
+            return _response(jsonEncode({
+              'dead-api.example.com': {
+                'failures': 1,
+                'blocked_until_ms': 0,
+              },
+            }));
+          }
+          return _response('');
+        case 'ping_server':
+          if (pingHost == 'dead-api.example.com') {
+            deadPings++;
+            return _error('HTTP 404');
+          }
+          return _response('25');
+        case 'save_property':
+          final values = jsonDecode(params) as Map<String, dynamic>;
+          savedProperties[values['k'] as String] = values['v'] as String;
+          return _response('');
+        case 'save_api_host':
+          return _response('');
+        default:
+          return _response('');
+      }
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(_channel, null));
+
+    await initApiHost();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(currentApiHostName, 'healthy-api.example.com');
+    expect(deadPings, 1);
+    final health = jsonDecode(savedProperties['api_host_health_v1']!) as Map;
+    final deadHealth = health['dead-api.example.com'] as Map;
+    expect(deadHealth['failures'], 2);
+    expect(deadHealth['blocked_until_ms'], greaterThan(0));
   });
 
   testWidgets('manual API refresh shows progress and blocks duplicate taps',

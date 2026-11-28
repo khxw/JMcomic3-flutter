@@ -7,7 +7,7 @@ import 'package:jmcomic3/configs/network_ping.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
 const _defaultCdnHost = "cdn-msp3.jmapiproxy1.cc";
-const _automaticProbeTimeout = Duration(milliseconds: 800);
+const _automaticProbeTimeout = Duration(milliseconds: 1500);
 const _lastSuccessfulCdnHostKey = "cdn_host_last_success";
 String _cdnHost = _defaultCdnHost;
 String _lastSuccessfulCdnHost = "";

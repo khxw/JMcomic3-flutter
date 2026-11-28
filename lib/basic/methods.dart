@@ -2009,13 +2009,12 @@ class Methods {
     Duration timeout = const Duration(seconds: 2),
   }) async {
     debugPrient("PING API $idx");
-    return _parseBackendInt(
-      await _invoke("ping_server", {
+    return _invokeProbeInt(
+      "ping_server",
+      {
         "host": idx,
         "timeout_ms": timeout.inMilliseconds,
-      }),
-      "ping_server",
-      fallback: 0,
+      },
     );
   }
 
@@ -2024,12 +2023,24 @@ class Methods {
     Duration timeout = const Duration(seconds: 2),
   }) async {
     debugPrient("PING CDN $idx");
-    return _parseBackendInt(
-      await _invoke("ping_cdn", {
+    return _invokeProbeInt(
+      "ping_cdn",
+      {
         "host": idx,
         "timeout_ms": timeout.inMilliseconds,
-      }),
-      "ping_cdn",
+      },
+    );
+  }
+
+  Future<int> _invokeProbeInt(
+      String method, Map<String, dynamic> params) async {
+    final response = _decodeInvokeResponse(await _invokeRaw(method, params));
+    if (response.errorMessage.isNotEmpty) {
+      throw StateError(response.errorMessage);
+    }
+    return _parseBackendInt(
+      _stripJsonBom(response.responseData),
+      method,
       fallback: 0,
     );
   }

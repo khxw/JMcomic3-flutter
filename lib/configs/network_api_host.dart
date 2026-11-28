@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:jmcomic3/basic/commons.dart';
 import 'package:jmcomic3/basic/methods.dart';
@@ -7,10 +10,13 @@ import 'package:jmcomic3/configs/network_ping.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
 
 const _defaultApiHost = "www.cdngwc.club";
-const _automaticProbeTimeout = Duration(milliseconds: 800);
+const _automaticProbeTimeout = Duration(milliseconds: 1500);
 const _rotationFallbackTimeout = Duration(milliseconds: 2500);
 const _apiRotationCooldown = Duration(seconds: 2);
+const _apiFailureThreshold = 2;
+const _apiCircuitDuration = Duration(minutes: 5);
 const _lastSuccessfulApiHostKey = "api_host_last_success";
+const _apiHostHealthKey = "api_host_health_v1";
 // 动态域名拉取失败时使用内置移动端 API 候选，保持设置页和后端候选一致。
 const _fallbackApiHosts = <String>[
   "www.cdnhjk.net",
@@ -28,10 +34,39 @@ List<String> _apiList = [];
 Future<bool>? _apiRotationInflight;
 DateTime? _lastApiRotationAttemptAt;
 
+class _ApiHostHealth {
+  int failures;
+  int blockedUntilMs;
+
+  _ApiHostHealth({
+    this.failures = 0,
+    this.blockedUntilMs = 0,
+  });
+
+  bool get blocked => blockedUntilMs > DateTime.now().millisecondsSinceEpoch;
+
+  factory _ApiHostHealth.fromJson(Map<String, dynamic> json) {
+    return _ApiHostHealth(
+      failures: (json['failures'] as num?)?.toInt() ?? 0,
+      blockedUntilMs: (json['blocked_until_ms'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'failures': failures,
+        'blocked_until_ms': blockedUntilMs,
+      };
+}
+
+final Map<String, _ApiHostHealth> _apiHostHealth = {};
+
 Future<void> initApiHost() async {
   Methods.apiHostRecoveryHandler = rotateApiHostAfterInvalidResponse;
   _apiList = [];
+  _apiHostHealth.clear();
+  _lastApiRotationAttemptAt = null;
   _mergeApiList(_fallbackApiHosts);
+  await _loadApiHostHealth();
   final hostListFuture = methods.loadApiHostList();
   final currentHostFuture = methods.loadApiHost();
   try {
@@ -95,21 +130,21 @@ Future<bool> _performApiHostRotation() async {
   }
   _lastApiRotationAttemptAt = now;
   final current = _apiHost.toLowerCase();
-  final candidates = _apiList
+  final candidates = _probeableApiHosts(_apiList
       .where((host) => host.toLowerCase() != current)
-      .toList(growable: false);
+      .toList(growable: false));
   if (candidates.isEmpty) return false;
 
   // Resolve one healthy replacement before persisting it. Sequential blind
   // switches can walk through the entire host list during a startup burst.
   var selected = await selectFastestHost(
     candidates,
-    (host, timeout) => methods.ping(host, timeout: timeout),
+    _probeApiHost,
     timeout: _automaticProbeTimeout,
   );
   selected ??= await selectFastestHost(
     candidates,
-    (host, timeout) => methods.ping(host, timeout: timeout),
+    _probeApiHost,
     timeout: _rotationFallbackTimeout,
     returnOnFirstSuccess: true,
   );
@@ -151,13 +186,18 @@ void _mergeApiList(Iterable<String> items) {
 }
 
 Future<bool> autoSelectApiHost() async {
-  final fastest = await selectStartupHost(
-    _apiList,
-    (host, timeout) => methods.ping(host, timeout: timeout),
-    preferredHosts: [
+  final hosts = _probeableApiHosts(_apiList);
+  final preferred = _probeableApiHosts(
+    [
       if (_lastSuccessfulApiHost.isNotEmpty) _lastSuccessfulApiHost,
       _apiHost,
     ],
+    allowEmergencyFallback: false,
+  );
+  final fastest = await selectStartupHost(
+    hosts,
+    _probeApiHost,
+    preferredHosts: preferred,
     fastTimeout: _automaticProbeTimeout,
   );
   if (fastest == null) return false;
@@ -172,6 +212,100 @@ Future<bool> autoSelectApiHost() async {
   }
   await _rememberSuccessfulApiHost(fastest.host);
   return true;
+}
+
+Future<int> _probeApiHost(String host, Duration timeout) async {
+  if (_apiHostHealth[host.toLowerCase()]?.blocked ?? false) {
+    throw StateError('API route is temporarily blocked');
+  }
+  try {
+    final milliseconds = await methods.ping(host, timeout: timeout);
+    if (milliseconds <= 0) {
+      throw StateError('API route returned an invalid probe result');
+    }
+    _markApiHostSuccess(host);
+    return milliseconds;
+  } catch (error) {
+    _markApiHostFailure(host);
+    rethrow;
+  }
+}
+
+List<String> _probeableApiHosts(
+  Iterable<String> hosts, {
+  bool allowEmergencyFallback = true,
+}) {
+  final all = <String>[];
+  final seen = <String>{};
+  for (final host in hosts) {
+    final normalized = host.trim();
+    if (normalized.isNotEmpty && seen.add(normalized.toLowerCase())) {
+      all.add(normalized);
+    }
+  }
+  final available = all
+      .where((host) => !(_apiHostHealth[host.toLowerCase()]?.blocked ?? false))
+      .toList(growable: false);
+  if (available.isNotEmpty) return available;
+  if (all.isEmpty) return all;
+  if (!allowEmergencyFallback) return const [];
+
+  // Emergency fallback: every route is blocked. Allow one fresh probe round
+  // instead of leaving the app permanently stuck with no candidates.
+  for (final host in all) {
+    _apiHostHealth.remove(host.toLowerCase());
+  }
+  unawaited(_saveApiHostHealth());
+  return all;
+}
+
+Future<void> _loadApiHostHealth() async {
+  try {
+    final raw = await methods.loadProperty(_apiHostHealthKey);
+    if (raw.trim().isEmpty) return;
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) return;
+    _apiHostHealth.clear();
+    decoded.forEach((key, value) {
+      if (key is String && value is Map) {
+        _apiHostHealth[key.toLowerCase()] = _ApiHostHealth.fromJson(
+          Map<String, dynamic>.from(value),
+        );
+      }
+    });
+  } catch (_) {
+    _apiHostHealth.clear();
+  }
+}
+
+void _markApiHostFailure(String host) {
+  final key = host.toLowerCase();
+  final health = _apiHostHealth.putIfAbsent(key, () => _ApiHostHealth());
+  health.failures++;
+  if (health.failures >= _apiFailureThreshold) {
+    health.blockedUntilMs =
+        DateTime.now().add(_apiCircuitDuration).millisecondsSinceEpoch;
+  }
+  unawaited(_saveApiHostHealth());
+}
+
+void _markApiHostSuccess(String host) {
+  final key = host.toLowerCase();
+  if (_apiHostHealth.remove(key) != null) {
+    unawaited(_saveApiHostHealth());
+  }
+}
+
+Future<void> _saveApiHostHealth() async {
+  final payload = <String, dynamic>{
+    for (final entry in _apiHostHealth.entries)
+      if (entry.value.failures > 0) entry.key: entry.value.toJson(),
+  };
+  try {
+    await methods.saveProperty(_apiHostHealthKey, jsonEncode(payload));
+  } catch (_) {
+    // Circuit state is an optimization; probing still works if persistence fails.
+  }
 }
 
 Future<void> _rememberSuccessfulApiHost(String host) async {
