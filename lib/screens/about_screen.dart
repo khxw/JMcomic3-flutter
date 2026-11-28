@@ -15,6 +15,7 @@ class AboutScreen extends StatelessWidget {
   static const _projectUrl = 'https://github.com/khxw/JMcomic3-flutter';
   static const _upstreamUrl =
       'https://github.com/MrYu-JMComic/JMcomic3-flutter';
+  static const _imageSearchServiceUrl = 'https://soutubot.moe/';
 
   @override
   Widget build(BuildContext context) {
@@ -123,6 +124,25 @@ class AboutScreen extends StatelessWidget {
                               ),
                             );
                           },
+                        ),
+                        const Divider(height: 1),
+                        ListTile(
+                          key: const ValueKey('about-third-party-service'),
+                          leading: const Icon(Icons.cloud_upload_outlined),
+                          title: Text(
+                            context.l10n.tr(
+                              '第三方服务与数据处理',
+                              en: 'Third-party service and data processing',
+                            ),
+                          ),
+                          subtitle: Text(
+                            context.l10n.tr(
+                              '以图搜漫会将所选图片发送至 soutubot.moe',
+                              en: 'Image search sends the selected image to soutubot.moe',
+                            ),
+                          ),
+                          trailing: const Icon(Icons.open_in_new_rounded),
+                          onTap: () => openUrl(_imageSearchServiceUrl),
                         ),
                       ],
                     ),

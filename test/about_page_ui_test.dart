@@ -50,6 +50,10 @@ void main() {
     );
     expect(find.byKey(const ValueKey('about-update-entry')), findsOneWidget);
     expect(find.byKey(const ValueKey('about-license-entry')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('about-third-party-service')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('about-disclaimer')), findsOneWidget);
     expect(find.text('About'), findsOneWidget);
     expect(tester.takeException(), isNull);

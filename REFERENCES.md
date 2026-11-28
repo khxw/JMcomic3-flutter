@@ -56,6 +56,18 @@
 - 模型归档内保留 `LICENSE.txt`，上游许可证为 MIT，
   版权声明为 `Copyright (c) 2019 nihui`。
 
+## soutubot.moe（以图搜漫）
+
+- 服务：[soutubot.moe](https://soutubot.moe/)。
+- 使用范围：以图搜漫功能通过 `https://soutubot.moe/api/search` 提交用户主动选择的图片，
+  并读取该服务返回的漫画标题、来源、相似度等识别结果。
+- 数据处理：图片仅在用户主动发起识图时发送至该第三方服务；应用会在识图页面明确提示，
+  服务的可用性、保存策略和数据处理规则由 `soutubot.moe` 决定。
+- 对应实现：`rust-backend/rust/src/client.rs` 与
+  `lib/screens/image_search_screen.dart`。
+- 本项目未复制或分发 `soutubot.moe` 的源代码，因此该服务不列入开源组件许可；
+  此处作为第三方服务、数据流向和功能来源声明保留。
+
 ## 其他依赖与资源
 
 Flutter / Dart 包版本由 `pubspec.yaml` 与提交的 `pubspec.lock` 记录，使用各依赖自己的

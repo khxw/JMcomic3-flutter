@@ -125,6 +125,7 @@ flutter build apk --release --no-pub --target-platform android-arm64 --split-per
 - 登录信息、下载目录、阅读历史和 WebDAV 配置保存在应用本地或用户选择的目录中。
 - 仓库不提交 keystore、`key.properties`、`android/local.properties`、APK 或构建缓存。
 - 应用访问第三方服务，服务可用性和数据处理规则由对应服务提供方决定。
+- 以图搜漫会将用户主动选择的图片发送至 `soutubot.moe` 进行识别；该服务不是本应用分发或控制的开源组件。
 - 请只从本仓库 Release 页面下载 APK，避免使用来源不明的转载文件。
 
 ## 已知限制
@@ -138,6 +139,8 @@ flutter build apk --release --no-pub --target-platform android-arm64 --split-per
   [`e514be1`](https://github.com/ComicSparks/jasmine/commit/e514be163ec39a6f9e0d2799580d132324e23470)。
 - [hect0x7/JMComic-Crawler-Python](https://github.com/hect0x7/JMComic-Crawler-Python)：
   Rust 后端的移动端 API 协议、请求签名、登录与域名回退参考，不作为运行时依赖。
+- [soutubot.moe](https://soutubot.moe/)：以图搜漫第三方识别服务。仅在用户主动使用时
+  上传所选图片，服务和数据处理规则由该服务提供方决定。
 - `zoomable_positioned_list` 1.1.0：连续阅读组件，许可证与本地补丁见
   [PATCHES.md](https://github.com/khxw/JMcomic3-flutter/blob/main/third_party/zoomable_positioned_list/PATCHES.md)。
 

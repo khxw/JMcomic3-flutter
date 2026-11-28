@@ -152,6 +152,8 @@ flutter build apk --release --no-pub --target-platform android-arm64 --split-per
 - Keystores, `key.properties`, `android/local.properties`, APKs, and build
   outputs are not committed.
 - Third-party services control their own availability and data policies.
+- Image search sends the image selected by the user to `soutubot.moe` for recognition.
+  It is not an open-source component distributed or controlled by this app.
 - Download APKs only from this repository's Releases page.
 
 ## Known limitations
@@ -165,6 +167,9 @@ flutter build apk --release --no-pub --target-platform android-arm64 --split-per
   continuous reading, gallery zoom, and progress interaction reference.
 - [hect0x7/JMComic-Crawler-Python](https://github.com/hect0x7/JMComic-Crawler-Python):
   mobile API protocol, request signing, login, and domain fallback reference.
+- [soutubot.moe](https://soutubot.moe/): third-party image recognition service used
+  only when the user starts an image search. Its availability and data policies are
+  controlled by the service provider.
 - `zoomable_positioned_list` 1.1.0: vendored continuous-reader component.
 
 See [REFERENCES.md](REFERENCES.md) for the complete reference scope and retained
