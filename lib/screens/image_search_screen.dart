@@ -63,6 +63,10 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
       _error = null;
     });
     try {
+      if (source == _ImageSourceKind.gallery && Platform.isAndroid) {
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        if (!mounted) return;
+      }
       path = await picker();
     } catch (_) {
       if (mounted) {
@@ -171,36 +175,85 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
       ),
-      body: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-              children: [
-                _buildIntro(context),
-                const SizedBox(height: 14),
-                _buildSourcePicker(context),
-                if (_imagePath != null) ...[
-                  const SizedBox(height: 14),
-                  _buildPreview(context),
-                ],
-                if (_searching) ...[
-                  const SizedBox(height: 14),
-                  _buildProgress(context),
-                ],
-                if (_error != null) ...[
-                  const SizedBox(height: 14),
-                  _buildError(context),
-                ],
-                if (_hasSearched && !_searching && _error == null) ...[
-                  const SizedBox(height: 20),
-                  _buildResults(context),
-                ],
-              ],
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: SafeArea(
+              top: false,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                    children: [
+                      _buildIntro(context),
+                      const SizedBox(height: 14),
+                      _buildSourcePicker(context),
+                      if (_imagePath != null) ...[
+                        const SizedBox(height: 14),
+                        _buildPreview(context),
+                      ],
+                      if (_searching) ...[
+                        const SizedBox(height: 14),
+                        _buildProgress(context),
+                      ],
+                      if (_error != null) ...[
+                        const SizedBox(height: 14),
+                        _buildError(context),
+                      ],
+                      if (_hasSearched && !_searching && _error == null) ...[
+                        const SizedBox(height: 20),
+                        _buildResults(context),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
+          if (_openingSource == _ImageSourceKind.gallery)
+            Positioned.fill(child: _buildGalleryHandoff(context)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGalleryHandoff(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return TweenAnimationBuilder<double>(
+      key: const ValueKey('image-picker-handoff'),
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOutCubic,
+      builder: (context, opacity, child) {
+        return ColoredBox(
+          color: scheme.surface.withValues(alpha: opacity * .97),
+          child: Opacity(opacity: opacity, child: child),
+        );
+      },
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.6,
+                color: scheme.primary,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              context.l10n.tr(
+                '正在打开系统照片选择器',
+                en: 'Opening system photo picker',
+              ),
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ],
         ),
       ),
     );

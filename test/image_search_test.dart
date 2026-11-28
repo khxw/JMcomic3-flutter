@@ -274,6 +274,7 @@ void main() {
 
     expect(find.text('Opening system photo picker...'), findsOneWidget);
     expect(find.byKey(const ValueKey('image-source-opening')), findsOneWidget);
+    expect(find.byKey(const ValueKey('image-picker-handoff')), findsOneWidget);
 
     await tester.tap(
       find.byKey(const ValueKey('image-search-files')),
