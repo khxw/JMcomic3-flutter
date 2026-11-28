@@ -1051,34 +1051,80 @@ fn is_comment_like_upstream_limited(message: &str) -> bool {
 }
 
 fn title_search_queries(raw: &str) -> Vec<String> {
+    let mut candidates = Vec::new();
+    let mut candidate_seen = HashSet::new();
+    let cleaned = strip_wrapped_title_parts(raw);
+    add_title_search_parts(&mut candidates, &mut candidate_seen, &cleaned);
+    if candidates.is_empty() {
+        let unwrapped = strip_title_wrapper_symbols(raw);
+        add_title_search_parts(&mut candidates, &mut candidate_seen, &unwrapped);
+    }
+    candidates.sort_by_key(|query| std::cmp::Reverse(title_query_quality(query)));
+
     let mut queries = Vec::new();
     let mut seen = HashSet::new();
     add_title_search_query(&mut queries, &mut seen, raw);
-    let cleaned = strip_wrapped_title_parts(raw);
-    add_title_search_query(&mut queries, &mut seen, &cleaned);
-    for part in cleaned.split(['/', '|', '｜']) {
-        add_title_search_query(&mut queries, &mut seen, part);
-    }
-    if queries.len() == 1 {
-        let unwrapped = strip_title_wrapper_symbols(raw);
-        add_title_search_query(&mut queries, &mut seen, &unwrapped);
-        for part in unwrapped.split(['/', '|', '｜']) {
-            add_title_search_query(&mut queries, &mut seen, part);
-        }
+    for candidate in candidates {
+        add_title_search_query(&mut queries, &mut seen, &candidate);
     }
     queries.truncate(TITLE_SEARCH_QUERY_LIMIT);
     queries
 }
 
+fn add_title_search_parts(queries: &mut Vec<String>, seen: &mut HashSet<String>, value: &str) {
+    let parts = value
+        .split(|character| {
+            matches!(
+                character,
+                '/' | '|' | '｜' | '-' | '–' | '—' | '_' | ':' | '：'
+            )
+        })
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    if parts.len() <= 1 {
+        add_title_search_query(queries, seen, value);
+        return;
+    }
+    for part in parts {
+        add_title_search_query(queries, seen, part);
+    }
+}
+
 fn add_title_search_query(queries: &mut Vec<String>, seen: &mut HashSet<String>, value: &str) {
     let value = value.trim();
-    if value.len() < 2 {
+    if value.chars().count() < 2 {
         return;
     }
     let key = value.to_lowercase();
     if seen.insert(key) {
         queries.push(value.to_string());
     }
+}
+
+fn title_query_quality(value: &str) -> (u8, usize) {
+    let normalized = normalize_search_title(value);
+    let generic = matches!(
+        normalized.as_str(),
+        "上篇"
+            | "下篇"
+            | "前篇"
+            | "后篇"
+            | "正篇"
+            | "全"
+            | "韩漫"
+            | "美漫"
+            | "同人"
+            | "中文"
+            | "汉化"
+            | "翻译"
+            | "完结"
+            | "连载中"
+            | "单行本"
+            | "短篇"
+            | "长篇"
+    );
+    (u8::from(!generic), normalized.chars().count())
 }
 
 fn strip_wrapped_title_parts(value: &str) -> String {
@@ -1145,20 +1191,16 @@ fn merge_search_responses(
     responses: Vec<Value>,
 ) -> Value {
     let mut redirect_aid = Value::Null;
-    let mut seen = HashSet::new();
-    let mut matches = Vec::new();
-    for response in responses {
+    let mut candidates = Vec::new();
+    for (response_index, response) in responses.into_iter().enumerate() {
         if redirect_aid.is_null() {
             redirect_aid = response.get("redirect_aid").cloned().unwrap_or(Value::Null);
         }
         let Some(items) = response.get("content").and_then(Value::as_array) else {
             continue;
         };
-        for item in items {
+        for (item_index, item) in items.iter().enumerate() {
             let id = item.get("id").and_then(value_i64).unwrap_or(0);
-            if id > 0 && !seen.insert(id) {
-                continue;
-            }
             let title = normalize_search_title(&value_wire_string(
                 item.get("name").unwrap_or(&Value::Null),
             ));
@@ -1167,20 +1209,46 @@ fn merge_search_responses(
                 .map(|query| title_match_score(&title, query))
                 .max()
                 .unwrap_or(0);
-            // Supplemental title searches often return broad fuzzy matches.
-            // Keep only entries that are genuinely related to one of the
-            // title variants instead of adding unrelated comics to page one.
-            if score > 0 {
-                matches.push((score, item.clone()));
+            candidates.push((score, response_index, item_index, id, item.clone()));
+        }
+    }
+    candidates.sort_by(|left, right| {
+        right
+            .0
+            .cmp(&left.0)
+            .then(left.1.cmp(&right.1))
+            .then(left.2.cmp(&right.2))
+    });
+
+    let mut seen = HashSet::new();
+    let mut matches = Vec::new();
+    for (score, _, _, id, item) in &candidates {
+        if *score <= 0 || (*id != 0 && !seen.insert(*id)) {
+            continue;
+        }
+        matches.push(item.clone());
+        if matches.len() >= TITLE_SEARCH_RESULT_LIMIT {
+            break;
+        }
+    }
+
+    // Some server-side title aliases are valid even when the displayed title
+    // shares no literal substring with the query. Only use those supplemental
+    // alias results when no literal title match exists at all.
+    if matches.is_empty() {
+        let mut fallback_seen = HashSet::new();
+        for (score, response_index, _, id, item) in candidates {
+            if score > 0 || response_index == 0 || (id != 0 && !fallback_seen.insert(id)) {
+                continue;
+            }
+            matches.push(item);
+            if matches.len() >= TITLE_SEARCH_RESULT_LIMIT {
+                break;
             }
         }
     }
-    matches.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
-    let content = matches
-        .into_iter()
-        .take(TITLE_SEARCH_RESULT_LIMIT)
-        .map(|(_, item)| item)
-        .collect::<Vec<_>>();
+
+    let content = matches;
     let total = content.len();
     json!({
         "search_query": original_query,
@@ -2182,10 +2250,19 @@ mod tests {
             queries[0],
             "[作者] (C105) 【中文】完整漫画标题 / English Alias"
         );
-        assert_eq!(queries[1], "完整漫画标题 / English Alias");
+        assert_eq!(queries[1], "English Alias");
+        assert_eq!(queries[2], "完整漫画标题");
         assert!(queries.iter().any(|query| query == "完整漫画标题"));
         assert!(queries.iter().any(|query| query == "English Alias"));
         assert!(queries.len() <= TITLE_SEARCH_QUERY_LIMIT);
+    }
+
+    #[test]
+    fn title_search_extracts_core_title_from_dash_separated_tags() {
+        assert_eq!(
+            title_search_queries("上篇-韩漫-调教女大生"),
+            ["上篇-韩漫-调教女大生", "调教女大生", "上篇", "韩漫"]
+        );
     }
 
     #[test]
@@ -2228,6 +2305,26 @@ mod tests {
         assert_eq!(merged["page_size"], 2);
         assert_eq!(merged["content"][0]["id"], 2);
         assert_eq!(merged["content"][1]["id"], "3");
+    }
+
+    #[test]
+    fn title_merge_keeps_server_alias_results_when_no_literal_title_matches() {
+        let queries = vec!["详情页标题".to_string()];
+        let merged = merge_search_responses(
+            "详情页标题",
+            &queries,
+            vec![
+                json!({"content": []}),
+                json!({
+                    "content": [
+                        {"id": 9, "name": "服务端使用的别名标题"}
+                    ]
+                }),
+            ],
+        );
+
+        assert_eq!(merged["total"], 1);
+        assert_eq!(merged["content"][0]["id"], 9);
     }
 
     #[test]
