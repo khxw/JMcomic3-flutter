@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jmcomic3/basic/methods.dart';
 import 'package:jmcomic3/configs/pager_column_number.dart';
 import 'package:jmcomic3/configs/pager_controller_mode.dart';
 import 'package:jmcomic3/configs/pager_cover_rate.dart';
@@ -19,6 +20,50 @@ String _response(Object? data) => jsonEncode({
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('full title search keeps the original query in one bridge request',
+      () async {
+    final requests = <Map<String, dynamic>>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      requests.add(request);
+      return _response({
+        'total': 1,
+        'page_size': 1,
+        'content': [
+          {
+            'id': 7,
+            'name': '完整漫画标题',
+            'author': '',
+            'description': '',
+            'image': '',
+          },
+        ],
+      });
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+    });
+
+    const title = '[作者] (C105) 完整漫画标题 / English Alias';
+    final response = await methods.comicSearch(title, sortByDefault, 1);
+
+    expect(response.content.single.name, '完整漫画标题');
+    expect(requests, hasLength(1));
+    expect(requests.single['method'], 'comic_search');
+    expect(
+      jsonDecode(requests.single['params'] as String),
+      {
+        'search_query': title,
+        'sort_by': '',
+        'page': 1,
+        'record_search': true,
+      },
+    );
+  });
 
   testWidgets('recent searches can collapse and expand without clearing',
       (tester) async {

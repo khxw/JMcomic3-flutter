@@ -605,7 +605,15 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
                 .and_then(|value| value.get("record_search"))
                 .and_then(Value::as_bool)
                 .unwrap_or(true);
-            match state.client.search(&keyword, page, sort).await {
+            // Image search already supplies several title aliases. Expanding
+            // each alias again would multiply requests, so only user-entered
+            // searches receive the backend title fallback.
+            let search = if record_search {
+                state.client.search_title(&keyword, page, sort).await
+            } else {
+                state.client.search(&keyword, page, sort).await
+            };
+            match search {
                 Ok(value) => {
                     if record_search {
                         let _ = state.history.record_search(&keyword);
