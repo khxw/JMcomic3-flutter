@@ -56,6 +56,7 @@ class MainActivity : FlutterActivity() {
         private const val UNKNOWN_SOURCES_REQUEST = 7415
         private const val CREATE_DOCUMENT_REQUEST = 7416
         private const val OPEN_DOCUMENT_REQUEST = 7417
+        private const val IMAGE_PICKER_REQUEST = 7418
     }
 
     private val uiThreadHandler = Handler(Looper.getMainLooper())
@@ -74,6 +75,7 @@ class MainActivity : FlutterActivity() {
     private var pendingCreateDocumentContent: String? = null
     private var pendingOpenDocumentResult: MethodChannel.Result? = null
     private var pendingOpenDocumentMaxBytes: Long = 0L
+    private var pendingImagePickerResult: MethodChannel.Result? = null
     private var pendingInstallResult: MethodChannel.Result? = null
     private var pendingInstallPath: String? = null
 
@@ -109,6 +111,10 @@ class MainActivity : FlutterActivity() {
             }
             "androidPickDownloadDirectory" -> {
                 uiThreadHandler.post { pickDownloadDirectory(result) }
+                return
+            }
+            "androidPickImageFromGallery" -> {
+                uiThreadHandler.post { pickImageFromGallery(result) }
                 return
             }
             "getUpdateDownloadDir" -> {
@@ -446,6 +452,33 @@ class MainActivity : FlutterActivity() {
             pendingOpenDocumentResult = null
             pendingOpenDocumentMaxBytes = 0L
             result.error("document_picker_unavailable", error.message, null)
+        }
+    }
+
+    private fun pickImageFromGallery(result: MethodChannel.Result) {
+        if (pendingImagePickerResult != null) {
+            result.error("image_picker_busy", "An image picker is already open.", null)
+            return
+        }
+        pendingImagePickerResult = result
+        val intent =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                Intent(MediaStore.ACTION_PICK_IMAGES).apply {
+                    type = "image/*"
+                }
+            } else {
+                Intent(
+                    Intent.ACTION_PICK,
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                ).apply {
+                    type = "image/*"
+                }
+            }
+        try {
+            startActivityForResult(intent, IMAGE_PICKER_REQUEST)
+        } catch (error: Exception) {
+            pendingImagePickerResult = null
+            result.error("image_picker_unavailable", error.message, null)
         }
     }
 
@@ -854,6 +887,36 @@ class MainActivity : FlutterActivity() {
                 result.success(bytes.toString(Charsets.UTF_8))
             } catch (error: Exception) {
                 result.error("document_read_failed", error.message, null)
+            }
+            return
+        }
+        if (requestCode == IMAGE_PICKER_REQUEST) {
+            val result = pendingImagePickerResult
+            pendingImagePickerResult = null
+            if (result == null) return
+            val uri = data?.data
+            if (resultCode != Activity.RESULT_OK || uri == null) {
+                result.success(null)
+                return
+            }
+            try {
+                val mimeType = contentResolver.getType(uri) ?: "image/jpeg"
+                val extension =
+                    when (mimeType.lowercase()) {
+                        "image/png" -> ".png"
+                        "image/webp" -> ".webp"
+                        "image/gif" -> ".gif"
+                        else -> ".jpg"
+                    }
+                val directory = File(cacheDir, "image_search").apply { mkdirs() }
+                directory.listFiles()?.forEach { it.delete() }
+                val output = File.createTempFile("selected-", extension, directory)
+                contentResolver.openInputStream(uri)?.use { input ->
+                    output.outputStream().use { stream -> input.copyTo(stream) }
+                } ?: throw IllegalStateException("Unable to read the selected image")
+                result.success(output.absolutePath)
+            } catch (error: Exception) {
+                result.error("image_picker_failed", error.message, null)
             }
             return
         }

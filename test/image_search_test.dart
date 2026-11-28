@@ -9,6 +9,7 @@ import 'package:jmcomic3/configs/pager_controller_mode.dart';
 import 'package:jmcomic3/configs/pager_cover_rate.dart';
 import 'package:jmcomic3/configs/pager_view_mode.dart';
 import 'package:jmcomic3/l10n/app_localizations.dart';
+import 'package:jmcomic3/screens/image_search_screen.dart';
 import 'package:jmcomic3/screens/search_screen.dart';
 
 const _channel = MethodChannel('methods');
@@ -95,7 +96,10 @@ void main() {
       localizationsDelegates: const [AppLocalizations.delegate],
       supportedLocales: AppLocalizations.supportedLocales,
       home: SearchScreen(
-        pickImageFile: () async => 'C:\\tmp\\comic.jpg',
+        imageSearchPageBuilder: (_) => ImageSearchScreen(
+          pickGallery: () async => 'C:\\tmp\\comic.jpg',
+          pickFiles: () async => 'C:\\tmp\\comic.jpg',
+        ),
       ),
     ));
     await tester.pump(const Duration(milliseconds: 400));
@@ -104,17 +108,29 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('search-image-search')));
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const ValueKey('image-search-page')), findsOneWidget);
+    expect(find.byKey(const ValueKey('image-search-gallery')), findsOneWidget);
+    expect(find.byKey(const ValueKey('image-search-files')), findsOneWidget);
+    expect(
+      requests.where((request) => request['method'] == 'image_search'),
+      isEmpty,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('image-search-gallery')));
+    await tester.pumpAndSettle();
+
     expect(
       requests.where((request) => request['method'] == 'image_search'),
       hasLength(1),
     );
-    expect(find.byKey(const ValueKey('image-search-results')), findsOneWidget);
     expect(find.text('Fixture Comic'), findsOneWidget);
     expect(find.text('Another Fixture'), findsOneWidget);
 
-    await tester.tap(
-      find.byKey(const ValueKey('image-search-candidate-0')),
-    );
+    final firstCandidate =
+        find.byKey(const ValueKey('image-search-candidate-0'));
+    await tester.ensureVisible(firstCandidate);
+    await tester.pumpAndSettle();
+    await tester.tap(firstCandidate);
     await tester.pumpAndSettle();
 
     final comicSearch =

@@ -1894,6 +1894,11 @@ class Methods {
     return _channel.invokeMethod<String>("androidPickDownloadDirectory");
   }
 
+  Future<String?> androidPickImageFromGallery() async {
+    if (!Platform.isAndroid) return null;
+    return _channel.invokeMethod<String>("androidPickImageFromGallery");
+  }
+
   Future<String?> saveTextDocument({
     required String fileName,
     required String content,
