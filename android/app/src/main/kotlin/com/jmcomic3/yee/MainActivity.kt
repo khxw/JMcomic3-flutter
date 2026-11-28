@@ -461,31 +461,18 @@ class MainActivity : FlutterActivity() {
             return
         }
         pendingImagePickerResult = result
-        // Prefer the installed gallery. It already pages and lazily decodes its
-        // grid, and avoids waiting for the first launch of Android Photo Picker.
-        // The app never enumerates the user's library; it only receives one URI.
-        val galleryIntent =
-            Intent(
-                Intent.ACTION_PICK,
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            ).apply {
-                type = "image/*"
-                putExtra(Intent.EXTRA_LOCAL_ONLY, true)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
         val intent =
-            when {
-                galleryIntent.resolveActivity(packageManager) != null -> galleryIntent
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
-                    Intent(MediaStore.ACTION_PICK_IMAGES).apply {
-                        type = "image/*"
-                    }
-                else ->
-                    Intent(Intent.ACTION_GET_CONTENT).apply {
-                        type = "image/*"
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                        putExtra(Intent.EXTRA_LOCAL_ONLY, true)
-                    }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                Intent(MediaStore.ACTION_PICK_IMAGES).apply {
+                    type = "image/*"
+                }
+            } else {
+                Intent(
+                    Intent.ACTION_PICK,
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                ).apply {
+                    type = "image/*"
+                }
             }
         try {
             startActivityForResult(intent, IMAGE_PICKER_REQUEST)
