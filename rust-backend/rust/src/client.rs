@@ -1160,6 +1160,13 @@ fn normalize_image_search_segment(segment: &Value, score: f64) -> Option<Value> 
     }
     let title_alt = image_search_text_at(segment, &["metadata", "title", "japanese_or_alias"])
         .unwrap_or_default();
+    let aliases = image_search_named_list(
+        segment
+            .pointer("/metadata/title/romanized")
+            .or_else(|| segment.pointer("/metadata/title/japanese_or_alias")),
+    );
+    let works = image_search_named_list(segment.pointer("/metadata/works"));
+    let creators = image_search_named_list(segment.pointer("/metadata/creators"));
     let language = image_search_text_at(segment, &["language"])
         .or_else(|| image_search_text_at(segment, &["metadata", "facts", "language"]))
         .unwrap_or_default();
@@ -1178,6 +1185,9 @@ fn normalize_image_search_segment(segment: &Value, score: f64) -> Option<Value> 
         "external_id": external_id,
         "title": title,
         "title_alt": title_alt,
+        "aliases": aliases,
+        "works": works,
+        "creators": creators,
         "language": normalize_image_search_language(&language),
         "page": page,
         "similarity": score.clamp(0.0, 100.0),
@@ -1206,6 +1216,9 @@ fn normalize_legacy_image_search_result(result: &Value, score: f64) -> Option<Va
         "external_id": external_id,
         "title": title,
         "title_alt": "",
+        "aliases": [],
+        "works": [],
+        "creators": [],
         "language": normalize_image_search_language(
             &image_search_text_at(result, &["language"]).unwrap_or_default()
         ),
@@ -1229,6 +1242,37 @@ fn image_search_text_at(value: &Value, path: &[&str]) -> Option<String> {
         Value::Number(value) => Some(value.to_string()),
         _ => None,
     }
+}
+
+fn image_search_named_list(value: Option<&Value>) -> Vec<String> {
+    let Some(value) = value else {
+        return Vec::new();
+    };
+    let values = match value {
+        Value::Array(values) => values.as_slice(),
+        _ => std::slice::from_ref(value),
+    };
+    let mut seen = HashSet::new();
+    let mut output = Vec::new();
+    for value in values {
+        let name = match value {
+            Value::String(value) => value.trim().to_string(),
+            Value::Object(object) => ["name", "tag", "text"]
+                .iter()
+                .find_map(|key| object.get(*key).and_then(Value::as_str))
+                .map(str::trim)
+                .unwrap_or_default()
+                .to_string(),
+            _ => String::new(),
+        };
+        if !name.is_empty() && seen.insert(name.to_lowercase()) {
+            output.push(name);
+        }
+        if output.len() >= 12 {
+            break;
+        }
+    }
+    output
 }
 
 fn image_search_f64(value: &Value) -> Option<f64> {
@@ -1937,8 +1981,11 @@ mod tests {
                     "metadata": {
                         "title": {
                             "primary": "Fixture Comic",
-                            "japanese_or_alias": "Fixture Alias"
+                            "japanese_or_alias": "Fixture Alias",
+                            "romanized": "Fixture Romanized"
                         },
+                        "works": [{"name": "Original Work"}],
+                        "creators": [{"name": "Artist"}],
                         "source": {
                             "key": "jmcomic",
                             "id": "1214196"
@@ -1954,6 +2001,9 @@ mod tests {
         assert_eq!(value["hits"][0]["external_id"], "1214196");
         assert_eq!(value["hits"][0]["title"], "Fixture Comic");
         assert_eq!(value["hits"][0]["title_alt"], "Fixture Alias");
+        assert_eq!(value["hits"][0]["aliases"][0], "Fixture Romanized");
+        assert_eq!(value["hits"][0]["works"][0], "Original Work");
+        assert_eq!(value["hits"][0]["creators"][0], "Artist");
         assert_eq!(value["hits"][0]["language"], "zh");
         assert_eq!(value["hits"][0]["similarity"], 93.5);
     }

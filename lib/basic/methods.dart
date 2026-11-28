@@ -883,12 +883,14 @@ class Methods {
   Future<ComicsResponse> comicSearch(
     String searchQuery,
     SortBy sortBy,
-    int page,
-  ) async {
+    int page, {
+    bool recordSearch = true,
+  }) async {
     final rsp = await _invoke("comic_search", {
       "search_query": searchQuery,
       "sort_by": sortBy.value,
       "page": page,
+      "record_search": recordSearch,
     });
     return _decodeEntityResponse(rsp, "comic_search", ComicsResponse.fromJson);
   }

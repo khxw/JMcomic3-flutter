@@ -70,6 +70,19 @@ double _toDouble(dynamic value) {
   return 0;
 }
 
+List<String> _imageSearchStrings(dynamic value) {
+  if (value is! Iterable) return const [];
+  final seen = <String>{};
+  final output = <String>[];
+  for (final item in value) {
+    final text = "$item".trim();
+    if (text.isNotEmpty && seen.add(text.toLowerCase())) {
+      output.add(text);
+    }
+  }
+  return output;
+}
+
 /// Rust 桥接和导入文件可能传入 Map<dynamic, dynamic>、null 或异常标量。
 /// 实体层统一收口，避免页面层在恢复下载任务时重复处理边界。
 Map<String, dynamic> _toStringDynamicMap(dynamic value) {
@@ -182,6 +195,9 @@ class ImageSearchHit {
     required this.externalId,
     required this.title,
     required this.titleAlt,
+    required this.aliases,
+    required this.works,
+    required this.creators,
     required this.language,
     required this.page,
     required this.similarity,
@@ -193,6 +209,9 @@ class ImageSearchHit {
   final String externalId;
   final String title;
   final String titleAlt;
+  final List<String> aliases;
+  final List<String> works;
+  final List<String> creators;
   final String language;
   final int page;
   final double similarity;
@@ -205,6 +224,9 @@ class ImageSearchHit {
       externalId: "${json['external_id'] ?? ''}".trim(),
       title: "${json['title'] ?? ''}".trim(),
       titleAlt: "${json['title_alt'] ?? ''}".trim(),
+      aliases: _imageSearchStrings(json['aliases']),
+      works: _imageSearchStrings(json['works']),
+      creators: _imageSearchStrings(json['creators']),
       language: "${json['language'] ?? ''}".trim(),
       page: _toInt(json['page']),
       similarity: _toDouble(json['similarity']),
@@ -241,12 +263,53 @@ class ImageSearchHit {
   }
 
   String get searchQuery {
+    final queries = searchQueries;
+    return queries.isEmpty ? '' : queries.first;
+  }
+
+  List<String> get searchQueries {
     if (source.toLowerCase() == 'jmcomic') {
       final match = RegExp(r'\d+').firstMatch(externalId);
-      if (match != null) return match.group(0)!;
+      if (match != null) return [match.group(0)!];
     }
-    if (title.isNotEmpty) return title;
-    return titleAlt;
+    final raw = <String>[
+      ...works,
+      if (titleAlt.isNotEmpty) titleAlt,
+      ...aliases,
+      if (title.isNotEmpty) title,
+      ...creators,
+    ];
+    final seen = <String>{};
+    final queries = <String>[];
+
+    void add(String value) {
+      final trimmed = value.trim();
+      if (trimmed.length < 2) return;
+      final key = trimmed.toLowerCase();
+      if (seen.add(key)) queries.add(trimmed);
+    }
+
+    for (final value in raw) {
+      add(value);
+      for (final part in value.split(RegExp(r'\s*[/|｜]\s*'))) {
+        add(part);
+      }
+      final stripped = value
+          .replaceAll(RegExp(r'\[[^\]]*\]|\([^)]*\)|【[^】]*】'), ' ')
+          .replaceAll(
+            RegExp(
+              r'\b(?:chinese|english|japanese|translated)\b',
+              caseSensitive: false,
+            ),
+            ' ',
+          )
+          .replaceAll(RegExp(r'中文|漢化|汉化|中国翻訳|翻譯|翻译'), ' ')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      add(stripped);
+      if (queries.length >= 8) break;
+    }
+    return List<String>.unmodifiable(queries.take(8));
   }
 }
 

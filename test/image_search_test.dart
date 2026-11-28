@@ -251,6 +251,90 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('image search retries JM using original titles and aliases',
+      (tester) async {
+    final queries = <String>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      switch (request['method']) {
+        case 'last_search_histories':
+          return _response(<Object>[]);
+        case 'categories':
+          return _response({
+            'categories': <Object>[],
+            'blocks': <Object>[],
+          });
+        case 'image_search':
+          return _response({
+            'hits': [
+              {
+                'source': 'nhentai',
+                'external_id': '99',
+                'title': 'Different English Title',
+                'title_alt': 'Japanese Alias',
+                'aliases': ['Romanized Alias'],
+                'works': ['Original Work'],
+                'creators': ['Artist'],
+                'language': 'en',
+                'similarity': 91,
+              },
+            ],
+          });
+        case 'comic_search':
+          final params =
+              jsonDecode(request['params'] as String) as Map<String, dynamic>;
+          queries.add(params['search_query'] as String);
+          expect(params['record_search'], isFalse);
+          return _response({
+            'total': 0,
+            'content': <Object>[],
+          });
+        case 'load_property':
+          return _response('');
+        default:
+          return _response('');
+      }
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(_channel, null));
+
+    await initPagerViewMode();
+    await initPagerControllerMode();
+    await initPagerCoverRate();
+    await initPagerColumnCount();
+    await tester.pumpWidget(MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: const [AppLocalizations.delegate],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: SearchScreen(
+        imageSearchPageBuilder: (_) => ImageSearchScreen(
+          pickGallery: () async => 'C:\\tmp\\comic.jpg',
+        ),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('search-image-search')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('image-search-gallery')));
+    await tester.pumpAndSettle();
+
+    final candidate = find.byKey(const ValueKey('image-search-candidate-0'));
+    await tester.ensureVisible(candidate);
+    await tester.pumpAndSettle();
+    await tester.tap(candidate);
+    await tester.pumpAndSettle();
+
+    expect(queries, contains('Original Work'));
+    expect(queries, contains('Japanese Alias'));
+    expect(queries, contains('Different English Title'));
+    expect(find.text('Image match: Different English Title'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('image source shows feedback while the system picker opens',
       (tester) async {
     final galleryGate = Completer<String?>();
@@ -298,11 +382,30 @@ void main() {
           'external_id': '42',
           'similarity': '88.5',
         },
+        {
+          'source': 'nhentai',
+          'external_id': '99',
+          'title': 'Different English Title [Chinese]',
+          'title_alt': 'Japanese Alias',
+          'aliases': ['Romanized Alias'],
+          'works': ['Original Work'],
+          'creators': ['Artist'],
+          'similarity': 80,
+        },
       ],
     });
 
-    expect(response.hits.single.searchQuery, '42');
-    expect(response.hits.single.similarity, 88.5);
-    expect(response.hits.single.displayTitle, 'JMComic #42');
+    expect(response.hits.first.searchQuery, '42');
+    expect(response.hits.first.similarity, 88.5);
+    expect(response.hits.first.displayTitle, 'JMComic #42');
+    expect(response.hits[1].searchQueries.first, 'Original Work');
+    expect(
+      response.hits[1].searchQueries,
+      contains('Japanese Alias'),
+    );
+    expect(
+      response.hits[1].searchQueries,
+      contains('Different English Title [Chinese]'),
+    );
   });
 }

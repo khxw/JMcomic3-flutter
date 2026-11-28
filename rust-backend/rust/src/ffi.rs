@@ -600,9 +600,16 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
             let sort = string_param(&params, "sort_by")
                 .and_then(|value| value.parse::<SearchSort>().ok())
                 .unwrap_or(SearchSort::Latest);
+            let record_search = params
+                .as_object()
+                .and_then(|value| value.get("record_search"))
+                .and_then(Value::as_bool)
+                .unwrap_or(true);
             match state.client.search(&keyword, page, sort).await {
                 Ok(value) => {
-                    let _ = state.history.record_search(&keyword);
+                    if record_search {
+                        let _ = state.history.record_search(&keyword);
+                    }
                     InvokeResponse::success_value(&value)
                 }
                 Err(error) => InvokeResponse::error(error.to_string()),

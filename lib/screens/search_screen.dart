@@ -35,6 +35,7 @@ class _SearchScreenState extends State<SearchScreen>
   List<Block> _blocks = const [];
   String _query = '';
   String? _resultLabel;
+  List<String> _imageSearchQueries = const [];
   SortBy _sortBy = sortByDefault;
   bool _loadingSuggestions = true;
   bool _suggestionsLoaded = false;
@@ -137,6 +138,7 @@ class _SearchScreenState extends State<SearchScreen>
     setState(() {
       _query = query;
       _resultLabel = displayValue?.trim();
+      _imageSearchQueries = const [];
     });
   }
 
@@ -145,6 +147,7 @@ class _SearchScreenState extends State<SearchScreen>
     setState(() {
       _query = '';
       _resultLabel = null;
+      _imageSearchQueries = const [];
     });
     _focusNode.requestFocus();
   }
@@ -157,7 +160,22 @@ class _SearchScreenState extends State<SearchScreen>
       ),
     );
     if (selected == null || !mounted) return;
-    _submit(selected.searchQuery, selected.displayTitle);
+    _submitImageSearch(selected);
+  }
+
+  void _submitImageSearch(ImageSearchHit hit) {
+    final query = hit.searchQuery;
+    if (query.isEmpty) return;
+    _controller.value = TextEditingValue(
+      text: query,
+      selection: TextSelection.collapsed(offset: query.length),
+    );
+    _focusNode.unfocus();
+    setState(() {
+      _query = query;
+      _resultLabel = hit.displayTitle;
+      _imageSearchQueries = hit.searchQueries;
+    });
   }
 
   void _handleBack() {
@@ -572,10 +590,16 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildResults(BuildContext context) {
+    final imageSearch = _imageSearchQueries.isNotEmpty;
     return ComicPager(
-      key: ValueKey('search-results:$_query:$_sortBy'),
+      key: ValueKey(
+        'search-results:$_query:$_sortBy:${imageSearch ? _imageSearchQueries.join('|') : ''}',
+      ),
       denseGrid: true,
       onPage: (page) async {
+        if (imageSearch) {
+          return _loadImageSearchResults(page);
+        }
         final response = await methods.comicSearch(_query, _sortBy, page);
         if (page == 1) {
           unawaited(_refreshSearchHistory());
@@ -586,6 +610,48 @@ class _SearchScreenState extends State<SearchScreen>
           redirectAid: response.redirectAid,
         );
       },
+    );
+  }
+
+  Future<InnerComicPage> _loadImageSearchResults(int page) async {
+    if (page > 1 || _imageSearchQueries.isEmpty) {
+      return InnerComicPage(total: 0, list: const [], pageSize: 1);
+    }
+    final responses = await Future.wait(
+      _imageSearchQueries.map((query) async {
+        try {
+          return await methods.comicSearch(
+            query,
+            _sortBy,
+            1,
+            recordSearch: false,
+          );
+        } catch (_) {
+          return null;
+        }
+      }),
+    );
+    int? redirectAid;
+    final merged = <int, ComicSimple>{};
+    for (final response in responses.whereType<ComicsResponse>()) {
+      redirectAid ??= response.redirectAid;
+      for (final comic in response.content) {
+        merged.putIfAbsent(comic.id, () => comic);
+      }
+    }
+    if (redirectAid != null) {
+      return InnerComicPage(
+        total: 0,
+        list: const [],
+        redirectAid: redirectAid,
+        pageSize: 1,
+      );
+    }
+    final list = merged.values.toList(growable: false);
+    return InnerComicPage(
+      total: list.length,
+      list: list,
+      pageSize: list.isEmpty ? 1 : list.length,
     );
   }
 
