@@ -110,6 +110,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('image-search-page')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('image-search-test-badge')),
+      findsOneWidget,
+    );
+    expect(find.text('Test feature'), findsOneWidget);
     expect(find.byKey(const ValueKey('image-search-gallery')), findsOneWidget);
     expect(find.byKey(const ValueKey('image-search-files')), findsOneWidget);
     expect(

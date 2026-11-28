@@ -169,8 +169,19 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
       backgroundColor: scheme.surface,
       appBar: AppBar(
         leading: const AppBackButton(),
-        title: Text(
-          context.l10n.tr('以图搜漫', en: 'Search by image'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                context.l10n.tr('以图搜漫', en: 'Search by image'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const _ImageSearchTestBadge(),
+          ],
         ),
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
@@ -650,6 +661,34 @@ class _ImageSourceCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ImageSearchTestBadge extends StatelessWidget {
+  const _ImageSearchTestBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      key: const ValueKey('image-search-test-badge'),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: scheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: scheme.tertiary.withValues(alpha: .28),
+        ),
+      ),
+      child: Text(
+        context.l10n.tr('测试功能', en: 'Test feature'),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: scheme.onTertiaryContainer,
+              fontWeight: FontWeight.w700,
+              height: 1.2,
+            ),
       ),
     );
   }
