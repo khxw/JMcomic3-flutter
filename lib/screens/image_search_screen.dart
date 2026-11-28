@@ -264,13 +264,16 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
     final gallery = _ImageSourceCard(
       key: const ValueKey('image-search-gallery'),
       icon: Icons.photo_library_rounded,
-      title: _openingSource == _ImageSourceKind.gallery
-          ? context.l10n.tr('正在打开相册...', en: 'Opening gallery...')
-          : context.l10n.tr('从相册选择', en: 'Choose from gallery'),
-      subtitle: context.l10n.tr(
-        '打开系统相册或照片选择器',
-        en: 'Open the system gallery or photo picker',
-      ),
+      title: context.l10n.tr('从相册选择', en: 'Choose from gallery'),
+      subtitle: _openingSource == _ImageSourceKind.gallery
+          ? context.l10n.tr(
+              '正在打开系统照片选择器...',
+              en: 'Opening system photo picker...',
+            )
+          : context.l10n.tr(
+              '打开系统相册或照片选择器',
+              en: 'Open the system gallery or photo picker',
+            ),
       busy: _openingSource == _ImageSourceKind.gallery,
       onTap: disabled
           ? null
@@ -282,13 +285,16 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
     final files = _ImageSourceCard(
       key: const ValueKey('image-search-files'),
       icon: Icons.folder_open_rounded,
-      title: _openingSource == _ImageSourceKind.files
-          ? context.l10n.tr('正在打开文件管理...', en: 'Opening files...')
-          : context.l10n.tr('从文件管理选择', en: 'Choose from files'),
-      subtitle: context.l10n.tr(
-        '浏览文件夹中的 JPG、PNG、WebP 或 GIF',
-        en: 'Browse JPG, PNG, WebP, or GIF files',
-      ),
+      title: context.l10n.tr('从文件管理选择', en: 'Choose from files'),
+      subtitle: _openingSource == _ImageSourceKind.files
+          ? context.l10n.tr(
+              '正在打开系统文件选择器...',
+              en: 'Opening system file picker...',
+            )
+          : context.l10n.tr(
+              '浏览文件夹中的 JPG、PNG、WebP 或 GIF',
+              en: 'Browse JPG, PNG, WebP, or GIF files',
+            ),
       busy: _openingSource == _ImageSourceKind.files,
       onTap: disabled
           ? null

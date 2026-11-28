@@ -118,9 +118,7 @@ class MainActivity : FlutterActivity() {
                 // Let Flutter present the pressed/loading frame before Android
                 // starts the out-of-process photo picker on the platform thread.
                 window.decorView.postOnAnimation {
-                    window.decorView.postOnAnimation {
-                        pickImageFromGallery(result)
-                    }
+                    pickImageFromGallery(result)
                 }
                 return
             }
@@ -484,8 +482,8 @@ class MainActivity : FlutterActivity() {
         try {
             val options = ActivityOptions.makeCustomAnimation(
                 this,
-                R.anim.image_picker_enter,
-                R.anim.image_picker_exit,
+                0,
+                0,
             ).toBundle()
             startActivityForResult(intent, IMAGE_PICKER_REQUEST, options)
         } catch (error: Exception) {

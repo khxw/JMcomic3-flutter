@@ -272,7 +272,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('image-search-gallery')));
     await tester.pump();
 
-    expect(find.text('Opening gallery...'), findsOneWidget);
+    expect(find.text('Opening system photo picker...'), findsOneWidget);
     expect(find.byKey(const ValueKey('image-source-opening')), findsOneWidget);
 
     await tester.tap(
