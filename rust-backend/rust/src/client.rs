@@ -21,8 +21,7 @@ const IMAGE_SEARCH_MAX_SOURCE_BYTES: u64 = 24 * 1024 * 1024;
 const IMAGE_SEARCH_MAX_EDGE: u32 = 2000;
 const IMAGE_SEARCH_JPEG_QUALITY: u8 = 92;
 const IMAGE_SEARCH_RESULT_LIMIT: usize = 20;
-const IMAGE_SEARCH_MIN_SIMILARITY: f64 = 30.0;
-const IMAGE_SEARCH_JM_VERIFIED_SCORE: f64 = 45.0;
+const IMAGE_SEARCH_MIN_SIMILARITY: f64 = 20.0;
 
 fn favorite_folder_form(
     action: &str,
@@ -177,18 +176,17 @@ impl JmClient {
 
     pub async fn image_search(&self, path: &Path) -> BackendResult<Value> {
         let source_path = path.to_path_buf();
-        let image_bytes =
-            tokio::task::spawn_blocking(move || prepare_image_search_upload(&source_path))
-                .await
-                .map_err(|error| {
-                    BackendError::InvalidResponse(format!("image preprocessing failed: {error}"))
-                })??;
-        let file_part = reqwest::multipart::Part::bytes(image_bytes)
-            .file_name("image.jpg")
-            .mime_str("image/jpeg")?;
+        let upload = tokio::task::spawn_blocking(move || prepare_image_search_upload(&source_path))
+            .await
+            .map_err(|error| {
+                BackendError::InvalidResponse(format!("image preprocessing failed: {error}"))
+            })??;
+        let file_part = reqwest::multipart::Part::bytes(upload.bytes)
+            .file_name(upload.file_name)
+            .mime_str(upload.content_type)?;
         let form = reqwest::multipart::Form::new()
             .part("file", file_part)
-            .text("factor", "1.4")
+            .text("factor", "1.2")
             .text("metadata_mode", "display")
             .text("top_k", "40");
         let response = self
@@ -1025,7 +1023,13 @@ fn decode_api_body(timestamp: u64, body: String) -> BackendResult<Value> {
     }
 }
 
-fn prepare_image_search_upload(path: &Path) -> BackendResult<Vec<u8>> {
+struct PreparedImageSearchUpload {
+    bytes: Vec<u8>,
+    file_name: &'static str,
+    content_type: &'static str,
+}
+
+fn prepare_image_search_upload(path: &Path) -> BackendResult<PreparedImageSearchUpload> {
     let metadata = std::fs::metadata(path)?;
     if !metadata.is_file() {
         return Err(BackendError::Config("image path is not a file".into()));
@@ -1042,15 +1046,24 @@ fn prepare_image_search_upload(path: &Path) -> BackendResult<Vec<u8>> {
     let source = std::fs::read(path)?;
     let image = image::load_from_memory(&source)
         .map_err(|error| BackendError::InvalidResponse(format!("unsupported image: {error}")))?;
-    let image = if image.width() > IMAGE_SEARCH_MAX_EDGE || image.height() > IMAGE_SEARCH_MAX_EDGE {
-        image.resize(
-            IMAGE_SEARCH_MAX_EDGE,
-            IMAGE_SEARCH_MAX_EDGE,
-            image::imageops::FilterType::Lanczos3,
-        )
-    } else {
-        image
-    };
+    if image.width() <= IMAGE_SEARCH_MAX_EDGE && image.height() <= IMAGE_SEARCH_MAX_EDGE {
+        let (file_name, content_type) = match image::guess_format(&source) {
+            Ok(image::ImageFormat::Png) => ("image.png", "image/png"),
+            Ok(image::ImageFormat::WebP) => ("image.webp", "image/webp"),
+            Ok(image::ImageFormat::Gif) => ("image.gif", "image/gif"),
+            _ => ("image.jpg", "image/jpeg"),
+        };
+        return Ok(PreparedImageSearchUpload {
+            bytes: source,
+            file_name,
+            content_type,
+        });
+    }
+    let image = image.resize(
+        IMAGE_SEARCH_MAX_EDGE,
+        IMAGE_SEARCH_MAX_EDGE,
+        image::imageops::FilterType::Lanczos3,
+    );
     let rgb = image.to_rgb8();
     let mut output = Vec::new();
     JpegEncoder::new_with_quality(&mut Cursor::new(&mut output), IMAGE_SEARCH_JPEG_QUALITY)
@@ -1058,7 +1071,11 @@ fn prepare_image_search_upload(path: &Path) -> BackendResult<Vec<u8>> {
         .map_err(|error| {
             BackendError::InvalidResponse(format!("image encoding failed: {error}"))
         })?;
-    Ok(output)
+    Ok(PreparedImageSearchUpload {
+        bytes: output,
+        file_name: "image.jpg",
+        content_type: "image/jpeg",
+    })
 }
 
 fn normalize_image_search_response(value: Value) -> Value {
@@ -1103,8 +1120,10 @@ fn normalize_image_search_response(value: Value) -> Value {
             .is_some_and(|score| score >= IMAGE_SEARCH_MIN_SIMILARITY)
     });
     hits.sort_by(|left, right| {
-        image_search_rank(right)
-            .partial_cmp(&image_search_rank(left))
+        right["similarity"]
+            .as_f64()
+            .unwrap_or(0.0)
+            .partial_cmp(&left["similarity"].as_f64().unwrap_or(0.0))
             .unwrap_or(std::cmp::Ordering::Equal)
     });
     let mut seen = HashSet::new();
@@ -1129,15 +1148,6 @@ fn normalize_image_search_response(value: Value) -> Value {
         "warnings": value.get("warnings").cloned().unwrap_or(Value::Array(Vec::new())),
         "hits": hits,
     })
-}
-
-fn image_search_rank(hit: &Value) -> f64 {
-    let score = hit["similarity"].as_f64().unwrap_or(0.0);
-    if hit["source"].as_str() == Some("jmcomic") && score >= IMAGE_SEARCH_JM_VERIFIED_SCORE {
-        score + 8.0
-    } else {
-        score
-    }
 }
 
 fn normalize_image_search_segment(segment: &Value, score: f64) -> Option<Value> {
@@ -2031,7 +2041,7 @@ mod tests {
     }
 
     #[test]
-    fn image_search_filters_low_confidence_and_prefers_verified_jm_results() {
+    fn image_search_filters_very_low_confidence_and_keeps_score_order() {
         let value = normalize_image_search_response(json!({
             "results": [
                 {
@@ -2062,8 +2072,8 @@ mod tests {
         }));
 
         assert_eq!(value["hits"].as_array().unwrap().len(), 2);
-        assert_eq!(value["hits"][0]["source"], "jmcomic");
-        assert_eq!(value["hits"][1]["source"], "nhentai");
+        assert_eq!(value["hits"][0]["source"], "nhentai");
+        assert_eq!(value["hits"][1]["source"], "jmcomic");
     }
 
     #[test]
@@ -2084,9 +2094,34 @@ mod tests {
         std::fs::write(&path, encoded).unwrap();
 
         let prepared = prepare_image_search_upload(&path).unwrap();
-        let decoded = image::load_from_memory(&prepared).unwrap();
+        let decoded = image::load_from_memory(&prepared.bytes).unwrap();
         assert!(decoded.width() <= IMAGE_SEARCH_MAX_EDGE);
         assert!(decoded.height() <= IMAGE_SEARCH_MAX_EDGE);
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn image_search_upload_keeps_small_original_bytes() {
+        let source = image::RgbImage::from_fn(120, 80, |x, y| {
+            image::Rgb([(x % 255) as u8, (y % 255) as u8, 48])
+        });
+        let mut encoded = Vec::new();
+        image::DynamicImage::ImageRgb8(source)
+            .write_to(&mut Cursor::new(&mut encoded), image::ImageFormat::Png)
+            .unwrap();
+        let root = std::env::temp_dir().join(format!(
+            "jmcomic3-image-search-original-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("small.png");
+        std::fs::write(&path, &encoded).unwrap();
+
+        let prepared = prepare_image_search_upload(&path).unwrap();
+        assert_eq!(prepared.content_type, "image/png");
+        assert_eq!(prepared.file_name, "image.png");
+        assert_eq!(prepared.bytes, encoded);
 
         std::fs::remove_dir_all(root).unwrap();
     }
