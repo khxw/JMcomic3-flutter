@@ -171,6 +171,7 @@ impl JmClient {
                 "search_query": keyword,
                 "page": page,
                 "o": sort.as_str(),
+                "t": "",
             })),
             None,
         )
@@ -193,12 +194,30 @@ impl JmClient {
             return Ok(primary);
         }
 
+        // Match the web search flow first: use one cleaned canonical title
+        // before trying any alias fragments. This keeps the common case to at
+        // most two requests and avoids broad requests when the raw title was
+        // only obscured by author/language decorations.
+        let canonical_query = queries[1].clone();
+        let mut supplemental = Vec::new();
+        if let Ok(canonical) = self.search(&canonical_query, 1, sort).await {
+            if search_response_matches_title(&canonical, std::slice::from_ref(&canonical_query))
+                || search_response_redirects(&canonical)
+            {
+                return Ok(merge_search_responses(
+                    keyword,
+                    &queries,
+                    vec![primary, canonical],
+                ));
+            }
+            supplemental.push(canonical);
+        }
+
         let mut tasks = JoinSet::new();
-        for query in queries.iter().skip(1).cloned() {
+        for query in queries.iter().skip(2).cloned() {
             let client = self.clone();
             tasks.spawn(async move { client.search(&query, 1, sort).await });
         }
-        let mut supplemental = Vec::new();
         while let Some(result) = tasks.join_next().await {
             if let Ok(Ok(value)) = result {
                 supplemental.push(value);
