@@ -142,6 +142,114 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('numeric search keeps results behind comic detail navigation',
+      (tester) async {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(_channel, (call) async {
+      final request =
+          jsonDecode(call.arguments as String) as Map<String, dynamic>;
+      switch (request['method']) {
+        case 'last_search_histories':
+          return _response(<Object>[]);
+        case 'categories':
+          return _response({
+            'categories': <Object>[],
+            'blocks': <Object>[],
+          });
+        case 'comic_search':
+          return _response({
+            'total': 1,
+            'content': <Object>[],
+            'redirect_aid': 1214196,
+          });
+        case 'album':
+          return _response({
+            'id': 1214196,
+            'name': 'Fixture Comic',
+            'author': ['Author'],
+            'images': <Object>[],
+            'description': '',
+            'total_views': 0,
+            'likes': 0,
+            'series': <Object>[],
+            'series_id': 0,
+            'comment_total': 0,
+            'tags': <Object>[],
+            'works': <Object>[],
+            'related_list': <Object>[],
+            'liked': false,
+            'is_favorite': false,
+            'addtime': 100,
+            'update_at': 200,
+          });
+        case 'find_view_log':
+          return _response({
+            'id': 1214196,
+            'author': '',
+            'description': '',
+            'name': 'Fixture Comic',
+            'last_view_time': 0,
+            'last_view_chapter_id': 0,
+            'last_view_page': 0,
+          });
+        case 'chapter':
+          return _response({
+            'id': 1214196,
+            'series': <Object>[],
+            'tags': '',
+            'name': '',
+            'images': <Object>[],
+            'series_id': 1214196,
+            'is_favorite': false,
+            'liked': false,
+            'addtime': 200,
+          });
+        case 'album_published_at':
+          return _response('2025-09-12');
+        case 'load_property':
+          return _response('');
+        default:
+          return _response('');
+      }
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(_channel, null);
+    });
+
+    await initPagerViewMode();
+    await initPagerControllerMode();
+    await initPagerCoverRate();
+    await initPagerColumnCount();
+    await tester.pumpWidget(const MaterialApp(
+      locale: Locale('en'),
+      localizationsDelegates: [AppLocalizations.delegate],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: SearchScreen(),
+    ));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('compose-search-field')),
+      '1214196',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    final back = find.byKey(const ValueKey('comic-detail-back'));
+    expect(back, findsOneWidget);
+    await tester.tap(back);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Search results'), findsOneWidget);
+    final field = tester.widget<TextField>(
+      find.byKey(const ValueKey('compose-search-field')),
+    );
+    expect(field.controller?.text, '1214196');
+    expect(tester.takeException(), isNull);
+  });
+
   test('image search entities tolerate missing optional fields', () {
     final response = ImageSearchResponse.fromJson({
       'result_id': 'fixture',

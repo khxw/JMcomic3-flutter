@@ -801,7 +801,7 @@ class _PagerPagerState extends State<_PagerPager> {
 bool _redirectAid(int? redirectAid, BuildContext context) {
   if (redirectAid != null) {
     Navigator.of(context)
-        .pushReplacement(MaterialPageRoute(builder: (BuildContext context) {
+        .push(MaterialPageRoute(builder: (BuildContext context) {
       return ComicInfoScreen(redirectAid, null);
     }));
     return true;

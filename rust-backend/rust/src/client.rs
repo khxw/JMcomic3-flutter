@@ -21,6 +21,8 @@ const IMAGE_SEARCH_MAX_SOURCE_BYTES: u64 = 24 * 1024 * 1024;
 const IMAGE_SEARCH_MAX_EDGE: u32 = 2000;
 const IMAGE_SEARCH_JPEG_QUALITY: u8 = 92;
 const IMAGE_SEARCH_RESULT_LIMIT: usize = 20;
+const IMAGE_SEARCH_MIN_SIMILARITY: f64 = 30.0;
+const IMAGE_SEARCH_JM_VERIFIED_SCORE: f64 = 45.0;
 
 fn favorite_folder_form(
     action: &str,
@@ -186,9 +188,9 @@ impl JmClient {
             .mime_str("image/jpeg")?;
         let form = reqwest::multipart::Form::new()
             .part("file", file_part)
-            .text("factor", "1.2")
+            .text("factor", "1.4")
             .text("metadata_mode", "display")
-            .text("top_k", "25");
+            .text("top_k", "40");
         let response = self
             .inner
             .client
@@ -1090,11 +1092,14 @@ fn normalize_image_search_response(value: Value) -> Value {
         }
     }
 
-    hits.sort_by(|left, right| {
-        right["similarity"]
+    hits.retain(|hit| {
+        hit["similarity"]
             .as_f64()
-            .unwrap_or(0.0)
-            .partial_cmp(&left["similarity"].as_f64().unwrap_or(0.0))
+            .is_some_and(|score| score >= IMAGE_SEARCH_MIN_SIMILARITY)
+    });
+    hits.sort_by(|left, right| {
+        image_search_rank(right)
+            .partial_cmp(&image_search_rank(left))
             .unwrap_or(std::cmp::Ordering::Equal)
     });
     let mut seen = HashSet::new();
@@ -1119,6 +1124,15 @@ fn normalize_image_search_response(value: Value) -> Value {
         "warnings": value.get("warnings").cloned().unwrap_or(Value::Array(Vec::new())),
         "hits": hits,
     })
+}
+
+fn image_search_rank(hit: &Value) -> f64 {
+    let score = hit["similarity"].as_f64().unwrap_or(0.0);
+    if hit["source"].as_str() == Some("jmcomic") && score >= IMAGE_SEARCH_JM_VERIFIED_SCORE {
+        score + 8.0
+    } else {
+        score
+    }
 }
 
 fn normalize_image_search_segment(segment: &Value, score: f64) -> Option<Value> {
@@ -1959,6 +1973,42 @@ mod tests {
         assert_eq!(value["hits"][0]["external_id"], "7654321");
         assert_eq!(value["hits"][0]["title"], "Legacy Comic");
         assert_eq!(value["hits"][0]["similarity"], 88.0);
+    }
+
+    #[test]
+    fn image_search_filters_low_confidence_and_prefers_verified_jm_results() {
+        let value = normalize_image_search_response(json!({
+            "results": [
+                {
+                    "score": 60.0,
+                    "path_segments": [{
+                        "source_key": "nhentai",
+                        "external_id": "99",
+                        "metadata": {"title": {"primary": "Other source"}}
+                    }]
+                },
+                {
+                    "score": 55.0,
+                    "path_segments": [{
+                        "source_key": "jmcomic",
+                        "external_id": "1214196",
+                        "metadata": {"title": {"primary": "JM match"}}
+                    }]
+                },
+                {
+                    "score": 12.0,
+                    "path_segments": [{
+                        "source_key": "nhentai",
+                        "external_id": "100",
+                        "metadata": {"title": {"primary": "Low confidence"}}
+                    }]
+                }
+            ]
+        }));
+
+        assert_eq!(value["hits"].as_array().unwrap().len(), 2);
+        assert_eq!(value["hits"][0]["source"], "jmcomic");
+        assert_eq!(value["hits"][1]["source"], "nhentai");
     }
 
     #[test]
