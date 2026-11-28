@@ -571,7 +571,7 @@ class _ImageSourceCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 160),
+                duration: const Duration(milliseconds: 90),
                 child: busy
                     ? SizedBox(
                         key: const ValueKey('image-source-opening'),

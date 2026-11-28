@@ -117,7 +117,11 @@ class MainActivity : FlutterActivity() {
             "androidPickImageFromGallery" -> {
                 // Let Flutter present the pressed/loading frame before Android
                 // starts the out-of-process photo picker on the platform thread.
-                uiThreadHandler.postDelayed({ pickImageFromGallery(result) }, 80L)
+                window.decorView.postOnAnimation {
+                    window.decorView.postOnAnimation {
+                        pickImageFromGallery(result)
+                    }
+                }
                 return
             }
             "getUpdateDownloadDir" -> {
@@ -480,8 +484,8 @@ class MainActivity : FlutterActivity() {
         try {
             val options = ActivityOptions.makeCustomAnimation(
                 this,
-                android.R.anim.fade_in,
-                android.R.anim.fade_out,
+                R.anim.image_picker_enter,
+                R.anim.image_picker_exit,
             ).toBundle()
             startActivityForResult(intent, IMAGE_PICKER_REQUEST, options)
         } catch (error: Exception) {
