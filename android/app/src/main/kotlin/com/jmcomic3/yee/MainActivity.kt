@@ -2,6 +2,7 @@ package com.jmcomic3.yee
 
 import android.Manifest
 import android.app.Activity
+import android.app.ActivityOptions
 import android.content.ContentValues
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -114,7 +115,9 @@ class MainActivity : FlutterActivity() {
                 return
             }
             "androidPickImageFromGallery" -> {
-                uiThreadHandler.post { pickImageFromGallery(result) }
+                // Let Flutter present the pressed/loading frame before Android
+                // starts the out-of-process photo picker on the platform thread.
+                uiThreadHandler.postDelayed({ pickImageFromGallery(result) }, 80L)
                 return
             }
             "getUpdateDownloadDir" -> {
@@ -475,7 +478,12 @@ class MainActivity : FlutterActivity() {
                 }
             }
         try {
-            startActivityForResult(intent, IMAGE_PICKER_REQUEST)
+            val options = ActivityOptions.makeCustomAnimation(
+                this,
+                android.R.anim.fade_in,
+                android.R.anim.fade_out,
+            ).toBundle()
+            startActivityForResult(intent, IMAGE_PICKER_REQUEST, options)
         } catch (error: Exception) {
             pendingImagePickerResult = null
             result.error("image_picker_unavailable", error.message, null)
