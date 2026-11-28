@@ -186,11 +186,13 @@ impl JmClient {
     ) -> BackendResult<Value> {
         let queries = title_search_queries(keyword);
         let primary = self.search(keyword, page, sort).await?;
-        if page > 1
-            || queries.len() <= 1
-            || search_response_matches_title(&primary, &queries)
-            || search_response_redirects(&primary)
-        {
+        if page > 1 || search_response_redirects(&primary) {
+            return Ok(primary);
+        }
+        if search_response_matches_title(&primary, &queries) {
+            return Ok(merge_search_responses(keyword, &queries, vec![primary]));
+        }
+        if queries.len() <= 1 {
             return Ok(primary);
         }
 
@@ -2325,6 +2327,29 @@ mod tests {
 
         assert_eq!(merged["total"], 1);
         assert_eq!(merged["content"][0]["id"], 9);
+    }
+
+    #[test]
+    fn exact_title_is_reranked_ahead_of_noisy_fuzzy_results() {
+        let queries = vec![
+            "邻妻淫乱生活[仁志田メガネ] 近所妻淫ライフ [中国翻译]".to_string(),
+            "邻妻淫乱生活 近所妻淫ライフ".to_string(),
+        ];
+        let merged = merge_search_responses(
+            &queries[0],
+            &queries,
+            vec![json!({
+                "total": 10000,
+                "content": [
+                    {"id": 1493611, "name": "[独特のM] 僕は继母のATM [中国翻译]"},
+                    {"id": 1493560, "name": "邻妻淫乱生活[仁志田メガネ] 近所妻淫ライフ [中国翻译]"},
+                    {"id": 1493561, "name": "[云吞子个人汉化] ハプニングは尿意と共に"}
+                ]
+            })],
+        );
+
+        assert_eq!(merged["total"], 1);
+        assert_eq!(merged["content"][0]["id"], 1493560);
     }
 
     #[test]
