@@ -10,6 +10,8 @@ import 'components/compose_ui.dart';
 
 typedef ImageSearchFilePicker = Future<String?> Function();
 
+enum _ImageSourceKind { gallery, files }
+
 class ImageSearchScreen extends StatefulWidget {
   final ImageSearchFilePicker? pickGallery;
   final ImageSearchFilePicker? pickFiles;
@@ -28,6 +30,7 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
   String? _imagePath;
   String? _error;
   bool _searching = false;
+  _ImageSourceKind? _openingSource;
   bool _hasSearched = false;
   List<ImageSearchHit> _hits = const [];
 
@@ -49,14 +52,22 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
     return result.files.single.path;
   }
 
-  Future<void> _chooseImage(ImageSearchFilePicker picker) async {
-    if (_searching) return;
+  Future<void> _chooseImage(
+    _ImageSourceKind source,
+    ImageSearchFilePicker picker,
+  ) async {
+    if (_searching || _openingSource != null) return;
     String? path;
+    setState(() {
+      _openingSource = source;
+      _error = null;
+    });
     try {
       path = await picker();
     } catch (_) {
       if (mounted) {
         setState(() {
+          _openingSource = null;
           _error = context.l10n.tr(
             '无法打开图片来源，请检查系统权限后重试',
             en: 'Could not open the image source. Check system permissions.',
@@ -66,6 +77,8 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
       }
       return;
     }
+    if (!mounted) return;
+    setState(() => _openingSource = null);
     if (path == null || path.trim().isEmpty || !mounted) return;
 
     setState(() {
@@ -247,29 +260,42 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
   }
 
   Widget _buildSourcePicker(BuildContext context) {
+    final disabled = _searching || _openingSource != null;
     final gallery = _ImageSourceCard(
       key: const ValueKey('image-search-gallery'),
       icon: Icons.photo_library_rounded,
-      title: context.l10n.tr('从相册选择', en: 'Choose from gallery'),
+      title: _openingSource == _ImageSourceKind.gallery
+          ? context.l10n.tr('正在打开相册...', en: 'Opening gallery...')
+          : context.l10n.tr('从相册选择', en: 'Choose from gallery'),
       subtitle: context.l10n.tr(
         '打开系统相册或照片选择器',
         en: 'Open the system gallery or photo picker',
       ),
-      onTap: _searching
+      busy: _openingSource == _ImageSourceKind.gallery,
+      onTap: disabled
           ? null
-          : () => _chooseImage(widget.pickGallery ?? _pickFromGallery),
+          : () => _chooseImage(
+                _ImageSourceKind.gallery,
+                widget.pickGallery ?? _pickFromGallery,
+              ),
     );
     final files = _ImageSourceCard(
       key: const ValueKey('image-search-files'),
       icon: Icons.folder_open_rounded,
-      title: context.l10n.tr('从文件管理选择', en: 'Choose from files'),
+      title: _openingSource == _ImageSourceKind.files
+          ? context.l10n.tr('正在打开文件管理...', en: 'Opening files...')
+          : context.l10n.tr('从文件管理选择', en: 'Choose from files'),
       subtitle: context.l10n.tr(
         '浏览文件夹中的 JPG、PNG、WebP 或 GIF',
         en: 'Browse JPG, PNG, WebP, or GIF files',
       ),
-      onTap: _searching
+      busy: _openingSource == _ImageSourceKind.files,
+      onTap: disabled
           ? null
-          : () => _chooseImage(widget.pickFiles ?? _pickFromFiles),
+          : () => _chooseImage(
+                _ImageSourceKind.files,
+                widget.pickFiles ?? _pickFromFiles,
+              ),
     );
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -487,12 +513,14 @@ class _ImageSourceCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback? onTap;
+  final bool busy;
 
   const _ImageSourceCard({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.busy = false,
     Key? key,
   }) : super(key: key);
 
@@ -542,7 +570,24 @@ class _ImageSourceCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 160),
+                child: busy
+                    ? SizedBox(
+                        key: const ValueKey('image-source-opening'),
+                        width: 19,
+                        height: 19,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: scheme.primary,
+                        ),
+                      )
+                    : Icon(
+                        Icons.chevron_right_rounded,
+                        key: const ValueKey('image-source-idle'),
+                        color: scheme.onSurfaceVariant,
+                      ),
+              ),
             ],
           ),
         ),

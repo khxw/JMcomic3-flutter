@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -247,6 +248,43 @@ void main() {
       find.byKey(const ValueKey('compose-search-field')),
     );
     expect(field.controller?.text, '1214196');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('image source shows feedback while the system picker opens',
+      (tester) async {
+    final galleryGate = Completer<String?>();
+    var filePickerCalls = 0;
+    await tester.pumpWidget(MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: const [AppLocalizations.delegate],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: ImageSearchScreen(
+        pickGallery: () => galleryGate.future,
+        pickFiles: () async {
+          filePickerCalls++;
+          return null;
+        },
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('image-search-gallery')));
+    await tester.pump();
+
+    expect(find.text('Opening gallery...'), findsOneWidget);
+    expect(find.byKey(const ValueKey('image-source-opening')), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('image-search-files')),
+      warnIfMissed: false,
+    );
+    await tester.pump();
+    expect(filePickerCalls, 0);
+
+    galleryGate.complete(null);
+    await tester.pumpAndSettle();
+    expect(find.text('Choose from gallery'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
