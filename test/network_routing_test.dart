@@ -179,10 +179,12 @@ void main() {
       'cdn-msp3.jmapiproxy2.cc',
     );
 
+    final routeSavesBeforeRotation = savedApiHosts.length;
     final rotated = await rotateApiHostAfterInvalidResponse();
     expect(rotated, isTrue);
     expect(currentApiHostName, isNot('fast-api.example.com'));
     expect(savedApiHosts.last, currentApiHostName);
+    expect(savedApiHosts.length - routeSavesBeforeRotation, 1);
 
     final previousCdnHost = currentCdnHostName;
     final cdnRotated = await rotateCdnHostAfterFailure();

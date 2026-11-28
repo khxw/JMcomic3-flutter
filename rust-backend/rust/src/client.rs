@@ -797,10 +797,15 @@ impl JmClient {
     }
 
     pub fn add_cookie_header(&self, header: &str, url: &str) {
-        if !header.trim().is_empty() {
-            if let Ok(url) = reqwest::Url::parse(url) {
-                self.inner.cookie_jar.add_cookie_str(header, &url);
-            }
+        let Ok(url) = reqwest::Url::parse(url) else {
+            return;
+        };
+        for cookie in header
+            .split(';')
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            self.inner.cookie_jar.add_cookie_str(cookie, &url);
         }
     }
 
@@ -2034,6 +2039,18 @@ mod tests {
         assert!(decoded.height() <= IMAGE_SEARCH_MAX_EDGE);
 
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn cookie_header_restores_all_values_for_a_new_api_host() {
+        let client = JmClient::new(JmClientConfig::default()).unwrap();
+        client.add_cookie_header("AVS=token-value; uid=42", "https://new-api.example.com");
+
+        let restored = client
+            .cookie_header_for("https://new-api.example.com")
+            .unwrap();
+        assert!(restored.contains("AVS=token-value"));
+        assert!(restored.contains("uid=42"));
     }
 
     #[test]

@@ -149,6 +149,20 @@ fn reset_client() -> Result<(), String> {
     Ok(())
 }
 
+fn reset_client_preserving_cookie(state: &BackendState) -> Result<(), String> {
+    if let Some(cookie) = state
+        .client
+        .cookie_header_for(&state.client.api_base_url())
+        .filter(|value| !value.trim().is_empty())
+    {
+        state
+            .store
+            .save("cookie", &cookie)
+            .map_err(|error| error.to_string())?;
+    }
+    reset_client()
+}
+
 fn client_from_store(store: &PropertyStore) -> BackendResult<JmClient> {
     let defaults = JmClientConfig::default();
     let mut config = defaults.clone();
@@ -319,7 +333,7 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
             .validated();
             match config {
                 Ok(config) => match state.store.save("api_host", &config.api_host) {
-                    Ok(()) => match reset_client() {
+                    Ok(()) => match reset_client_preserving_cookie(&state) {
                         Ok(()) => InvokeResponse::success_text(""),
                         Err(error) => InvokeResponse::error(error),
                     },
@@ -337,7 +351,7 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
             .validated();
             match config {
                 Ok(config) => match state.store.save("cdn_host", &config.image_host) {
-                    Ok(()) => match reset_client() {
+                    Ok(()) => match reset_client_preserving_cookie(&state) {
                         Ok(()) => InvokeResponse::success_text(""),
                         Err(error) => InvokeResponse::error(error),
                     },
@@ -354,7 +368,7 @@ async fn dispatch(request: InvokeRequest) -> InvokeResponse {
             };
             match JmClient::new(config) {
                 Ok(_) => match state.store.save("proxy", proxy.trim()) {
-                    Ok(()) => match reset_client() {
+                    Ok(()) => match reset_client_preserving_cookie(&state) {
                         Ok(()) => InvokeResponse::success_text(""),
                         Err(error) => InvokeResponse::error(error),
                     },

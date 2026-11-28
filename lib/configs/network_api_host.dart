@@ -8,6 +8,8 @@ import 'package:jmcomic3/l10n/app_localizations.dart';
 
 const _defaultApiHost = "www.cdngwc.club";
 const _automaticProbeTimeout = Duration(milliseconds: 800);
+const _rotationFallbackTimeout = Duration(milliseconds: 2500);
+const _apiRotationCooldown = Duration(seconds: 2);
 const _lastSuccessfulApiHostKey = "api_host_last_success";
 // 动态域名拉取失败时使用内置移动端 API 候选，保持设置页和后端候选一致。
 const _fallbackApiHosts = <String>[
@@ -24,6 +26,7 @@ String _lastSuccessfulApiHost = "";
 
 List<String> _apiList = [];
 Future<bool>? _apiRotationInflight;
+DateTime? _lastApiRotationAttemptAt;
 
 Future<void> initApiHost() async {
   Methods.apiHostRecoveryHandler = rotateApiHostAfterInvalidResponse;
@@ -84,27 +87,50 @@ Future<bool> _rotateApiHostForRequest(int observedVersion) async {
 
 Future<bool> _performApiHostRotation() async {
   if (_apiList.isEmpty) return false;
-  final current = _apiHost.toLowerCase();
-  final currentIndex =
-      _apiList.indexWhere((host) => host.toLowerCase() == current);
-  final start = currentIndex >= 0 ? currentIndex + 1 : 0;
-  for (var offset = 0; offset < _apiList.length; offset++) {
-    final candidate = _apiList[(start + offset) % _apiList.length];
-    if (candidate.toLowerCase() == current) continue;
-    try {
-      await methods.saveApiHost(candidate);
-      _apiHost = candidate;
-      Methods.apiRouteVersion++;
-      _mergeApiList([candidate]);
-      debugPrient("API route switched after invalid response: $candidate");
-      return true;
-    } catch (error) {
-      debugPrient(
-        "API route switch failed for $candidate: ${error.runtimeType}",
-      );
-    }
+  final now = DateTime.now();
+  final lastAttempt = _lastApiRotationAttemptAt;
+  if (lastAttempt != null &&
+      now.difference(lastAttempt) < _apiRotationCooldown) {
+    return false;
   }
-  return false;
+  _lastApiRotationAttemptAt = now;
+  final current = _apiHost.toLowerCase();
+  final candidates = _apiList
+      .where((host) => host.toLowerCase() != current)
+      .toList(growable: false);
+  if (candidates.isEmpty) return false;
+
+  // Resolve one healthy replacement before persisting it. Sequential blind
+  // switches can walk through the entire host list during a startup burst.
+  var selected = await selectFastestHost(
+    candidates,
+    (host, timeout) => methods.ping(host, timeout: timeout),
+    timeout: _automaticProbeTimeout,
+  );
+  selected ??= await selectFastestHost(
+    candidates,
+    (host, timeout) => methods.ping(host, timeout: timeout),
+    timeout: _rotationFallbackTimeout,
+    returnOnFirstSuccess: true,
+  );
+  if (selected == null) {
+    debugPrient('No healthy API route found during recovery rotation');
+    return false;
+  }
+  try {
+    await methods.saveApiHost(selected.host);
+    _apiHost = selected.host;
+    Methods.apiRouteVersion++;
+    _mergeApiList([selected.host]);
+    await _rememberSuccessfulApiHost(selected.host);
+    debugPrient("API route switched after invalid response: ${selected.host}");
+    return true;
+  } catch (error) {
+    debugPrient(
+      "API route switch failed for ${selected.host}: ${error.runtimeType}",
+    );
+    return false;
+  }
 }
 
 String get currentApiHostName => (_apiHost);
