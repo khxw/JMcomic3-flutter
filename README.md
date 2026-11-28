@@ -10,7 +10,7 @@ JMComic3 并存安装。
 
 ## 当前版本
 
-**v1.8.160+289** · Android ARM64 · API 24+
+**v1.8.180+309** · Android ARM64 · API 24+
 
 - 最新发布：[GitHub Releases](https://github.com/khxw/JMcomic3-flutter/releases/latest)
 - 完整更新记录：[CHANGELOG.md](https://github.com/khxw/JMcomic3-flutter/blob/main/CHANGELOG.md)
@@ -20,7 +20,7 @@ JMComic3 并存安装。
 
 | 文件 | 用途 |
 | --- | --- |
-| `JMComic3-Mod-v1.8.160-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
+| `JMComic3-Mod-v1.8.180-arm64-v8a-release.apk` | 适用于支持 ARM64 的 Android 设备 |
 | `SHA256SUMS.txt` | 校验 APK 文件完整性 |
 
 当前 Fork 只发布 **Android ARM64 APK**。本仓库没有为这个修改版提供 ARM32、
@@ -46,6 +46,8 @@ Windows 或 AAB 安装包。
 - 支持可配置图片预加载，可选择前后双向或仅向后预加载。
 - 首次引导页加入缓慢动态渐变、柔和光晕和精简布局。
 - 搜索结果页返回时先回到搜索首页，再次返回才退出搜索。
+- 漫画搜索：优化完整标题匹配，支持清理作者与语言标签、拆分常见分隔符、过滤模糊噪声并将精确标题置顶。
+- 以图搜漫（测试）：支持从相册或文件选择图片，并根据封面或漫画截图查找作品。
 - 漫画详情页获取与网页一致的上架日期，避免把最近更新时间显示成发布时间。
 - 书架分组文件夹和漫画封面显示更新红点。
 - 漫画超分暂时关闭，设置页和阅读页不再提供超分入口或调用本地推理。
@@ -84,13 +86,13 @@ Windows 或 AAB 安装包。
 Windows PowerShell 校验示例：
 
 ```powershell
-Get-FileHash .\JMComic3-Mod-v1.8.160-arm64-v8a-release.apk -Algorithm SHA256
+Get-FileHash .\JMComic3-Mod-v1.8.180-arm64-v8a-release.apk -Algorithm SHA256
 ```
 
 当前 APK SHA-256：
 
 ```text
-2fb35c81463e1101af1e6a992f2046c1b346fb25bbdfc0a11c827cd138f27002
+E360676FB1BCA4BD51EF2077F9477381807E9E944D35F4F202566BA14EADC236
 ```
 
 ## 构建
